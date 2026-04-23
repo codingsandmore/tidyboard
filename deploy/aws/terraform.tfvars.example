@@ -1,0 +1,55 @@
+# ── Copy this file to terraform.tfvars and fill in your values ────────────────
+# terraform.tfvars is git-ignored — never commit real values.
+
+# AWS named profile from ~/.aws/credentials
+# Create it with: aws configure --profile tidyboard
+aws_profile = "tidyboard"
+
+# AWS region for the deployment
+aws_region = "us-east-1"
+
+# Short name used as a resource prefix (lowercase alphanumeric + hyphens only)
+project = "tidyboard"
+
+# Environment label: prod, staging, or dev
+environment = "prod"
+
+# Your registered domain name, e.g. "tidyboard.example.com"
+# An ACM certificate will be requested for this domain.
+domain_name = "tidyboard.example.com"
+
+# Set to true if your domain is managed by Route 53.
+# If false, terraform apply will output the DNS validation CNAME records
+# you need to add manually at your registrar / DNS provider.
+create_route53_records = false
+
+# Required when create_route53_records = true.
+# Find it in the AWS Console → Route 53 → Hosted zones.
+# route53_zone_id = "Z1234567890ABC"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# Aurora Serverless v2 ACU range.
+# 0.5 ACU ≈ 0.5 vCPU + 1 GB RAM; minimum billable unit.
+# At 0.5 ACU with auto-pause disabled: ~$43/month base.
+db_min_capacity = 0.5
+db_max_capacity = 4
+
+# ── ECS desired task counts ───────────────────────────────────────────────────
+# For a single-household deployment, 1 task per service is sufficient.
+# Set to 0 to stop a service without destroying its definition.
+ecs_desired_count_server  = 1
+ecs_desired_count_web     = 1
+ecs_desired_count_sync    = 1
+ecs_desired_count_scraper = 1
+
+# ── Container sizing ──────────────────────────────────────────────────────────
+# Fargate billing is per vCPU-second + GB-second.
+# 512 CPU + 1024 MB ≈ $0.50/day per task at us-east-1 on-demand rates.
+server_cpu    = 512
+server_memory = 1024
+web_cpu       = 512
+web_memory    = 1024
+sync_cpu      = 256
+sync_memory   = 512
+scraper_cpu   = 256
+scraper_memory = 512

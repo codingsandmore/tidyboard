@@ -10,6 +10,11 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  // output: 'standalone' produces a self-contained Node.js server in
+  // .next/standalone/ — required for the Docker-based AWS/ECS deployment.
+  // The web/Dockerfile copies this directory to build a minimal runtime image.
+  // Local dev (next dev) and Vercel are unaffected by this setting.
+  output: "standalone",
   turbopack: {
     // Pin root to this project so Next doesn't pick up a lockfile
     // from a parent IdeaProjects directory.

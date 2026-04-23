@@ -206,51 +206,27 @@ Ensure port 80 and 443 are open in your firewall/security group.
 
 ---
 
-### Option 2 — Vercel (web) + Managed Postgres
+### Option 2 — AWS ECS Fargate (recommended for cloud hosting)
 
-Use this if you want the frontend on Vercel's global CDN while running the Go
-backend on a VM or managed PaaS.
+A full Terraform infrastructure-as-code stack is provided in `deploy/aws/`.
+One `terraform apply` provisions:
 
-**Frontend (Vercel)**
+- **ECS Fargate** — four services: Go server, Next.js web, Python sync-worker,
+  Python recipe-scraper
+- **Aurora Serverless v2** (PostgreSQL 16) with **RDS Proxy**
+- **ElastiCache Redis 7**
+- **ALB** with HTTPS (ACM certificate)
+- **CloudFront** CDN in front of the ALB
+- **S3** — media and backup buckets
+- **Secrets Manager** — all secrets (JWT, DB, Redis, Stripe, OAuth)
+- **Route 53** — optional, gated by `create_route53_records`
 
-1. Connect the repo to Vercel, set root to `web/`.
-2. Set environment variable `NEXT_PUBLIC_API_URL` to your Go API URL.
-3. Automatic deploys on every push to `main`.
+**Full guide**: [`deploy/aws/README.md`](deploy/aws/README.md)
+**Quick reference**: [`AWS_DEPLOYMENT.md`](AWS_DEPLOYMENT.md)
 
-**Backend options**
-
-| Option | Managed Postgres | Go server |
-|---|---|---|
-| Supabase | Supabase Postgres (free tier available) | VM / Railway / Fly.io |
-| Neon | Neon serverless Postgres | VM / Render |
-| Amazon RDS | RDS PostgreSQL 16 | EC2 / ECS |
-
-Set `TIDYBOARD_DATABASE_*` env vars to point at your managed database.
-Set `sslmode: require` in `config.yaml` for managed databases.
-
-**Managed Redis options**: Upstash (serverless Redis), Redis Cloud free tier,
-AWS ElastiCache.
-
----
-
-### Option 3 — AWS Lambda (Phase 2)
-
-> **This deployment mode is planned for Phase 2 and is not yet implemented.**
-
-The Go backend is structured to support 16 Lambda functions (one per domain)
-via the `cmd/lambda/` entry points. Infrastructure outline:
-
-- **API Gateway** (HTTP API) → Lambda functions
-- **Aurora Serverless v2** (PostgreSQL-compatible) with **RDS Proxy** for
-  connection pooling
-- **ElastiCache Serverless** for Redis
-- **Lambda layers** for shared Go code
-- **S3 + CloudFront** for static asset hosting
-- **AWS Secrets Manager** for all secrets
-- **CloudWatch** for structured logging and metrics
-
-Estimated monthly cost for a single-household deployment: $5–15 USD (mostly
-Aurora minimum ACU charge).
+Estimated cost for a single-household deployment: ~$150–160/month.
+See the cost table in `deploy/aws/README.md` for a line-item breakdown and
+cost-reduction tips (Fargate Spot, desired_count = 0 for idle services).
 
 ---
 
