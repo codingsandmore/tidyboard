@@ -1,0 +1,98 @@
+# Components
+
+- **PhoneFrame** — props: w, h, showStatus — `specs/design/app.jsx`
+- **DC** — `specs/design/design-canvas.jsx`
+- **IOSStatusBar** — props: dark, time — `specs/design/ios-frame.jsx`
+- **MAC_FONT** — `specs/design/macos-window.jsx`
+- **Icon** — props: name, size, color, stroke, style — `specs/design/primitives.jsx`
+- **DashKiosk** — props: dark — `specs/design/screens/dashboard.jsx`
+- **Equity** — props: dark — `specs/design/screens/equity.jsx`
+- **ObShell** — props: footer, pad, phone — `specs/design/screens/onboarding.jsx`
+- **RecipeImport** — `specs/design/screens/recipes.jsx`
+- **RoutineKid** — props: dark — `specs/design/screens/routine.jsx`
+- **AuditLogRoute** [client] — `web/src/app/admin/audit/page.tsx`
+- **AuditPreviewPage** [client] — `web/src/app/admin/audit/preview/page.tsx`
+- **Page** — `web/src/app/calendar/agenda/page.tsx`
+- **Page** — `web/src/app/calendar/day/page.tsx`
+- **Page** — `web/src/app/calendar/day-dark/page.tsx`
+- **Page** — `web/src/app/calendar/event/page.tsx`
+- **CalendarLayout** — `web/src/app/calendar/layout.tsx`
+- **Page** — `web/src/app/calendar/month/page.tsx`
+- **CalendarPage** [client] — `web/src/app/calendar/page.tsx`
+- **Page** — `web/src/app/calendar/week/page.tsx`
+- **Page** — `web/src/app/dashboard/desktop/page.tsx`
+- **Page** — `web/src/app/dashboard/kiosk/page.tsx`
+- **Page** — `web/src/app/dashboard/kiosk-ambient/page.tsx`
+- **Page** — `web/src/app/dashboard/kiosk-columns/page.tsx`
+- **Page** — `web/src/app/dashboard/kiosk-dark/page.tsx`
+- **Page** — `web/src/app/dashboard/phone/page.tsx`
+- **EquityLayout** — `web/src/app/equity/layout.tsx`
+- **EquityPage** [client] — `web/src/app/equity/page.tsx`
+- **Page** — `web/src/app/equity/preview/page.tsx`
+- **Page** — `web/src/app/equity/preview-dark/page.tsx`
+- **Page** — `web/src/app/equity/preview-scales/page.tsx`
+- **GlobalError** [client] — props: error, reset — `web/src/app/error.tsx`
+- **RootLayout** — `web/src/app/layout.tsx`
+- **ListDetailPage** [client] — props: params — `web/src/app/lists/[id]/page.tsx`
+- **ListsPage** — `web/src/app/lists/page.tsx`
+- **Page** — `web/src/app/lists/preview/page.tsx`
+- **Page** — `web/src/app/lists/preview-detail/page.tsx`
+- **Loading** — `web/src/app/loading.tsx`
+- **LockLayout** — `web/src/app/lock/layout.tsx`
+- **Page** — `web/src/app/lock/members/page.tsx`
+- **LockPage** [client] — `web/src/app/lock/page.tsx`
+- **Page** — `web/src/app/lock/screen/page.tsx`
+- **LoginPage** [client] — `web/src/app/login/page.tsx`
+- **MealsPage** — `web/src/app/meals/page.tsx`
+- **Page** — `web/src/app/meals/preview/page.tsx`
+- **NotFound** — `web/src/app/not-found.tsx`
+- **OfflinePage** — `web/src/app/offline/page.tsx`
+- **OnboardingStep** — props: params — `web/src/app/onboarding/[step]/page.tsx`
+- **OnboardingLayout** — `web/src/app/onboarding/layout.tsx`
+- **OnboardingPage** [client] — `web/src/app/onboarding/page.tsx`
+- **Home** [client] — `web/src/app/page.tsx`
+- **PinLoginPage** [client] — `web/src/app/pin-login/page.tsx`
+- **Preview** — `web/src/app/preview/page.tsx`
+- **RacePage** — `web/src/app/race/page.tsx`
+- **Page** — `web/src/app/race/preview/page.tsx`
+- **RecipeDetailPage** — props: params — `web/src/app/recipes/[id]/page.tsx`
+- **RecipeImportPage** — `web/src/app/recipes/import/page.tsx`
+- **RecipesPage** — `web/src/app/recipes/page.tsx`
+- **Page** — `web/src/app/recipes/preview-detail/page.tsx`
+- **Page** — `web/src/app/recipes/preview-detail-dark/page.tsx`
+- **Page** — `web/src/app/recipes/preview-import/page.tsx`
+- **Page** — `web/src/app/recipes/preview-preview/page.tsx`
+- **Page** — `web/src/app/routines/checklist/page.tsx`
+- **Page** — `web/src/app/routines/kid/page.tsx`
+- **Page** — `web/src/app/routines/kid-dark/page.tsx`
+- **RoutinesLayout** — `web/src/app/routines/layout.tsx`
+- **RoutinesPage** [client] — `web/src/app/routines/page.tsx`
+- **Page** — `web/src/app/routines/path/page.tsx`
+- **AISettingsCard** [client] — props: label, provider, value, onSet, onClear — `web/src/app/settings/ai-section.tsx`
+- **SettingsPage** [client] — `web/src/app/settings/page.tsx`
+- **Page** — `web/src/app/settings/preview/page.tsx`
+- **ShoppingPage** [client] — `web/src/app/shopping/page.tsx`
+- **Page** — `web/src/app/shopping/preview/page.tsx`
+- **AdaptiveDashboard** — `web/src/components/adaptive-dashboard.tsx`
+- **AdminGate** [client] — `web/src/components/admin-gate.tsx`
+- **AuthGate** [client] — `web/src/components/auth-gate.tsx`
+- **PhoneFrame** — props: w, h, showStatus — `web/src/components/frames/device-frames.tsx`
+- **RecipeDetailThemed** [client] — props: recipe — `web/src/components/recipe-detail-themed.tsx`
+- **Scene** — props: label, pad — `web/src/components/scene.tsx`
+- **BottomNav** — props: tabs, active, dark, compact — `web/src/components/screens/bottom-nav.tsx`
+- **DashDesktop** [client] — `web/src/components/screens/dashboard-desktop.tsx`
+- **DashKioskAmbient** [client] — `web/src/components/screens/dashboard-kiosk-ambient.tsx`
+- **DashKioskColumns** [client] — `web/src/components/screens/dashboard-kiosk-columns.tsx`
+- **DashKiosk** [client] — props: dark — `web/src/components/screens/dashboard-kiosk.tsx`
+- **DashPhone** [client] — `web/src/components/screens/dashboard-phone.tsx`
+- **Equity** [client] — props: dark — `web/src/components/screens/equity.tsx`
+- **ListsIndex** [client] — `web/src/components/screens/lists.tsx`
+- **Onboarding** [client] — props: step — `web/src/components/screens/onboarding.tsx`
+- **RecipeImport** [client] — `web/src/components/screens/recipes.tsx`
+- **RoutineKid** [client] — props: dark — `web/src/components/screens/routine.tsx`
+- **SWRegister** [client] — `web/src/components/sw-register.tsx`
+- **ThemeProvider** [client] — `web/src/components/theme-provider.tsx`
+- **I18nProvider** [client] — props: locale, messages — `web/src/i18n/provider.tsx`
+- **ApiProvider** [client] — `web/src/lib/api/provider.tsx`
+- **AuthProvider** [client] — `web/src/lib/auth/auth-store.tsx`
+- **WSProvider** [client] — `web/src/lib/ws/ws-provider.tsx`

@@ -1,0 +1,306 @@
+# Libraries
+
+- `internal/broadcast/broadcast.go`
+  - function NewRedisBroadcaster: (client *redis.Client) *RedisBroadcaster
+  - function NewMemoryBroadcaster: () *MemoryBroadcaster
+  - class Event
+  - class RedisBroadcaster
+  - class MemoryBroadcaster
+  - interface Broadcaster
+- `internal/broadcast/chaos.go`
+  - function NewChaosBroadcaster: (inner Broadcaster, cfg ChaosBroadcastConfig) *ChaosBroadcaster
+  - class ChaosBroadcaster
+  - class ChaosBroadcastConfig
+- `internal/client/recipe_client.go`
+  - function WithRecipeRetries: (n int) RecipeClientOption
+  - function NewRecipeClient: (baseURL string, timeout time.Duration, opts ...RecipeClientOption) *RecipeClient
+  - class RecipeClient
+  - class Ingredient
+  - class ScrapedRecipe
+- `internal/client/sync_client.go`
+  - function WithSyncRetries: (n int) SyncClientOption
+  - function NewSyncClient: (baseURL string, timeout time.Duration, opts ...SyncClientOption) *SyncClient
+  - function IsRetryable: (err error) bool
+  - class SyncClient
+  - class SyncRequest
+  - class SyncedEvent
+  - _...2 more_
+- `internal/config/config.go`
+  - class Config
+  - class ServeCmd
+  - class MigrateCmd
+  - class BackupCLICmd
+  - class MaintCmd
+  - class ServerConfig
+  - _...11 more_
+- `internal/handler/admin.go` — function NewAdminHandler: (audit *service.AuditService, backup *service.BackupService) *AdminHandler, class AdminHandler
+- `internal/handler/admin_reset.go` — function NewResetHandler: (pool *pgxpool.Pool) *ResetHandler, class ResetHandler
+- `internal/handler/auth.go` — function NewAuthHandler: (auth *service.AuthService) *AuthHandler, class AuthHandler
+- `internal/handler/billing.go` — function NewBillingHandler: (svc *service.BillingService) *BillingHandler, class BillingHandler
+- `internal/handler/calendar.go` — function NewCalendarHandler: (q *query.Queries, sync *service.SyncService) *CalendarHandler, class CalendarHandler
+- `internal/handler/event.go` — function NewEventHandler: (svc *service.EventService) *EventHandler, class EventHandler
+- `internal/handler/health.go`
+  - function Health: (version string) http.HandlerFunc
+  - function Ready: (cfg ReadyConfig) http.HandlerFunc
+  - class ReadyConfig
+- `internal/handler/household.go` — function NewHouseholdHandler: (svc *service.HouseholdService) *HouseholdHandler, class HouseholdHandler
+- `internal/handler/list.go` — function NewListHandler: (svc *service.ListService) *ListHandler, class ListHandler
+- `internal/handler/media.go` — function NewMediaHandler: (storage service.StorageAdapter, storageCfg config.StorageConfig) *MediaHandler, class MediaHandler
+- `internal/handler/member.go` — function NewMemberHandler: (svc *service.MemberService) *MemberHandler, class MemberHandler
+- `internal/handler/oauth.go` — function NewOAuthHandler: (svc *service.OAuthService) *OAuthHandler, class OAuthHandler
+- `internal/handler/recipe.go` — function NewRecipeHandler: (svc *service.RecipeService) *RecipeHandler, class RecipeHandler
+- `internal/handler/respond/respond.go`
+  - function JSON: (w http.ResponseWriter, status int, v any)
+  - function Error: (w http.ResponseWriter, status int, code, message string)
+  - function NotImplemented: (w http.ResponseWriter)
+- `internal/handler/sync.go` — function NewSyncHandler: (svc *service.SyncService) *SyncHandler, class SyncHandler
+- `internal/handler/ws.go` — function NewWSHandler: (broadcaster broadcast.Broadcaster, jwtSecret string) *WSHandler, class WSHandler
+- `internal/middleware/auth.go`
+  - function Auth: (jwtSecret string) func(http.Handler) http.Handler
+  - function AccountIDFromCtx: (ctx context.Context) (uuid.UUID, bool)
+  - function HouseholdIDFromCtx: (ctx context.Context) (uuid.UUID, bool)
+  - function MemberIDFromCtx: (ctx context.Context) (uuid.UUID, bool)
+  - function RoleFromCtx: (ctx context.Context) string
+  - class Claims
+- `internal/middleware/compress.go` — function Compress: (next http.Handler) http.Handler
+- `internal/middleware/context.go`
+  - function InjectRequestMeta: () func(http.Handler) http.Handler
+  - function RemoteAddrFromCtx: (ctx context.Context) string
+  - function UserAgentFromCtx: (ctx context.Context) string
+- `internal/middleware/cors.go` — function CORS: (allowedOrigins []string) func(http.Handler) http.Handler
+- `internal/middleware/logger.go` — function Logger: (logger *slog.Logger) func(http.Handler) http.Handler
+- `internal/middleware/metrics.go`
+  - function NewMetrics: () *Metrics
+  - function NewMetricsWithRegistry: (reg prometheus.Registerer) *Metrics
+  - function DBPoolGauge: () *prometheus.GaugeVec
+  - function WSClientsGauge: () prometheus.Gauge
+  - function BackgroundJobHistogram: () *prometheus.HistogramVec
+  - function AuditEntriesCounter: () prometheus.Counter
+  - _...1 more_
+- `internal/middleware/ratelimit.go`
+  - function NewRateLimiter: (requestsPerMinute int) *RateLimiter
+  - function NewAccountRateLimiter: (rdb *redis.Client, limitPerMin int) *AccountRateLimiter
+  - class RateLimiter
+  - class AccountRateLimiter
+- `internal/middleware/recovery.go` — function Recovery: (logger *slog.Logger) func(http.Handler) http.Handler
+- `internal/middleware/requestsize.go` — function MaxRequestBody: (maxBytes int64) func(http.Handler) http.Handler, function HandleMaxBytesError: (w http.ResponseWriter, err error) bool
+- `internal/middleware/testhelpers.go` — function WithTestAccountID: (r *http.Request, accountID string) *http.Request
+- `internal/model/account.go`
+  - class Account
+  - class CreateAccountRequest
+  - class LoginRequest
+  - class PINLoginRequest
+  - class AuthResponse
+- `internal/model/event.go`
+  - class Event
+  - class CreateEventRequest
+  - class UpdateEventRequest
+  - class ListEventsQuery
+- `internal/model/household.go`
+  - class Household
+  - class CreateHouseholdRequest
+  - class UpdateHouseholdRequest
+  - class Invitation
+- `internal/model/list.go`
+  - class List
+  - class ListItem
+  - class CreateListRequest
+  - class UpdateListRequest
+  - class CreateListItemRequest
+  - class UpdateListItemRequest
+- `internal/model/member.go`
+  - class Member
+  - class CreateMemberRequest
+  - class UpdateMemberRequest
+- `internal/model/recipe.go`
+  - class Recipe
+  - class RecipeIngredient
+  - class RecipeStep
+  - class NutritionInfo
+  - class CreateRecipeRequest
+  - class ImportRecipeRequest
+  - _...1 more_
+- `internal/query/account.sql.go` — class CreateAccountParams, class UpdateAccountParams
+- `internal/query/audit.sql.go`
+  - class InsertAuditEntryParams
+  - class ListAccountAuditParams
+  - class ListHouseholdAuditParams
+- `internal/query/backup.sql.go`
+  - class InsertBackupRecordParams
+  - class ListBackupRecordsParams
+  - class UpdateBackupRecordParams
+  - class UpdateBackupS3KeyParams
+- `internal/query/db.go`
+  - function New: (db DBTX) *Queries
+  - class Queries
+  - interface DBTX
+- `internal/query/event.sql.go`
+  - class CreateEventParams
+  - class DeleteEventParams
+  - class GetCalendarParams
+  - class CreateCalendarParams
+  - class GetEventParams
+  - class GetEventByExternalIDParams
+  - _...3 more_
+- `internal/query/household.sql.go`
+  - class CreateHouseholdParams
+  - class RegenerateInviteCodeParams
+  - class UpdateHouseholdParams
+- `internal/query/list.sql.go`
+  - class CompleteAllItemsParams
+  - class CreateListParams
+  - class CreateListItemParams
+  - class DeleteListParams
+  - class DeleteListItemParams
+  - class GetListParams
+  - _...4 more_
+- `internal/query/member.sql.go`
+  - class CreateMemberParams
+  - class DeleteMemberParams
+  - class GetMemberParams
+  - class GetMemberByAccountAndHouseholdParams
+  - class UpdateMemberParams
+- `internal/query/models.go`
+  - class Account
+  - class AuditEntry
+  - class BackupRecord
+  - class Calendar
+  - class Event
+  - class Household
+  - _...11 more_
+- `internal/query/oauth.sql.go`
+  - class DeleteOAuthTokenParams
+  - class GetOAuthTokenParams
+  - class UpsertOAuthTokenParams
+- `internal/query/recipe.sql.go`
+  - class CreateRecipeParams
+  - class DeleteRecipeParams
+  - class GetRecipeParams
+  - class GetRecipeBySourceURLParams
+  - class IncrementTimesCookedParams
+  - class SearchRecipesParams
+  - _...1 more_
+- `internal/query/subscription.sql.go` — class UpdateSubscriptionStatusParams, class UpsertSubscriptionParams
+- `internal/service/audit.go` — function NewAuditService: (q *query.Queries) *AuditService, class AuditService
+- `internal/service/auth.go` — function NewAuthService: (cfg config.AuthConfig, q *query.Queries) *AuthService, class AuthService
+- `internal/service/backup.go` — function NewBackupService: (cfg config.BackupConfig, dbCfg config.DatabaseConfig, q *query.Queries) *BackupService, class BackupService
+- `internal/service/billing.go` — function NewBillingService: (cfg config.StripeConfig, q *query.Queries) *BillingService, class BillingService
+- `internal/service/event.go` — function NewEventService: (q *query.Queries, bc broadcast.Broadcaster, audit *AuditService) *EventService, class EventService
+- `internal/service/household.go` — function NewHouseholdService: (q *query.Queries) *HouseholdService, class HouseholdService
+- `internal/service/list.go` — function NewListService: (q *query.Queries, bc broadcast.Broadcaster, audit *AuditService) *ListService, class ListService
+- `internal/service/member.go` — function NewMemberService: (q *query.Queries, auth *AuthService) *MemberService, class MemberService
+- `internal/service/oauth.go` — function NewOAuthService: (cfg config.OAuthConfig, q *query.Queries) *OAuthService, class OAuthService
+- `internal/service/recipe.go` — function NewRecipeService: (q *query.Queries, scraper *client.RecipeClient, storage ...StorageAdapter) *RecipeService, class RecipeService
+- `internal/service/storage.go`
+  - function NewStorage: (ctx context.Context, cfg config.StorageConfig) (StorageAdapter, error)
+  - function GenMediaKey: (householdID uuid.UUID, t time.Time, content []byte, ext string) string
+  - function DetectContentType: (data []byte) string
+  - function ExtFromContentType: (ct string) string
+  - class LocalStorage
+  - class S3Storage
+  - _...1 more_
+- `internal/service/sync.go`
+  - function NewSyncService: (q *query.Queries, sync *client.SyncClient) *SyncService
+  - class SyncService
+  - class SyncResult
+- `internal/testutil/chaos.go` — function ChaosMiddleware: (cfg ChaosConfig) func(http.Handler) http.Handler, class ChaosConfig
+- `internal/testutil/db.go` — function SetupTestDB: (t *testing.T) *pgxpool.Pool, function WithTestTx: (t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context) )
+- `internal/testutil/factories.go`
+  - function MakeHousehold: (opts ...HouseholdOption) *model.Household
+  - function WithHouseholdName: (name string) HouseholdOption
+  - function MakeMember: (householdID uuid.UUID, opts ...MemberOption) *model.Member
+  - function WithMemberRole: (role string) MemberOption
+  - function WithMemberName: (name string) MemberOption
+  - function MakeEvent: (householdID uuid.UUID, opts ...EventOption) *model.Event
+  - _...2 more_
+- `internal/testutil/jwt.go` — function MakeJWT: (accountID, householdID, memberID uuid.UUID, role string) string
+- `loadtest/auth.js` — function setup: () => void, const options
+- `loadtest/events.js` — function setup: () => void, const options
+- `loadtest/helpers/config.js`
+  - function jsonHeaders: (token) => void
+  - function registerAndLogin: (suffix) => void
+  - const BASE_URL
+  - const defaultThresholds
+- `loadtest/helpers/data.js`
+  - function makeEvent: () => void
+  - function makeList: () => void
+  - function makeListItem: (index) => void
+  - function makePinPayload: (email, pin) => void
+- `loadtest/load.js` — function setup: () => void, const options
+- `loadtest/smoke.js` — function setup: () => void, const options
+- `loadtest/soak.js` — function setup: () => void, const options
+- `loadtest/spike.js` — function setup: () => void, const options
+- `loadtest/stress.js` — function setup: () => void, const options
+- `services/recipe-scraper/src/recipe_scraper/clock.py`
+  - class Clock
+  - class RealClock
+  - class FrozenClock
+- `services/recipe-scraper/src/recipe_scraper/config.py` — function get_settings: () -> Settings, class Settings
+- `services/recipe-scraper/src/recipe_scraper/logging_config.py` — function configure_logging: (level) -> None
+- `services/recipe-scraper/src/recipe_scraper/main.py`
+  - function create_app: (settings, clock) -> FastAPI
+  - class ScrapeRequest
+  - class HealthResponse
+- `services/recipe-scraper/src/recipe_scraper/normalize.py` — function normalize: (scraped, source_url) -> NormalizedRecipe
+- `services/recipe-scraper/src/recipe_scraper/scraper.py` — function scrape_recipe: (url, clock, timeout_seconds, max_html_bytes) -> NormalizedRecipe
+- `services/sync-worker/src/sync_worker/caldav_client.py` — class CalDAVClient
+- `services/sync-worker/src/sync_worker/clock.py`
+  - class Clock
+  - class RealClock
+  - class FrozenClock
+- `services/sync-worker/src/sync_worker/config.py` — function get_settings: () -> Settings, class Settings
+- `services/sync-worker/src/sync_worker/ical_client.py` — function fetch_and_parse: (ics_url, range_start, range_end) -> list[NormalizedEvent]
+- `services/sync-worker/src/sync_worker/logging_config.py` — function configure_logging: (level) -> None
+- `services/sync-worker/src/sync_worker/main.py`
+  - function create_app: (settings, clock) -> FastAPI
+  - class SyncRequest
+  - class SyncICalRequest
+  - class HealthResponse
+- `services/sync-worker/src/sync_worker/rrule_expand.py` — function parse_iso_or_raise: (value) -> datetime
+- `services/sync-worker/src/sync_worker/sync.py` — function pull_events: (client, range_start, range_end, clock) -> list[NormalizedEvent]
+- `web/e2e/fixtures.ts`
+  - function gotoAndWait: (page, urlPath) => Promise<void>
+  - function screenshot: (page, name) => Promise<string>
+  - const test
+- `web/e2e-real/helpers/api.ts`
+  - function apiRegister: (email, password) => Promise<AuthResponse>
+  - function apiLogin: (email, password) => Promise<AuthResponse>
+  - function apiPINLogin: (householdId, memberId, pin) => Promise<AuthResponse>
+  - function apiMe: (token) => Promise<
+  - function apiCreateHousehold: (token, name) => Promise<Household>
+  - function apiCreateMember: (token, householdId, member) => Promise<Member>
+  - _...15 more_
+- `web/src/lib/ai/ai-keys.ts`
+  - function isAIEnabled: () => boolean
+  - function setAIEnabled: (enabled) => void
+  - function useAIKeys: () => UseAIKeysReturn
+  - interface AIKeys
+  - interface UseAIKeysReturn
+  - type AIProvider
+- `web/src/lib/ai/client.ts`
+  - function callOpenAI: (messages, model, apiKey) => Promise<AIResult>
+  - function callAnthropic: (messages, model, apiKey) => Promise<AIResult>
+  - function callGoogle: (messages, model, apiKey) => Promise<AIResult>
+  - function callAI: (provider, messages, apiKey, model?) => Promise<AIResult>
+  - class AIError
+  - interface AIMessage
+  - _...2 more_
+- `web/src/lib/api/fallback.ts` — function isApiFallbackMode: () => boolean, const fallback
+- `web/src/lib/api/hooks.ts`
+  - function useEvents: (range?) => void
+  - function useMembers: () => void
+  - function useRecipes: () => void
+  - function useRecipe: (id) => void
+  - function useLists: () => void
+  - function useList: (id) => void
+  - _...17 more_
+- `web/src/lib/api/use-subscription.ts` — function useSubscription: () => UseSubscriptionResult, interface Subscription
+- `web/src/lib/data.ts`
+  - function getMember
+  - function getMembers
+  - function fmtTime
+  - type Role
+  - type Member
+  - type TBDEvent
+  - _...20 more_
+- `web/src/lib/utils.ts` — function cn: (...inputs) => void

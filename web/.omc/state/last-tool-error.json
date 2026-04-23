@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cat > /tmp/test-ls.mjs << 'EOF'\\nimport { JSDOM } from '/Users/wohlgemuth/IdeaProjects/tidyboard/web/node_modules/jsdom/lib/jsdom.js';\\nconst dom = new JSDOM('', { url: 'http://localhost' ...",
+  "error": "Exit code 1\nnode:internal/modules/esm/resolve:275\n    throw new ERR_MODULE_NOT_FOUND(\n          ^\n\nError [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/wohlgemuth/IdeaProjects/tidyboard/web/node_modules/jsdom/lib/jsdom.js' imported from /private/tmp/test-ls.mjs\n    at finalizeResolution (node:internal/modules/esm/resolve:275:11)\n    at moduleResolve (node:internal/modules/esm/resolve:865:10)\n    at defaultResolve (node:internal/modules/esm/resolve:991:11)\n    at #cachedDefaultResolve (node:i...",
+  "timestamp": "2026-04-23T03:58:52.405Z",
+  "retry_count": 1
+}

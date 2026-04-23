@@ -1,0 +1,169 @@
+networks:
+  tidyboard:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: tidyboard
+      POSTGRES_USER: tidyboard
+      POSTGRES_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tidyboard -d tidyboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    ports:
+      - "6379:6379"
+
+  # -------------------------------------------------------------------------
+  # AWS credentials — project policy (see user_aws_profiles.md):
+  #   All AWS SDK calls use named profiles from ~/.aws/credentials +
+  #   ~/.aws/config.  Static AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are
+  #   NEVER set in this file.
+  #
+  #   The bind-mount below makes your local ~/.aws directory available inside
+  #   the container at /home/tidyboard/.aws (read-only).  If ~/.aws does not
+  #   exist the SDK simply finds no credentials and falls back to the next
+  #   provider in the chain (IAM role, etc.) — the mount itself never fails.
+  #
+  #   Production (Lambda/ECS): IAM roles attach directly; no mount is needed.
+  #   MinIO local dev: create a [minio-local] profile; see scripts/setup-minio-profile.sh
+  #   Real AWS local dev: run scripts/setup-aws-dev.sh to create [tidyboard-dev]
+  # -------------------------------------------------------------------------
+  tidyboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      TIDYBOARD_DATABASE_HOST: postgres
+      TIDYBOARD_DATABASE_PORT: 5432
+      TIDYBOARD_DATABASE_NAME: tidyboard
+      TIDYBOARD_DATABASE_USER: tidyboard
+      TIDYBOARD_DATABASE_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
+      TIDYBOARD_REDIS_HOST: redis
+      TIDYBOARD_REDIS_PORT: 6379
+      TIDYBOARD_SERVER_HOST: 0.0.0.0
+      TIDYBOARD_SERVER_PORT: 8080
+      TIDYBOARD_AUTH_JWT_SECRET: ${TIDYBOARD_AUTH_JWT_SECRET:-change-me-in-production}
+      TIDYBOARD_SERVER_CORS_ORIGINS: ${TIDYBOARD_SERVER_CORS_ORIGINS:-http://localhost:3000}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      # AWS credentials bind-mount (read-only). Safe when ~/.aws doesn't exist:
+      # the SDK simply returns no credentials from this provider.
+      - ${HOME}/.aws:/home/tidyboard/.aws:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  sync-worker:
+    build:
+      context: ./services/sync-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      TIDYBOARD_DATABASE_HOST: postgres
+      TIDYBOARD_DATABASE_PORT: 5432
+      TIDYBOARD_DATABASE_NAME: tidyboard
+      TIDYBOARD_DATABASE_USER: tidyboard
+      TIDYBOARD_DATABASE_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
+      TIDYBOARD_REDIS_HOST: redis
+      TIDYBOARD_REDIS_PORT: 6379
+      SYNC_WORKER_PORT: 8081
+
+  recipe-scraper:
+    build:
+      context: ./services/recipe-scraper
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      TIDYBOARD_DATABASE_HOST: postgres
+      TIDYBOARD_DATABASE_PORT: 5432
+      TIDYBOARD_DATABASE_NAME: tidyboard
+      TIDYBOARD_DATABASE_USER: tidyboard
+      TIDYBOARD_DATABASE_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
+      RECIPE_SCRAPER_PORT: 8082
+
+  # MinIO — S3-compatible local object storage for development and testing.
+  # Not started by default. Use the "s3-dev" profile to enable:
+  #   docker compose --profile s3-dev up
+  minio:
+    image: quay.io/minio/minio:latest
+    profiles:
+      - s3-dev
+    restart: unless-stopped
+    networks:
+      - tidyboard
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO console UI
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

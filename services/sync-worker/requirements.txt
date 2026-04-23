@@ -1,0 +1,18 @@
+# Runtime dependencies for Docker image builds.
+# These are the direct dependencies; pip resolves transitive deps.
+# To regenerate a fully-pinned lockfile for a specific Python version:
+#   uv pip compile pyproject.toml -o requirements.txt --python-version 3.13
+#
+# NOTE: Exact pins below are for Python 3.13-slim (the Docker base image).
+# Running on a different Python version (e.g. 3.14 in dev) may require
+# letting pip resolve freely: pip install caldav icalendar ...
+
+caldav>=3.1.0
+icalendar>=5.0.0
+python-dateutil>=2.9.0
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+structlog>=24.1.0
+httpx>=0.27.0

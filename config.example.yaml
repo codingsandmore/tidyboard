@@ -1,0 +1,110 @@
+# Tidyboard configuration — YAML format
+# maintained by infra + backend agents; keep in sync
+#
+# Copy to config.yaml and fill in secrets.
+# All values can be overridden by environment variables (TIDYBOARD_* prefix).
+# See internal/config/config.go for the full Kong struct definition.
+
+# HTTP server settings
+server:
+  host: 0.0.0.0          # interface to bind; use 127.0.0.1 behind a reverse proxy
+  port: 8080              # HTTP listen port
+  mode: standalone        # standalone | lambda
+  cors_origins:           # allowed CORS origins (strict whitelist — no wildcard)
+    - http://localhost:3000
+  read_timeout: 30s       # maximum duration for reading the full request
+  write_timeout: 30s      # maximum duration for writing the full response
+  shutdown_timeout: 10s   # graceful shutdown wait time
+  metrics_enabled: true   # expose GET /metrics (Prometheus); set false on Lambda
+  metrics_allowed_ips: [] # empty = open to all; add IPs to restrict scraping
+                          # e.g. ["10.0.0.5", "192.168.1.100"]
+  max_request_body_bytes: 1048576  # 1 MB default; /v1/media/upload uses 10 MB
+
+# PostgreSQL connection
+database:
+  host: localhost          # env: TIDYBOARD_DATABASE_HOST
+  port: 5432              # env: TIDYBOARD_DATABASE_PORT
+  name: tidyboard         # env: TIDYBOARD_DATABASE_NAME
+  user: tidyboard         # env: TIDYBOARD_DATABASE_USER
+  password: ""            # env: TIDYBOARD_DATABASE_PASSWORD — required; never hardcode
+  sslmode: disable        # disable | require | verify-ca | verify-full
+  max_open_conns: 25      # max total connections in the pool
+  max_idle_conns: 5       # max idle connections kept open
+  conn_max_lifetime: 15m  # connections older than this are recycled
+  migrations_dir: ./migrations  # path to goose migration files
+
+# Redis connection (WebSocket pub/sub, rate limiting, session cache)
+redis:
+  host: localhost          # env: TIDYBOARD_REDIS_HOST
+  port: 6379              # env: TIDYBOARD_REDIS_PORT
+  password: ""            # env: TIDYBOARD_REDIS_PASSWORD — leave empty for no auth
+  db: 0                   # Redis database index (0–15)
+  max_retries: 3          # reconnect attempts before giving up
+
+# JWT and PIN authentication
+auth:
+  jwt_secret: ""          # env: TIDYBOARD_AUTH_JWT_SECRET — required; generate with: openssl rand -base64 64
+  jwt_expiry: 15m         # access token lifetime
+  refresh_token_expiry: 168h  # 7 days; refresh token lifetime
+  pin_max_attempts: 5     # failed PINs before lockout
+  pin_lockout_duration: 5m
+  rate_limit_per_min: 60  # max API requests per authenticated account per minute (Redis-backed)
+  oauth:
+    google_enabled: false
+    google_client_id: ""  # env: TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_ID
+    google_client_secret: ""  # env: TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_SECRET
+    apple_enabled: false
+    apple_client_id: ""
+    apple_team_id: ""
+
+# CalDAV sync settings (used by Python sync-worker)
+sync:
+  poll_interval: 5m       # how often to pull remote calendars
+  max_retries: 3
+  retry_backoff: 30s
+
+# File storage (recipe images, avatars, etc.)
+storage:
+  type: local             # local | s3
+  local_path: ./data/media
+  # public_base_url is used by local mode to build the URL returned to clients.
+  # Must match the public address of the Go server + /media/ suffix.
+  public_base_url: http://localhost:8080/media/
+  s3_bucket: ""           # required when type=s3  env: (set via AWS_* env vars or IAM role)
+  s3_region: us-east-1
+  s3_prefix: media/
+  # s3_endpoint: http://localhost:9000   # MinIO local dev — uncomment when using MinIO
+  # s3_force_path_style: true            # required for MinIO
+
+# Push/email notifications (all optional)
+notifications:
+  ntfy_enabled: false
+  ntfy_server_url: https://ntfy.sh
+  ntfy_topic_prefix: tidyboard-
+  email_enabled: false
+  smtp_host: ""
+  smtp_port: 587
+  smtp_user: ""           # env: TIDYBOARD_NOTIFY_SMTP_USER
+  smtp_password: ""       # env: TIDYBOARD_NOTIFY_SMTP_PASSWORD
+  smtp_from: ""
+
+# AI features — BYOK only; Tidyboard never pays for AI
+ai:
+  enabled: false
+  ocr_enabled: false
+  tesseract_path: tesseract
+
+# Automated backups (pg_dump)
+backup:
+  enabled: true
+  schedule: "0 3 * * *"  # 3 AM daily (cron syntax)
+  retention: 7            # number of daily backup files to keep
+  local_path: ./data/backups
+  s3_enabled: false
+  s3_bucket: ""
+
+# Recipe import settings
+recipes:
+  max_import_size: 5242880  # 5 MB max HTML to download for scraping
+  image_download: true      # cache recipe images locally
+  scraper_timeout: 15s      # HTTP timeout when fetching recipe pages

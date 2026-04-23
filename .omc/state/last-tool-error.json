@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/Users/wohlgemuth/IdeaProjects/tidyboard/migrations\"}",
+  "error": "EISDIR: illegal operation on a directory, read '/Users/wohlgemuth/IdeaProjects/tidyboard/migrations'",
+  "timestamp": "2026-04-23T19:06:01.640Z",
+  "retry_count": 1
+}

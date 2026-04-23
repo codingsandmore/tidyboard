@@ -1,0 +1,877 @@
+"use client";
+
+import type { CSSProperties, ReactNode } from "react";
+import { useState } from "react";
+import { TB } from "@/lib/tokens";
+import { Icon } from "@/components/ui/icon";
+import { Btn } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { H } from "@/components/ui/heading";
+import { FamilyShapes } from "@/components/ui/family-shapes";
+import { useTranslations } from "next-intl";
+import { useAddICalCalendar } from "@/lib/api/hooks";
+
+const ObShell = ({
+  children,
+  footer,
+  pad = 24,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  pad?: number;
+}) => (
+  <div
+    style={{
+      width: "100%",
+      height: "100%",
+      background: TB.bg,
+      display: "flex",
+      flexDirection: "column",
+      fontFamily: TB.fontBody,
+      color: TB.text,
+      boxSizing: "border-box",
+    }}
+  >
+    <div style={{ flex: 1, overflow: "auto", padding: pad }}>{children}</div>
+    {footer && (
+      <div
+        style={{
+          padding: `16px ${pad}px ${pad}px`,
+          borderTop: `1px solid ${TB.borderSoft}`,
+          background: TB.surface,
+        }}
+      >
+        {footer}
+      </div>
+    )}
+  </div>
+);
+
+const Logo = ({ size = 30, color = TB.primary }: { size?: number; color?: string }) => (
+  <div
+    style={{
+      fontFamily: TB.fontDisplay,
+      fontSize: size,
+      fontWeight: 600,
+      color,
+      letterSpacing: "-0.02em",
+      lineHeight: 1,
+    }}
+  >
+    tidyboard
+  </div>
+);
+
+const StepDots = ({ i, total = 7 }: { i: number; total?: number }) => (
+  <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+    {Array.from({ length: total }).map((_, k) => (
+      <div
+        key={k}
+        style={{
+          width: k === i ? 20 : 6,
+          height: 6,
+          borderRadius: 9999,
+          background: k <= i ? TB.primary : TB.border,
+          transition: "width .2s, background .2s",
+        }}
+      />
+    ))}
+  </div>
+);
+
+const Field = ({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) => (
+  <div>
+    <div style={{ fontSize: 13, fontWeight: 550, marginBottom: 6 }}>{label}</div>
+    {children}
+    {hint && (
+      <div style={{ fontSize: 12, color: TB.text2, marginTop: 6 }}>{hint}</div>
+    )}
+  </div>
+);
+
+const Divider = ({ children }: { children: ReactNode }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      color: TB.text2,
+      fontSize: 12,
+      margin: "6px 0",
+    }}
+  >
+    <div style={{ flex: 1, height: 1, background: TB.border }} />
+    {children}
+    <div style={{ flex: 1, height: 1, background: TB.border }} />
+  </div>
+);
+
+const ObWelcome = () => {
+  const t = useTranslations("onboarding.welcome");
+  const tApp = useTranslations("app");
+  return (
+    <ObShell
+      footer={
+        <div>
+          <Btn kind="primary" size="xl" full>
+            {t("cta")}
+          </Btn>
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 14,
+              fontSize: 13,
+              color: TB.text2,
+            }}
+          >
+            {t("signIn").split("?")[0]}?{" "}
+            <span style={{ color: TB.accent, fontWeight: 600 }}>{t("signIn").split("? ")[1]}</span>
+          </div>
+        </div>
+      }
+    >
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 24,
+          paddingTop: 40,
+        }}
+      >
+        <Logo size={38} />
+        <FamilyShapes size={280} />
+        <div style={{ textAlign: "center", maxWidth: 320 }}>
+          <H as="h2" style={{ marginBottom: 10, fontSize: 28 }}>
+            {t("greeting")}
+          </H>
+          <div style={{ color: TB.text2, fontSize: 16, lineHeight: 1.5 }}>
+            {tApp("tagline")}
+          </div>
+        </div>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObCreate = () => {
+  const t = useTranslations("onboarding.create");
+  const [show, setShow] = useState(false);
+  return (
+    <ObShell
+      footer={
+        <>
+          <Btn kind="primary" size="xl" full>
+            {t("createAccount")}
+          </Btn>
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 14,
+              fontSize: 13,
+              color: TB.text2,
+            }}
+          >
+            {t("alreadyHaveAccount")}{" "}
+            <span style={{ color: TB.accent, fontWeight: 600 }}>{t("signIn")}</span>
+          </div>
+        </>
+      }
+    >
+      <div style={{ marginBottom: 28, marginTop: 8 }}>
+        <Logo size={22} />
+        <H as="h2" style={{ marginTop: 20, fontSize: 26 }}>
+          {t("title")}
+        </H>
+        <div style={{ color: TB.text2, fontSize: 14, marginTop: 6 }}>
+          {t("subtitle")}
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Field label={t("email")}>
+          <Input value="sarah@smithfamily.net" onChange={() => {}} placeholder="you@example.com" />
+        </Field>
+        <Field label={t("password")}>
+          <div style={{ position: "relative" }}>
+            <Input
+              value={show ? "crab-orbit-piano-73" : "••••••••••••••••"}
+              onChange={() => {}}
+              type="text"
+              placeholder={t("passwordHint")}
+            />
+            <button
+              onClick={() => setShow(!show)}
+              style={{
+                position: "absolute",
+                right: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                color: TB.text2,
+                cursor: "pointer",
+                padding: 8,
+              }}
+            >
+              <Icon name="eye" size={16} />
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 3,
+                  borderRadius: 9999,
+                  background: i <= 2 ? TB.success : TB.border,
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: TB.success, marginTop: 6 }}>
+            {t("strong")}
+          </div>
+        </Field>
+        <Field label={t("confirmPassword")}>
+          <Input value="••••••••••••••••" onChange={() => {}} placeholder={t("reEnterPassword")} />
+        </Field>
+        <Divider>{t("orContinueWith")}</Divider>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn kind="secondary" size="lg" full icon="google">
+            Google
+          </Btn>
+          <Btn kind="secondary" size="lg" full icon="apple">
+            Apple
+          </Btn>
+        </div>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObHousehold = () => {
+  const t = useTranslations("onboarding.household");
+  return (
+    <ObShell
+      footer={
+        <Btn kind="primary" size="xl" full iconRight="arrowR">
+          {t("continue")}
+        </Btn>
+      }
+    >
+      <div style={{ marginBottom: 32, marginTop: 8 }}>
+        <StepDots i={2} />
+        <H as="h2" style={{ marginTop: 28, fontSize: 28, textAlign: "center" }}>
+          {t("title")}
+        </H>
+        <div
+          style={{
+            color: TB.text2,
+            fontSize: 14,
+            marginTop: 10,
+            textAlign: "center",
+            maxWidth: 300,
+            margin: "10px auto 0",
+          }}
+        >
+          {t("subtitle")}
+        </div>
+      </div>
+      <div style={{ padding: "20px 0" }}>
+        <Input
+          value="The Smith Family"
+          onChange={() => {}}
+          style={{
+            height: 56,
+            fontSize: 20,
+            textAlign: "center",
+            fontFamily: TB.fontDisplay,
+            fontWeight: 500,
+          }}
+        />
+        <div
+          style={{
+            textAlign: "center",
+            marginTop: 20,
+            display: "flex",
+            gap: 8,
+            justifyContent: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {["The Johnsons", "Casa Martinez", "The Chen-Okonkwo Household", "Team Harrow"].map(
+            (s) => (
+              <span
+                key={s}
+                style={{
+                  fontSize: 12,
+                  color: TB.text2,
+                  padding: "6px 10px",
+                  background: TB.bg2,
+                  borderRadius: 9999,
+                }}
+              >
+                {s}
+              </span>
+            )
+          )}
+        </div>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObSelf = () => {
+  const t = useTranslations("onboarding.self");
+  const colors = TB.memberColors;
+  const [pick, setPick] = useState(1);
+  return (
+    <ObShell
+      footer={
+        <Btn kind="primary" size="xl" full iconRight="arrowR">
+          {t("continue")}
+        </Btn>
+      }
+    >
+      <StepDots i={3} />
+      <H as="h2" style={{ marginTop: 24, fontSize: 26, textAlign: "center" }}>
+        {t("title")}
+      </H>
+
+      <div style={{ display: "flex", justifyContent: "center", margin: "28px 0 20px" }}>
+        <div style={{ position: "relative" }}>
+          <div
+            style={{
+              width: 96,
+              height: 96,
+              borderRadius: "50%",
+              background: colors[pick],
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: TB.fontBody,
+              color: "#fff",
+              fontSize: 42,
+              fontWeight: 600,
+            }}
+          >
+            S
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              right: -4,
+              bottom: -4,
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              background: TB.surface,
+              border: `2px solid ${TB.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <Icon name="camera" size={16} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Field label={t("fullName")}>
+          <Input value="Sarah Smith" onChange={() => {}} />
+        </Field>
+        <Field label={t("displayName")} hint={t("displayNameHint")}>
+          <Input value="Mom" onChange={() => {}} />
+        </Field>
+        <Field label={t("color")} hint={t("colorHint")}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(6, 1fr)",
+              gap: 10,
+              marginTop: 6,
+            }}
+          >
+            {colors.map((c, i) => (
+              <div
+                key={i}
+                onClick={() => setPick(i)}
+                style={{
+                  aspectRatio: "1",
+                  borderRadius: "50%",
+                  background: c,
+                  cursor: "pointer",
+                  boxShadow:
+                    pick === i ? `0 0 0 3px ${TB.surface}, 0 0 0 5px ${c}` : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "transform .1s",
+                }}
+              >
+                {pick === i && <Icon name="check" size={18} color="#fff" stroke={2.5} />}
+              </div>
+            ))}
+          </div>
+        </Field>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObFamily = () => {
+  const t = useTranslations("onboarding.family");
+  const members: {
+    id: string;
+    initial: string;
+    name: string;
+    role: string;
+    color: string;
+    pin?: string;
+  }[] = [
+    { id: "mom", initial: "M", name: "Sarah (Mom)", role: "Adult", color: "#EF4444" },
+    { id: "dad", initial: "D", name: "Mike (Dad)", role: "Adult", color: "#3B82F6" },
+    { id: "jax", initial: "J", name: "Jackson", role: "Child · 6", color: "#22C55E", pin: "••••" },
+    { id: "em", initial: "E", name: "Emma", role: "Child · 9", color: "#F59E0B", pin: "••••" },
+  ];
+  return (
+    <ObShell
+      footer={
+        <Btn kind="primary" size="xl" full iconRight="arrowR">
+          {t("continue")}
+        </Btn>
+      }
+    >
+      <StepDots i={4} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          marginTop: 24,
+        }}
+      >
+        <H as="h2" style={{ fontSize: 26 }}>
+          {t("title")}
+        </H>
+        <Badge>{members.length} members</Badge>
+      </div>
+      <div style={{ color: TB.text2, fontSize: 13, marginTop: 4, marginBottom: 18 }}>
+        {t("subtitle")}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {members.map((m) => (
+          <Card
+            key={m.id}
+            pad={12}
+            style={{ display: "flex", alignItems: "center", gap: 12 }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: m.color,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: 17,
+              }}
+            >
+              {m.initial}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 550, fontSize: 15 }}>{m.name}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: TB.text2,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <span>{m.role}</span>
+                {m.pin && <span style={{ fontFamily: TB.fontMono }}>PIN {m.pin}</span>}
+              </div>
+            </div>
+            <button
+              style={{
+                background: "transparent",
+                border: "none",
+                color: TB.text2,
+                cursor: "pointer",
+                padding: 6,
+              }}
+            >
+              <Icon name="pencil" size={16} />
+            </button>
+          </Card>
+        ))}
+
+        <button
+          style={{
+            padding: "14px 12px",
+            background: TB.surface,
+            border: `1.5px dashed ${TB.border}`,
+            borderRadius: TB.r.lg,
+            cursor: "pointer",
+            color: TB.primary,
+            fontWeight: 600,
+            fontSize: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            fontFamily: TB.fontBody,
+          }}
+        >
+          <Icon name="plus" size={18} /> {t("addMember")}
+        </button>
+      </div>
+      <div style={{ textAlign: "center", marginTop: 14 }}>
+        <span style={{ fontSize: 13, color: TB.text2, cursor: "pointer" }}>{t("skipForNow")}</span>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObCalendar = () => {
+  const t = useTranslations("onboarding.calendar");
+  const addICal = useAddICalCalendar();
+  const [showICalForm, setShowICalForm] = useState(false);
+  const [icalName, setIcalName] = useState("");
+  const [icalUrl, setIcalUrl] = useState("");
+  const [icalError, setIcalError] = useState<string | null>(null);
+  const [icalSuccess, setIcalSuccess] = useState(false);
+
+  async function handleICalSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIcalError(null);
+    if (!icalName.trim() || !icalUrl.trim()) {
+      setIcalError("Name and URL are required.");
+      return;
+    }
+    try {
+      await addICal.mutateAsync({ name: icalName.trim(), url: icalUrl.trim() });
+      setIcalSuccess(true);
+      setShowICalForm(false);
+    } catch {
+      setIcalError("Failed to add calendar. Check the URL and try again.");
+    }
+  }
+
+  return (
+    <ObShell
+      footer={
+        <>
+          <Btn
+            kind="primary"
+            size="xl"
+            full
+            icon="google"
+            style={{ background: "#fff", color: TB.text, border: `1px solid ${TB.border}` }}
+          >
+            {t("connectGoogle")}
+          </Btn>
+          {showICalForm ? (
+            <form
+              onSubmit={handleICalSubmit}
+              style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <Input
+                value={icalName}
+                onChange={(v) => setIcalName(v)}
+                placeholder="Calendar name"
+              />
+              <Input
+                value={icalUrl}
+                onChange={(v) => setIcalUrl(v)}
+                placeholder="https://example.com/calendar.ics"
+              />
+              {icalError && (
+                <div style={{ fontSize: 12, color: TB.destructive }}>{icalError}</div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn kind="primary" size="lg" full style={{ flex: 1 }}>
+                  {addICal.isPending ? "Adding…" : "Add Calendar"}
+                </Btn>
+                <Btn
+                  kind="secondary"
+                  size="lg"
+                  style={{ flex: 0 }}
+                  onClick={() => { setShowICalForm(false); setIcalError(null); }}
+                >
+                  Cancel
+                </Btn>
+              </div>
+            </form>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 20,
+                marginTop: 14,
+                fontSize: 13,
+              }}
+            >
+              {icalSuccess ? (
+                <span style={{ color: TB.success, fontWeight: 600 }}>iCal calendar added!</span>
+              ) : (
+                <span
+                  style={{ color: TB.accent, fontWeight: 600, cursor: "pointer" }}
+                  onClick={() => setShowICalForm(true)}
+                >
+                  {t("addIcal")}
+                </span>
+              )}
+              <span style={{ color: TB.text2, cursor: "pointer" }}>{t("skipForNow")}</span>
+            </div>
+          )}
+        </>
+      }
+    >
+      <StepDots i={5} />
+      <H as="h2" style={{ marginTop: 28, fontSize: 26, textAlign: "center" }}>
+        {t("title")}
+      </H>
+      <div
+        style={{
+          color: TB.text2,
+          fontSize: 14,
+          marginTop: 10,
+          textAlign: "center",
+          maxWidth: 320,
+          margin: "10px auto 0",
+        }}
+      >
+        {t("subtitle")}
+      </div>
+
+      <div style={{ margin: "36px auto", position: "relative", width: 260, height: 180 }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: TB.surface,
+            borderRadius: TB.r.lg,
+            border: `1px solid ${TB.border}`,
+            boxShadow: TB.shadow,
+          }}
+        >
+          <div
+            style={{
+              padding: 14,
+              borderBottom: `1px solid ${TB.borderSoft}`,
+              fontSize: 12,
+              color: TB.text2,
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>Thursday</span>
+            <span>Apr 22</span>
+          </div>
+          <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              { c: "#3B82F6", t: "Standup", time: "8:00" },
+              { c: "#EF4444", t: "Dentist", time: "9:00" },
+              { c: "#22C55E", t: "Soccer", time: "3:30" },
+            ].map((e, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "6px 10px",
+                  background: e.c + "14",
+                  borderLeft: `3px solid ${e.c}`,
+                  borderRadius: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: TB.fontMono,
+                    fontSize: 11,
+                    color: TB.text2,
+                    width: 34,
+                  }}
+                >
+                  {e.time}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.t}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            top: -14,
+            right: -14,
+            background: TB.primary,
+            color: "#fff",
+            borderRadius: 9999,
+            padding: "6px 12px",
+            fontSize: 11,
+            fontWeight: 600,
+            boxShadow: TB.shadow,
+          }}
+        >
+          {t("eventsAppearHere")}
+        </div>
+      </div>
+    </ObShell>
+  );
+};
+
+const ObLanding = () => {
+  const t = useTranslations("onboarding.landing");
+  return (
+    <ObShell pad={0}>
+      <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column" }}>
+        <svg
+          style={{ position: "absolute", inset: 0, pointerEvents: "none" } as CSSProperties}
+          viewBox="0 0 390 500"
+          preserveAspectRatio="none"
+        >
+          {Array.from({ length: 40 }).map((_, i) => {
+            const colors = [
+              "#3B82F6",
+              "#EF4444",
+              "#22C55E",
+              "#F59E0B",
+              "#8B5CF6",
+              "#4F7942",
+              "#D4A574",
+              "#7FB5B0",
+            ];
+            const x = (i * 37) % 390;
+            const y = 20 + ((i * 23) % 240);
+            const r = 3 + (i % 4);
+            return (
+              <rect
+                key={i}
+                x={x}
+                y={y}
+                width={r * 2}
+                height={r}
+                fill={colors[i % colors.length]}
+                transform={`rotate(${i * 17} ${x} ${y})`}
+                rx="1"
+              />
+            );
+          })}
+        </svg>
+        <div style={{ padding: "60px 24px 20px", textAlign: "center", position: "relative", zIndex: 1 }}>
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              background: TB.primary + "18",
+              margin: "0 auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="check" size={36} color={TB.primary} stroke={2.5} />
+          </div>
+          <H as="h1" style={{ marginTop: 20, fontSize: 30 }}>
+            {t("title")}
+          </H>
+          <div style={{ color: TB.text2, fontSize: 14, marginTop: 6 }}>
+            {t("subtitle")}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, padding: "10px 20px 20px", position: "relative", zIndex: 1 }}>
+          <Card pad={14} elevated style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: TB.text2,
+                fontFamily: TB.fontMono,
+                letterSpacing: "0.04em",
+              }}
+            >
+              THU · APR 22
+            </div>
+            {[
+              { c: "#3B82F6", t: "Morning standup", time: "8:00 AM" },
+              { c: "#EF4444", t: "Dentist — Jackson", time: "9:00 AM" },
+              { c: "#22C55E", t: "Soccer practice", time: "3:30 PM" },
+              { c: "#F59E0B", t: "Piano lesson", time: "5:00 PM" },
+            ].map((e, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  background: e.c + "14",
+                  borderLeft: `3px solid ${e.c}`,
+                  borderRadius: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: TB.fontMono,
+                    fontSize: 11,
+                    color: TB.text2,
+                    width: 62,
+                  }}
+                >
+                  {e.time}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{e.t}</div>
+              </div>
+            ))}
+          </Card>
+          <div style={{ marginTop: 14, textAlign: "center", fontSize: 12, color: TB.muted }}>
+            {t("opening")}
+          </div>
+        </div>
+      </div>
+    </ObShell>
+  );
+};
+
+const STEPS = [ObWelcome, ObCreate, ObHousehold, ObSelf, ObFamily, ObCalendar, ObLanding];
+
+export function Onboarding({ step = 0 }: { step?: number }) {
+  const S = STEPS[step] ?? ObWelcome;
+  return <S />;
+}
+
+export const ONBOARDING_LABELS = [
+  "Welcome",
+  "Create account",
+  "Household name",
+  "Add self",
+  "Add family",
+  "Connect calendar",
+  "All set!",
+];

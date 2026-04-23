@@ -1,0 +1,56 @@
+# Version control
+.git
+.gitignore
+
+# Node / Next.js (not needed for Go binary build)
+web/node_modules
+web/.next
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python caches
+__pycache__
+*.py[cod]
+*.pyo
+services/**/__pycache__
+services/**/*.pyc
+services/**/*.pyo
+services/**/.pytest_cache
+services/**/.ruff_cache
+.venv
+venv
+
+# Editor / OS
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo
+Thumbs.db
+
+# Local env files (never bake secrets into the image)
+.env
+.env.*
+!.env.example
+
+# Test / coverage artifacts
+coverage
+*.test
+*_test.go
+
+# Build artifacts (keep binary build clean)
+dist/
+build/
+*.out
+
+# Documentation
+*.md
+!README.md
+
+# Misc
+.omc
+.codesight
+specs/
+desktop/

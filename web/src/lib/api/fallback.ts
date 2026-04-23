@@ -1,0 +1,252 @@
+/**
+ * Offline / dev-mode fallback data.
+ *
+ * When NEXT_PUBLIC_API_URL is empty ("") or when the backend is unreachable,
+ * React Query hooks in hooks.ts catch the error and return data from this
+ * module instead — which delegates to the sample Smith-family data in data.ts.
+ *
+ * This lets every screen keep rendering against realistic data while the real
+ * backend is being built, without any network calls.
+ *
+ * How it activates:
+ *   - Set NEXT_PUBLIC_API_URL="" in .env.local  →  hooks skip the API entirely
+ *     and return fallback data directly (no fetch attempt, no error shown).
+ *   - If NEXT_PUBLIC_API_URL is set but the server is down, the hook catches
+ *     the ApiError and falls back here automatically.
+ *
+ * Migration path:
+ *   Once the backend endpoint for a hook is stable, remove the fallback branch
+ *   from that hook and let React Query surface errors normally.
+ */
+
+import { TBD } from "@/lib/data";
+import type {
+  Member,
+  TBDEvent,
+  Recipe,
+  FamilyList,
+  Shopping,
+  Routine,
+  Equity,
+  MealPlan,
+  Race,
+  AuditEntry,
+  ListAuditResponse,
+} from "./types";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+
+/** Returns true when the API is intentionally disabled (empty URL). */
+export function isApiFallbackMode(): boolean {
+  return API_URL === "";
+}
+
+// ── Mock audit entries ─────────────────────────────────────────────────────
+
+const MOCK_AUDIT_ENTRIES: AuditEntry[] = [
+  {
+    id: "a1", account_id: "demo-account", household_id: "demo-household",
+    action: "event.create", target_type: "event", target_id: "evt-001",
+    diff: { title: [null, "Soccer practice"], start: [null, "2026-04-22T15:00:00Z"] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-22T14:55:00Z",
+  },
+  {
+    id: "a2", account_id: "demo-account", household_id: "demo-household",
+    action: "event.update", target_type: "event", target_id: "evt-001",
+    diff: { location: [null, "Lincoln Park Field 3"] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-22T14:57:00Z",
+  },
+  {
+    id: "a3", account_id: "demo-account", household_id: "demo-household",
+    action: "list.create", target_type: "list", target_id: "lst-001",
+    diff: { name: [null, "Grocery run"] },
+    ip_address: "192.168.1.11", user_agent: "Mozilla/5.0 (iPhone)",
+    created_at: "2026-04-22T13:30:00Z",
+  },
+  {
+    id: "a4", account_id: "demo-account", household_id: "demo-household",
+    action: "list.update", target_type: "list", target_id: "lst-001",
+    diff: { items: ["added", "Milk", "Eggs", "Bread"] },
+    ip_address: "192.168.1.11", user_agent: "Mozilla/5.0 (iPhone)",
+    created_at: "2026-04-22T13:32:00Z",
+  },
+  {
+    id: "a5", account_id: "demo-account", household_id: "demo-household",
+    action: "member.create", target_type: "member", target_id: "mbr-003",
+    diff: { name: [null, "Emma"], role: [null, "child"] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-21T18:00:00Z",
+  },
+  {
+    id: "a6", account_id: "demo-account", household_id: "demo-household",
+    action: "recipe.create", target_type: "recipe", target_id: "rec-007",
+    diff: { title: [null, "Spaghetti Carbonara"], servings: [null, 4] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-21T17:00:00Z",
+  },
+  {
+    id: "a7", account_id: "demo-account", household_id: "demo-household",
+    action: "recipe.update", target_type: "recipe", target_id: "rec-007",
+    diff: { servings: [4, 6] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-21T17:05:00Z",
+  },
+  {
+    id: "a8", account_id: "demo-account", household_id: "demo-household",
+    action: "household.update", target_type: "household", target_id: "demo-household",
+    diff: { name: ["Smith Family", "The Smith Family"] },
+    ip_address: "10.0.0.1", user_agent: "Mozilla/5.0 (Windows NT 10.0)",
+    created_at: "2026-04-20T09:00:00Z",
+  },
+  {
+    id: "a9", account_id: "demo-account", household_id: "demo-household",
+    action: "backup.create", target_type: "backup", target_id: "bkp-2026-04-20",
+    diff: { size_bytes: [null, 204800] },
+    ip_address: "192.168.1.1", user_agent: "TidyboardBackup/1.0",
+    created_at: "2026-04-20T03:00:00Z",
+  },
+  {
+    id: "a10", account_id: "demo-account", household_id: "demo-household",
+    action: "subscription.update", target_type: "subscription", target_id: "sub-001",
+    diff: { status: ["trialing", "active"] },
+    ip_address: "35.188.100.5", user_agent: "Stripe-Webhook/1.0",
+    created_at: "2026-04-19T12:00:00Z",
+  },
+  {
+    id: "a11", account_id: "demo-account", household_id: "demo-household",
+    action: "event.delete", target_type: "event", target_id: "evt-000",
+    diff: { title: ["Old dentist appt", null] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-19T10:00:00Z",
+  },
+  {
+    id: "a12", account_id: "demo-account", household_id: "demo-household",
+    action: "member.update", target_type: "member", target_id: "mbr-003",
+    diff: { pin: ["****", "****"] },
+    ip_address: "192.168.1.11", user_agent: "Mozilla/5.0 (iPhone)",
+    created_at: "2026-04-18T20:00:00Z",
+  },
+  {
+    id: "a13", account_id: "demo-account", household_id: "demo-household",
+    action: "list.delete", target_type: "list", target_id: "lst-000",
+    diff: { name: ["Old chore list", null] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-18T15:00:00Z",
+  },
+  {
+    id: "a14", account_id: "demo-account", household_id: "demo-household",
+    action: "event.create", target_type: "event", target_id: "evt-002",
+    diff: { title: [null, "Piano lesson"], recurrence: [null, "weekly"] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-17T11:00:00Z",
+  },
+  {
+    id: "a15", account_id: "demo-account", household_id: "demo-household",
+    action: "recipe.delete", target_type: "recipe", target_id: "rec-002",
+    diff: { title: ["Old casserole", null] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-16T19:00:00Z",
+  },
+  {
+    id: "a16", account_id: "demo-account", household_id: "demo-household",
+    action: "household.update", target_type: "household", target_id: "demo-household",
+    diff: { timezone: ["America/Chicago", "America/New_York"] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-15T08:00:00Z",
+  },
+  {
+    id: "a17", account_id: "demo-account", household_id: "demo-household",
+    action: "member.delete", target_type: "member", target_id: "mbr-099",
+    diff: { name: ["Guest", null] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-14T14:00:00Z",
+  },
+  {
+    id: "a18", account_id: "demo-account", household_id: "demo-household",
+    action: "backup.create", target_type: "backup", target_id: "bkp-2026-04-14",
+    diff: { size_bytes: [null, 198656] },
+    ip_address: "192.168.1.1", user_agent: "TidyboardBackup/1.0",
+    created_at: "2026-04-14T03:00:00Z",
+  },
+  {
+    id: "a19", account_id: "demo-account", household_id: "demo-household",
+    action: "list.update", target_type: "list", target_id: "lst-002",
+    diff: { name: ["Shopping", "Weekly groceries"] },
+    ip_address: "192.168.1.12", user_agent: "Mozilla/5.0 (iPad)",
+    created_at: "2026-04-13T10:00:00Z",
+  },
+  {
+    id: "a20", account_id: "demo-account", household_id: "demo-household",
+    action: "event.update", target_type: "event", target_id: "evt-002",
+    diff: { members: [["mbr-001"], ["mbr-001", "mbr-003"]] },
+    ip_address: "192.168.1.10", user_agent: "Mozilla/5.0 (Macintosh)",
+    created_at: "2026-04-12T16:00:00Z",
+  },
+];
+
+export const fallback = {
+  events(): TBDEvent[] {
+    return TBD.events;
+  },
+  members(): Member[] {
+    return TBD.members;
+  },
+  recipes(): Recipe[] {
+    return TBD.recipes;
+  },
+  recipe(id: string): Recipe | undefined {
+    return TBD.recipes.find((r) => r.id === id);
+  },
+  lists(): FamilyList[] {
+    return TBD.lists;
+  },
+  list(id: string): FamilyList | undefined {
+    return TBD.lists.find((l) => l.id === id);
+  },
+  shopping(): Shopping {
+    return TBD.shopping;
+  },
+  routines(): Routine[] {
+    // data.ts stores a single routine; wrap in array for API shape
+    return [TBD.routine];
+  },
+  equity(): Equity {
+    return TBD.equity;
+  },
+  mealPlan(): MealPlan {
+    return TBD.mealPlan;
+  },
+  race(): Race {
+    return TBD.race;
+  },
+  audit(
+    limit = 50,
+    offset = 0,
+    filters?: { action?: string; target_type?: string; from?: string; to?: string }
+  ): ListAuditResponse {
+    let entries = [...MOCK_AUDIT_ENTRIES];
+    if (filters?.action) {
+      entries = entries.filter((e) => e.action === filters.action);
+    }
+    if (filters?.target_type) {
+      entries = entries.filter((e) => e.target_type === filters.target_type);
+    }
+    if (filters?.from) {
+      const from = new Date(filters.from).getTime();
+      entries = entries.filter((e) => new Date(e.created_at).getTime() >= from);
+    }
+    if (filters?.to) {
+      const to = new Date(filters.to).getTime();
+      entries = entries.filter((e) => new Date(e.created_at).getTime() <= to);
+    }
+    const total = entries.length;
+    return {
+      entries: entries.slice(offset, offset + limit),
+      total,
+      limit,
+      offset,
+    };
+  },
+};

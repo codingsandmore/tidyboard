@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand */
+  --tb-primary: #4F7942;
+  --tb-primary-hover: #3D6233;
+  --tb-primary-fg: #FFFFFF;
+  --tb-secondary: #D4A574;
+  --tb-accent: #7FB5B0;
+  --tb-destructive: #DC2626;
+  --tb-warning: #F59E0B;
+  --tb-success: #16A34A;
+
+  /* Backgrounds — Light */
+  --tb-bg: #FAFAF9;
+  --tb-bg2: #F5F5F4;
+  --tb-surface: #FFFFFF;
+  --tb-elevated: #FFFFFF;
+  --tb-border: #E7E5E4;
+  --tb-border-soft: #EFEDEA;
+
+  /* Backgrounds — Dark */
+  --tb-d-bg: #1C1917;
+  --tb-d-bg2: #292524;
+  --tb-d-surface: #1C1917;
+  --tb-d-elevated: #292524;
+  --tb-d-border: #44403C;
+  --tb-d-border-soft: #38322E;
+
+  /* Text — Light */
+  --tb-text: #1C1917;
+  --tb-text2: #78716C;
+  --tb-muted: #A8A29E;
+
+  /* Text — Dark */
+  --tb-d-text: #FAFAF9;
+  --tb-d-text2: #A8A29E;
+  --tb-d-muted: #78716C;
+
+  --tb-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --tb-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+@theme inline {
+  --color-tb-primary: var(--tb-primary);
+  --color-tb-primary-hover: var(--tb-primary-hover);
+  --color-tb-primary-fg: var(--tb-primary-fg);
+  --color-tb-secondary: var(--tb-secondary);
+  --color-tb-accent: var(--tb-accent);
+  --color-tb-destructive: var(--tb-destructive);
+  --color-tb-warning: var(--tb-warning);
+  --color-tb-success: var(--tb-success);
+  --color-tb-bg: var(--tb-bg);
+  --color-tb-bg2: var(--tb-bg2);
+  --color-tb-surface: var(--tb-surface);
+  --color-tb-border: var(--tb-border);
+  --color-tb-border-soft: var(--tb-border-soft);
+  --color-tb-text: var(--tb-text);
+  --color-tb-text2: var(--tb-text2);
+  --color-tb-muted: var(--tb-muted);
+
+  --font-display: var(--font-fraunces), "Cal Sans", Georgia, serif;
+  --font-body: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--tb-bg);
+  color: var(--tb-text);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  margin: 0;
+}
+
+#__next,
+body > * {
+  min-height: 100%;
+}
+
+/* Scrollbar cosmetics for design canvas scrollables */
+.tb-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.tb-no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Button hover — CSS-only, no JS re-renders on mouse events */
+.tb-btn:not(:disabled):hover {
+  background: var(--tb-btn-hover) !important;
+}
+
+/* Adaptive dashboard — one layout per viewport, pure CSS so SSR == hydrated DOM */
+.tb-variant {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 699.98px) {
+  .tb-variant-phone {
+    display: block;
+  }
+}
+@media (min-width: 700px) and (max-width: 1199.98px) {
+  .tb-variant-kiosk {
+    display: block;
+  }
+}
+@media (min-width: 1200px) {
+  .tb-variant-desktop {
+    display: block;
+  }
+}
+
+/* ─── Keyboard accessibility — WCAG 2.4.7 focus-visible rings ─────────────── */
+
+/* Reset browser default :focus ring so mouse clicks stay clean */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Global :focus-visible ring for all interactive elements */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--tb-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ─── Dark mode — html.dark root overrides ─────────────────────────────────── */
+/* Applied by ThemeProvider (client) + NoFlashScript (pre-hydration).          */
+/* Screens that accept a dark prop handle their own internal theming.           */
+/* These rules cover root-level bg/text for screens that do NOT yet have        */
+/* dark prop support (e.g. shopping, meals, race, lock, onboarding).            */
+
+html.dark body {
+  background: #1C1917;
+  color: #FAFAF9;
+}
+
+html.dark,
+html.dark body {
+  color-scheme: dark;
+}
