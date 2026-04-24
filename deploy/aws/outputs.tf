@@ -47,3 +47,23 @@ output "backup_bucket_name" {
   description = "S3 backup bucket name."
   value       = module.s3.backup_bucket_name
 }
+
+output "cognito_user_pool_id" {
+  description = "Cognito user pool ID. Export to the Go backend as TIDYBOARD_AUTH_COGNITO_USER_POOL_ID."
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_client_id" {
+  description = "Cognito app client ID. Export to the Next.js frontend as NEXT_PUBLIC_COGNITO_CLIENT_ID."
+  value       = module.cognito.client_id
+}
+
+output "cognito_domain" {
+  description = "Cognito user pool domain prefix. Full Hosted UI URL is https://<domain>.auth.<region>.amazoncognito.com"
+  value       = module.cognito.domain
+}
+
+output "cognito_issuer" {
+  description = "Cognito issuer URL — used by the Go JWT middleware for JWKS lookup + iss claim validation."
+  value       = module.cognito.user_pool_endpoint
+}

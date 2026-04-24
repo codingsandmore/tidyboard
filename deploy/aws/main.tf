@@ -118,3 +118,20 @@ module "route53" {
   zone_id     = var.route53_zone_id
   eip_address = module.ec2.public_ip
 }
+
+# ── Cognito — user pool + Google IdP + web app client ────────────────────────
+# Owns user identity for the multi-household SaaS. The Go backend validates
+# Cognito-issued JWTs; the Next.js frontend drives the OIDC Authorization Code
+# + PKCE flow. Google secrets are pulled from the same SSM path populated by
+# scripts/put-ssm-params.sh.
+
+module "cognito" {
+  source = "./modules/cognito"
+
+  project     = var.project
+  environment = var.environment
+  domain_name = var.domain_name
+
+  google_client_id     = data.aws_ssm_parameter.google_oauth_client_id.value
+  google_client_secret = data.aws_ssm_parameter.google_oauth_client_secret.value
+}
