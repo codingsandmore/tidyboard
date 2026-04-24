@@ -12,13 +12,17 @@ locals {
 }
 
 # ── Network ───────────────────────────────────────────────────────────────────
+# Uses the existing cutly-db VPC by default (create_new_vpc = false).
+# Pass create_new_vpc = true only for a brand-new account with no shared infra.
 
 module "network" {
   source = "./modules/network"
 
-  project     = var.project
-  environment = var.environment
-  aws_region  = var.aws_region
+  project         = var.project
+  environment     = var.environment
+  aws_region      = var.aws_region
+  create_new_vpc  = false
+  existing_vpc_id = var.existing_vpc_id
 }
 
 # ── Secrets Manager ───────────────────────────────────────────────────────────
@@ -61,23 +65,6 @@ module "ecr" {
 
   project     = var.project
   environment = var.environment
-}
-
-# ── RDS (Aurora Serverless v2) ────────────────────────────────────────────────
-
-module "rds" {
-  source = "./modules/rds"
-
-  project         = var.project
-  environment     = var.environment
-  vpc_id          = module.network.vpc_id
-  private_subnets = module.network.private_subnet_ids
-  db_name         = var.db_name
-  db_username     = var.db_username
-  db_password_arn = module.secrets.db_password_arn
-  min_capacity    = var.db_min_capacity
-  max_capacity    = var.db_max_capacity
-  ecs_sg_id       = module.ecs.ecs_sg_id
 }
 
 # ── Redis (ElastiCache) ───────────────────────────────────────────────────────
@@ -142,10 +129,14 @@ module "ecs" {
   google_client_id_arn      = module.secrets.google_client_id_arn
   google_client_secret_arn  = module.secrets.google_client_secret_arn
 
-  # Infrastructure endpoints
-  db_host      = module.rds.proxy_endpoint
-  db_name      = var.db_name
-  db_username  = var.db_username
+  # Shared Postgres (cutly-db) — no Aurora provisioned
+  db_host              = var.db_host
+  db_port              = var.db_port
+  db_name              = var.db_name
+  db_username          = var.db_username
+  db_schema            = var.db_schema
+  db_security_group_id = var.db_security_group_id
+
   redis_host   = module.redis.primary_endpoint
   media_bucket = module.s3.media_bucket_name
   domain_name  = var.domain_name

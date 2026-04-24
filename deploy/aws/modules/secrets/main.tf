@@ -28,7 +28,7 @@ resource "aws_secretsmanager_secret_version" "jwt" {
 
 resource "aws_secretsmanager_secret" "db_password" {
   name                    = "${local.name_prefix}/database/password"
-  description             = "Aurora PostgreSQL master password (TIDYBOARD_DATABASE_PASSWORD)"
+  description             = "Password for the tidyboard role in the shared cutly-db Postgres instance (TIDYBOARD_DATABASE_PASSWORD). Set this after running scripts/bootstrap-db.sh."
   recovery_window_in_days = 7
 
   tags = {

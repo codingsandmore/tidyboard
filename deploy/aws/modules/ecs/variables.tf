@@ -118,17 +118,34 @@ variable "google_client_secret_arn" {
 # ── Infrastructure endpoints ──────────────────────────────────────────────────
 
 variable "db_host" {
-  description = "Database host (RDS Proxy endpoint)."
+  description = "Database host (shared cutly-db endpoint)."
   type        = string
 }
 
+variable "db_port" {
+  description = "Database port."
+  type        = number
+  default     = 5432
+}
+
 variable "db_name" {
-  description = "Database name."
+  description = "Database name inside the shared instance."
   type        = string
 }
 
 variable "db_username" {
-  description = "Database username."
+  description = "Database role for Tidyboard."
+  type        = string
+}
+
+variable "db_schema" {
+  description = "Postgres schema for Tidyboard tables (sets search_path via role default)."
+  type        = string
+  default     = "tidyboard"
+}
+
+variable "db_security_group_id" {
+  description = "Security group attached to the existing RDS instance. An ingress rule on port 5432 is added to allow ECS tasks to connect."
   type        = string
 }
 

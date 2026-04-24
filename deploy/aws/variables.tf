@@ -45,28 +45,46 @@ variable "route53_zone_id" {
   default     = ""
 }
 
-# ── Database ──────────────────────────────────────────────────────────────────
+# ── Database (shared cutly-db instance) ───────────────────────────────────────
 
-variable "db_min_capacity" {
-  description = "Aurora Serverless v2 minimum ACU (0.5 = cheapest; costs ~$0.06/hour when active)."
-  type        = number
-  default     = 0.5
+variable "db_host" {
+  description = "Endpoint of the existing Postgres RDS instance to share."
+  type        = string
+  default     = "cutly-db.c858qwm0sac7.us-east-1.rds.amazonaws.com"
 }
 
-variable "db_max_capacity" {
-  description = "Aurora Serverless v2 maximum ACU."
+variable "db_port" {
+  description = "Port of the existing Postgres instance."
   type        = number
-  default     = 4
+  default     = 5432
+}
+
+variable "db_security_group_id" {
+  description = "Security group attached to the existing RDS instance (ingress 5432 allowed from Tidyboard ECS)."
+  type        = string
+  default     = "sg-001c4c1a130b6ab42"
+}
+
+variable "existing_vpc_id" {
+  description = "VPC hosting the shared Postgres. Tidyboard ECS runs in this VPC instead of creating a new one."
+  type        = string
+  default     = "vpc-0c41d6012793ea910"
 }
 
 variable "db_name" {
-  description = "PostgreSQL database name."
+  description = "PostgreSQL database name inside the shared instance."
+  type        = string
+  default     = "cutly"
+}
+
+variable "db_username" {
+  description = "PostgreSQL role for Tidyboard (created by bootstrap-db.sh)."
   type        = string
   default     = "tidyboard"
 }
 
-variable "db_username" {
-  description = "PostgreSQL master username."
+variable "db_schema" {
+  description = "Postgres schema for Tidyboard tables inside the shared DB."
   type        = string
   default     = "tidyboard"
 }

@@ -16,14 +16,16 @@ ALB (Application Load Balancer — HTTPS, ALB region ACM cert)
     ├── /ws/*    → ECS: tidyboard-server (Go, port 8080)
     └── default  → ECS: tidyboard-web (Next.js SSR, port 3000)
 
-Private subnets (no public IP):
-    ├── ECS: tidyboard-server     (Go API, connects to RDS Proxy + Redis)
-    ├── ECS: tidyboard-web        (Next.js SSR)
-    ├── ECS: tidyboard-sync-worker (Python CalDAV, port 8001)
+Private subnets (existing vpc-0c41d6012793ea910, no public IP):
+    ├── ECS: tidyboard-server      (Go API, connects to cutly-db + Redis)
+    ├── ECS: tidyboard-web         (Next.js SSR)
+    ├── ECS: tidyboard-sync-worker  (Python CalDAV, port 8001)
     └── ECS: tidyboard-recipe-scraper (Python recipe import, port 8002)
 
-Data layer (private subnets):
-    ├── Aurora Serverless v2 PostgreSQL 16 (via RDS Proxy)
+Shared data layer (existing, NOT managed by this Terraform):
+    └── cutly-db (Postgres 16, RDS, us-east-1) — schema: tidyboard
+
+Tidyboard-owned data layer:
     └── ElastiCache Redis 7
 
 Storage:
@@ -31,8 +33,32 @@ Storage:
     └── S3: tidyboard-backups-<account> (database backups)
 
 Secrets Manager:
-    └── JWT, DB password, Redis auth, Stripe keys, Google OAuth
+    └── JWT, DB password (tidyboard role), Redis auth, Stripe keys, Google OAuth
 ```
+
+### Shared-DB architecture
+
+Tidyboard reuses the **existing `cutly-db` Postgres 16 instance** rather than
+provisioning a dedicated Aurora cluster. All Tidyboard tables live in the
+`tidyboard` schema inside the `cutly` database. Schema isolation means
+Tidyboard data never collides with other tenants.
+
+The `tidyboard` role has `search_path = tidyboard, public` set as a role
+default (applied once by `bootstrap-db.sh`). This means every `CREATE TABLE`
+in the goose migrations automatically lands in the `tidyboard` schema — no
+migration code changes required.
+
+**What Terraform does NOT manage:**
+
+- The `cutly-db` RDS instance itself
+- The `cutly` database
+- The RDS master user or master password
+
+**What Terraform DOES manage (additive only):**
+
+- One `aws_security_group_rule` ingress on port 5432 on `sg-001c4c1a130b6ab42`
+  (the cutly-db SG) — allows ECS tasks to reach the DB. This rule is removed
+  on `terraform destroy`.
 
 ## Cost Estimate
 
@@ -44,21 +70,22 @@ For a single-household deployment in us-east-1 (on-demand pricing, April 2026):
 | ECS Fargate — web | 0.5 vCPU, 1 GB, 1 task | ~$15 |
 | ECS Fargate — sync-worker | 0.25 vCPU, 0.5 GB, 1 task | ~$7 |
 | ECS Fargate — recipe-scraper | 0.25 vCPU, 0.5 GB, 1 task | ~$7 |
-| Aurora Serverless v2 (0.5 ACU min) | ~$0.06/hour idle | ~$44 |
-| RDS Proxy | $0.015/vCPU-hour of DB | ~$5 |
+| Postgres (shared cutly-db) | Reusing existing instance | **$0** |
 | ElastiCache cache.t4g.micro | 1 node | ~$12 |
 | NAT Gateway | 1 AZ | ~$32 |
 | ALB | 1 ALB | ~$16 |
 | CloudFront | PriceClass_100, minimal traffic | ~$1 |
 | Secrets Manager | 7 secrets | ~$3 |
 | CloudWatch Logs | 14-day retention | ~$3 |
-| **Total** | | **~$160/month** |
+| **Total** | | **~$111/month** |
 
-**To reduce costs:**
+Savings vs dedicated Aurora + RDS Proxy: **~$49/month** (~$44 Aurora + ~$5 proxy).
+
+**To reduce costs further:**
+
 - Stop unused services: set `ecs_desired_count_*` to `0` in `terraform.tfvars`
-- Use Fargate Spot for non-critical services (sync-worker, recipe-scraper): add `capacity_provider_strategy` blocks to the ECS services
-- Move to a single-AZ NAT Gateway (already configured) — saves ~$20/month vs 3-AZ
-- Use `cache.t3.micro` if t4g is unavailable in your region
+- Use Fargate Spot for non-critical services (sync-worker, recipe-scraper)
+- The single-AZ NAT Gateway is already configured — saves ~$20/month vs 3-AZ
 
 ## Prerequisites
 
@@ -70,18 +97,20 @@ For a single-household deployment in us-east-1 (on-demand pricing, April 2026):
    ```
 3. **Terraform 1.5+** (1.7+ recommended):
    ```bash
-   brew install terraform         # macOS
-   # or: https://developer.hashicorp.com/terraform/downloads
-   terraform version              # verify >= 1.5.0
+   brew install terraform
+   terraform version    # verify >= 1.5.0
    ```
 4. **Docker with buildx**:
    ```bash
-   docker buildx version          # verify buildx is installed
-   docker buildx create --use     # initialise a builder (run once)
+   docker buildx version
+   docker buildx create --use
    ```
-5. **A registered domain** (e.g., `tidyboard.example.com`) — you need either:
-   - A Route 53 hosted zone (set `create_route53_records = true`)
-   - Access to your registrar's DNS to add CNAME records manually
+5. **psql** on PATH (for `bootstrap-db.sh`):
+   ```bash
+   brew install libpq && brew link --force libpq
+   ```
+6. **A registered domain** — you need either a Route 53 hosted zone or access
+   to your registrar's DNS to add CNAME records manually.
 
 ## Quickstart
 
@@ -93,65 +122,63 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 Edit `terraform.tfvars` and set at minimum:
+
 ```hcl
-aws_profile = "tidyboard"        # your AWS named profile
+aws_profile = "tidyboard"
 domain_name = "tidyboard.example.com"
 ```
 
-### Step 2 — Set secrets in Secrets Manager
+The shared-DB variables (`db_host`, `db_port`, `db_security_group_id`,
+`existing_vpc_id`) are pre-populated with the correct `cutly-db` values and
+do not need to be changed unless the instance moves.
 
-Before `terraform apply`, populate the secrets Terraform creates with
-placeholder values. After apply, update them with real values:
+### Step 2 — Bootstrap the shared database (one-time)
+
+This creates the `tidyboard` role and schema inside `cutly-db`. Run once,
+before or after `terraform apply` — order does not matter.
 
 ```bash
-# Example: set JWT secret after first apply
+# 1. Apply Terraform first so the Secrets Manager secret exists:
+terraform init && terraform apply
+
+# 2. Set the tidyboard DB password in Secrets Manager:
+aws --profile home secretsmanager put-secret-value \
+  --secret-id "tidyboard-prod/database/password" \
+  --secret-string "$(openssl rand -base64 32)"
+
+# 3. Run the bootstrap script (prompts for RDS master password):
+chmod +x deploy/aws/scripts/bootstrap-db.sh
+./deploy/aws/scripts/bootstrap-db.sh
+```
+
+The script reads the tidyboard password from Secrets Manager, substitutes it
+into `bootstrap-db.sql`, and pipes the result to `psql` as the RDS master user.
+The master password is never stored — you enter it interactively.
+
+### Step 3 — Set remaining secrets in Secrets Manager
+
+```bash
 aws --profile tidyboard secretsmanager put-secret-value \
   --secret-id "tidyboard-prod/auth/jwt-secret" \
   --secret-string "$(openssl rand -base64 64)"
-
-aws --profile tidyboard secretsmanager put-secret-value \
-  --secret-id "tidyboard-prod/database/password" \
-  --secret-string "$(openssl rand -base64 32)"
 
 aws --profile tidyboard secretsmanager put-secret-value \
   --secret-id "tidyboard-prod/redis/password" \
   --secret-string "$(openssl rand -base64 32)"
 ```
 
-For Stripe and Google OAuth, replace the placeholder values in Secrets Manager
-via the AWS Console or CLI after obtaining real keys.
-
-### Step 3 — Initialize and apply Terraform
-
-```bash
-cd deploy/aws
-terraform init
-terraform plan   # review what will be created
-terraform apply  # ~10-15 minutes for first apply
-```
-
-After apply completes, note the outputs:
-- `cloudfront_url` — your app URL (before custom domain DNS)
-- `acm_validation_records` — DNS CNAME records to validate the TLS certificate
+For Stripe and Google OAuth, set values via the AWS Console or CLI after
+obtaining real keys.
 
 ### Step 4 — Validate the ACM certificate
 
-The ACM certificate cannot complete validation until you add the DNS records.
+The ACM certificate cannot complete validation until DNS records are added.
 
-**If using Route 53** (`create_route53_records = true`): validation records are
-created automatically. Wait ~5 minutes for propagation.
+**Route 53** (`create_route53_records = true`): validation records are created
+automatically. Wait ~5 minutes.
 
-**If using an external DNS provider**: add the CNAME records shown in the
-`acm_validation_records` output at your registrar. Example:
-
-```
-Name:  _abc123.tidyboard.example.com
-Type:  CNAME
-Value: _def456.acm-validations.aws.
-TTL:   60
-```
-
-Certificate validation can take 5-30 minutes after DNS propagation.
+**External DNS**: add the CNAME records from the `acm_validation_records`
+output at your registrar. Validation takes 5-30 minutes.
 
 ### Step 5 — Build and push Docker images
 
@@ -159,9 +186,6 @@ Certificate validation can take 5-30 minutes after DNS propagation.
 chmod +x deploy/aws/scripts/build-and-push.sh
 ./deploy/aws/scripts/build-and-push.sh
 ```
-
-This builds all four images (`tidyboard-server`, `tidyboard-web`,
-`tidyboard-sync-worker`, `tidyboard-recipe-scraper`) and pushes them to ECR.
 
 ### Step 6 — Force ECS deployments
 
@@ -177,48 +201,75 @@ for SVC in server web sync-worker recipe-scraper; do
 done
 ```
 
-Or use the deploy script (runs terraform + build + redeploy in sequence):
-```bash
-chmod +x deploy/aws/scripts/deploy.sh
-./deploy/aws/scripts/deploy.sh
-```
-
-### Step 7 — Point your domain to CloudFront
-
-Add a CNAME (or ALIAS/ANAME) record at your DNS provider:
-
-```
-Name:  tidyboard.example.com
-Type:  CNAME  (or ALIAS if your provider supports it)
-Value: <cloudfront_url from terraform output, without https://>
-```
-
-After DNS propagates (minutes to hours depending on TTL), visit
-`https://tidyboard.example.com`.
-
-### Step 8 — Run database migrations
+### Step 7 — Run database migrations
 
 ```bash
 CLUSTER=$(cd deploy/aws && terraform output -raw ecs_cluster_name)
 
-# Run the migrate subcommand as a one-off ECS task
 aws --profile tidyboard ecs run-task \
   --cluster "$CLUSTER" \
   --task-definition "${CLUSTER}-server" \
   --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[$(cd deploy/aws && terraform output -json | jq -r '.rds_proxy_endpoint // empty')],securityGroups=[],assignPublicIp=DISABLED}" \
+  --network-configuration "awsvpcConfiguration={subnets=[SUBNET_ID],securityGroups=[],assignPublicIp=DISABLED}" \
   --overrides '{"containerOverrides":[{"name":"server","command":["migrate","up"]}]}'
 ```
 
-Or exec into the running server container:
-```bash
-aws --profile tidyboard ecs execute-command \
-  --cluster "$CLUSTER" \
-  --task <task-id> \
-  --container server \
-  --interactive \
-  --command "/app/tidyboard migrate up"
+Migrations run inside the `tidyboard` schema because the `tidyboard` role has
+`search_path = tidyboard, public` set as a permanent role default.
+
+### Step 8 — Point your domain to CloudFront
+
 ```
+Name:  tidyboard.example.com
+Type:  CNAME  (or ALIAS if supported)
+Value: <cloudfront_url from terraform output, without https://>
+```
+
+---
+
+## Safety — Shared Database
+
+> **Tidyboard does NOT manage `cutly-db`.**
+
+The `cutly-db` RDS instance is owned by a separate AWS account/project. If
+that instance is decommissioned, all Tidyboard tables go with it.
+
+**Before decommissioning `cutly-db`**, migrate Tidyboard data:
+
+```bash
+# Dump only the tidyboard schema
+pg_dump \
+  "postgres://tidyboard@cutly-db.c858qwm0sac7.us-east-1.rds.amazonaws.com:5432/cutly?sslmode=require" \
+  --schema=tidyboard \
+  --no-owner \
+  -Fc \
+  -f tidyboard-schema-dump.dump
+
+# Restore into a new database
+pg_restore \
+  -d "postgres://newuser@newhost:5432/newdb?sslmode=require" \
+  --schema=tidyboard \
+  -Fc \
+  tidyboard-schema-dump.dump
+```
+
+Then update `db_host` (and `db_name` if the database name changes) in
+`terraform.tfvars` and run `terraform apply` to point ECS tasks at the new
+instance.
+
+### Security group mutation
+
+`terraform apply` adds **one ingress rule** to `sg-001c4c1a130b6ab42` (the
+cutly-db security group):
+
+```
+Protocol: TCP  Port: 5432  Source: tidyboard-prod-ecs-tasks-sg
+```
+
+This is the only change made to existing shared infrastructure. `terraform
+destroy` removes this rule. If you want to revoke access without destroying the
+stack, delete the `aws_security_group_rule.db_ingress_from_ecs` rule from
+`modules/ecs/main.tf` and run `terraform apply`.
 
 ---
 
@@ -258,10 +309,8 @@ AWS — no long-lived credentials in GitHub Secrets.
      }]
    }
    ```
-   Attach permissions for ECR push + ECS `update-service`.
 
-3. **Add to GitHub Secrets**:
-   - `AWS_ROLE_ARN` — ARN of the role created above
+3. **Add to GitHub Secrets**: `AWS_ROLE_ARN`
 
 ---
 
@@ -269,13 +318,14 @@ AWS — no long-lived credentials in GitHub Secrets.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `terraform apply` fails with "certificate pending validation" | ACM cert DNS records not yet added | Add CNAME records to DNS, wait for propagation |
+| `terraform apply` fails with "certificate pending validation" | ACM cert DNS records not yet added | Add CNAME records, wait for propagation |
 | ECS tasks stuck in PENDING | ECR images not pushed yet | Run `build-and-push.sh` |
-| ECS tasks crash-looping | Wrong secret values in Secrets Manager | Check secrets, then force redeploy |
-| 502 Bad Gateway from CloudFront | ECS health check failing | Check `/health` endpoint, CloudWatch logs |
-| `db_host` shows proxy endpoint but DB refuses connections | Migrations not run | Run `tidyboard migrate up` in ECS exec |
+| ECS tasks crash-looping | Wrong secret values in Secrets Manager | Check secrets, force redeploy |
+| 502 Bad Gateway from CloudFront | ECS health check failing | Check `/health`, CloudWatch logs |
+| `FATAL: role "tidyboard" does not exist` | bootstrap-db.sh not run yet | Run `scripts/bootstrap-db.sh` |
+| `ERROR: schema "tidyboard" does not exist` | bootstrap-db.sh not run yet | Run `scripts/bootstrap-db.sh` |
+| DB connection refused from ECS | SG ingress rule not applied | Run `terraform apply` |
 | ALB certificate "inactive" | ACM validation pending | Add DNS CNAME records, wait 5-30 min |
-| High costs | NAT Gateway data transfer | Enable VPC endpoints (already provisioned) |
 
 ### Useful commands
 
@@ -283,10 +333,7 @@ AWS — no long-lived credentials in GitHub Secrets.
 # Stream ECS server logs
 aws --profile tidyboard logs tail /ecs/tidyboard-prod/server --follow
 
-# Stream web logs
-aws --profile tidyboard logs tail /ecs/tidyboard-prod/web --follow
-
-# Exec into a running container (requires enable_execute_command = true)
+# Exec into a running container
 TASK=$(aws --profile tidyboard ecs list-tasks \
   --cluster tidyboard-prod --service-name tidyboard-prod-server \
   --query 'taskArns[0]' --output text)
@@ -294,37 +341,36 @@ aws --profile tidyboard ecs execute-command \
   --cluster tidyboard-prod --task "$TASK" \
   --container server --interactive --command /bin/sh
 
-# Describe ECS service events (deployment status)
+# Describe ECS service events
 aws --profile tidyboard ecs describe-services \
   --cluster tidyboard-prod \
   --services tidyboard-prod-server \
   --query 'services[0].events[:5]'
+
+# Verify tidyboard schema exists in cutly-db
+psql "postgres://tidyboard@cutly-db.c858qwm0sac7.us-east-1.rds.amazonaws.com:5432/cutly?sslmode=require" \
+  -c "\dn tidyboard"
 ```
 
 ---
 
 ## Rollback
 
-To destroy all AWS resources created by this Terraform config:
 ```bash
 cd deploy/aws
 terraform destroy
 ```
 
-To roll back to a previous image tag without changing infrastructure:
+To roll back to a previous image tag:
+
 ```bash
-# Edit deploy/aws/modules/ecs/task-server.tf — change image_tag default
-# OR pass via tfvars: image_tag = "sha-abc1234"
+# Pass via tfvars or edit modules/ecs/task-server.tf image_tag default
 # Then: terraform apply + force ECS redeployment
 ```
 
 ---
 
 ## Updating secrets after initial apply
-
-The `lifecycle { ignore_changes = [secret_string] }` block on each secret
-version means Terraform will never overwrite a secret you have manually set.
-Update secrets directly:
 
 ```bash
 aws --profile tidyboard secretsmanager put-secret-value \

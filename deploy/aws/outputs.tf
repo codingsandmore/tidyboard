@@ -33,14 +33,19 @@ output "ecr_recipe_scraper_url" {
   value       = module.ecr.recipe_scraper_repository_url
 }
 
-output "rds_cluster_endpoint" {
-  description = "Aurora cluster writer endpoint (direct — prefer the RDS Proxy endpoint for app connections)."
-  value       = module.rds.cluster_endpoint
+output "db_host" {
+  description = "Shared Postgres endpoint used by all ECS tasks (cutly-db). Read-only — Tidyboard does not manage this instance."
+  value       = var.db_host
 }
 
-output "rds_proxy_endpoint" {
-  description = "RDS Proxy endpoint — use this as TIDYBOARD_DATABASE_HOST in all containers."
-  value       = module.rds.proxy_endpoint
+output "db_name" {
+  description = "Database name inside the shared instance."
+  value       = var.db_name
+}
+
+output "db_schema" {
+  description = "Postgres schema that contains all Tidyboard tables."
+  value       = var.db_schema
 }
 
 output "redis_primary_endpoint" {

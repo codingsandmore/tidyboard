@@ -9,24 +9,36 @@ variable "environment" {
 }
 
 variable "aws_region" {
-  description = "AWS region — used to derive AZ names."
+  description = "AWS region — used to name VPC endpoints."
   type        = string
 }
 
+variable "create_new_vpc" {
+  description = "When false (default), look up the existing VPC via existing_vpc_id. When true, create a fresh VPC + subnets + NAT GW."
+  type        = bool
+  default     = false
+}
+
+variable "existing_vpc_id" {
+  description = "ID of the existing VPC to use when create_new_vpc = false."
+  type        = string
+  default     = ""
+}
+
 variable "vpc_cidr" {
-  description = "VPC CIDR block."
+  description = "VPC CIDR block (only used when create_new_vpc = true)."
   type        = string
   default     = "10.0.0.0/16"
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDR blocks for three public subnets (one per AZ)."
+  description = "CIDR blocks for three public subnets (only used when create_new_vpc = true)."
   type        = list(string)
   default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for three private subnets (one per AZ)."
+  description = "CIDR blocks for three private subnets (only used when create_new_vpc = true)."
   type        = list(string)
   default     = ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
 }

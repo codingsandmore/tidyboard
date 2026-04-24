@@ -79,6 +79,21 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
+# ── Allow ECS tasks to reach the shared Postgres instance ─────────────────────
+# This adds an INGRESS rule to the EXISTING cutly-db security group.
+# It is additive and non-destructive — `terraform destroy` removes only this rule.
+# The shared RDS instance itself is never managed by this Terraform config.
+
+resource "aws_security_group_rule" "db_ingress_from_ecs" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = var.db_security_group_id
+  source_security_group_id = aws_security_group.ecs_tasks.id
+  description              = "Allow Tidyboard ECS tasks to connect to shared Postgres (cutly-db)"
+}
+
 # ── CloudWatch Log Groups ─────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "server" {
