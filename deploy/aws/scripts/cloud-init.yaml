@@ -67,8 +67,19 @@ runcmd:
       -o /usr/local/lib/docker/cli-plugins/docker-compose
   - chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-  # ── Clone repository ────────────────────────────────────────────────────────
-  - git clone --branch ${repo_branch} ${repo_url} /opt/tidyboard
+  # ── Fetch GitHub deploy key from SSM (repo is private; SSH auth required) ──
+  - |
+    mkdir -p /root/.ssh
+    aws ssm get-parameter \
+      --region us-east-1 \
+      --name /tidyboard/prod/github-deploy-key \
+      --with-decryption \
+      --query Parameter.Value --output text > /root/.ssh/id_ed25519
+    chmod 600 /root/.ssh/id_ed25519
+    ssh-keyscan -t ed25519,rsa github.com >> /root/.ssh/known_hosts 2>/dev/null
+
+  # ── Clone repository via SSH using the deploy key ──────────────────────────
+  - git -c core.sshCommand='ssh -i /root/.ssh/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/root/.ssh/known_hosts' clone --branch ${repo_branch} ${repo_url} /opt/tidyboard
   - chown -R ec2-user:ec2-user /opt/tidyboard
 
   # ── Fix .env ownership (write_files runs before repo clone may create dir) ──
