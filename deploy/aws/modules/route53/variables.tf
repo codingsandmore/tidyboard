@@ -1,39 +1,14 @@
 variable "domain_name" {
-  description = "Root domain name."
+  description = "Apex domain for the deployment (e.g. tidyboard.org). A record for this name and for www.<domain> are created."
   type        = string
 }
 
 variable "zone_id" {
-  description = "Route 53 hosted zone ID."
+  description = "Route 53 hosted zone ID for the apex domain. Zone must be pre-created."
   type        = string
 }
 
-variable "cloudfront_domain" {
-  description = "CloudFront distribution domain name."
+variable "eip_address" {
+  description = "IPv4 address of the Elastic IP attached to the Tidyboard EC2. Both apex and www A records point here."
   type        = string
-}
-
-variable "cloudfront_hosted_zone_id" {
-  description = "CloudFront hosted zone ID (for Route 53 alias records)."
-  type        = string
-}
-
-variable "alb_dns" {
-  description = "ALB DNS name."
-  type        = string
-}
-
-variable "alb_zone_id" {
-  description = "ALB Route 53 hosted zone ID."
-  type        = string
-}
-
-variable "acm_validation_records" {
-  description = "ACM certificate DNS validation records from the cloudfront module."
-  type = map(object({
-    name  = string
-    type  = string
-    value = string
-  }))
-  default = {}
 }

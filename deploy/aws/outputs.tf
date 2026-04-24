@@ -1,40 +1,30 @@
-output "alb_dns_name" {
-  description = "DNS name of the Application Load Balancer. Use this for an api.* CNAME if not using Route 53."
-  value       = module.alb.alb_dns_name
+output "app_url" {
+  description = "Public HTTPS URL of the deployment (Caddy terminates TLS on the EC2)."
+  value       = "https://${var.domain_name}"
 }
 
-output "cloudfront_url" {
-  description = "CloudFront distribution domain (https://). This is the primary user-facing URL before custom domain DNS propagates."
-  value       = "https://${module.cloudfront.domain_name}"
+output "ec2_instance_id" {
+  description = "EC2 instance ID — handy for ssh + CloudWatch log lookups."
+  value       = module.ec2.instance_id
 }
 
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID — needed for cache invalidations."
-  value       = module.cloudfront.distribution_id
+output "ec2_public_ip" {
+  description = "Elastic IP attached to the Tidyboard EC2. This is what the Route 53 A records point at."
+  value       = module.ec2.public_ip
 }
 
-output "ecr_server_url" {
-  description = "ECR repository URL for the Go server image."
-  value       = module.ecr.server_repository_url
+output "ec2_private_ip" {
+  description = "Private IP of the EC2 inside the cutly VPC. Used by SG references on the RDS side."
+  value       = module.ec2.private_ip
 }
 
-output "ecr_web_url" {
-  description = "ECR repository URL for the Next.js web image."
-  value       = module.ecr.web_repository_url
-}
-
-output "ecr_sync_worker_url" {
-  description = "ECR repository URL for the Python sync-worker image."
-  value       = module.ecr.sync_worker_repository_url
-}
-
-output "ecr_recipe_scraper_url" {
-  description = "ECR repository URL for the Python recipe-scraper image."
-  value       = module.ecr.recipe_scraper_repository_url
+output "ssh_command" {
+  description = "Copy-paste SSH command. Replace <your-key.pem> with the private key that matches ssh_key_name."
+  value       = "ssh -i <your-key.pem> ec2-user@${module.ec2.public_ip}"
 }
 
 output "db_host" {
-  description = "Shared Postgres endpoint used by all ECS tasks (cutly-db). Read-only — Tidyboard does not manage this instance."
+  description = "Shared Postgres endpoint (cutly-db). Read-only — Tidyboard does not manage this instance."
   value       = var.db_host
 }
 
@@ -48,11 +38,6 @@ output "db_schema" {
   value       = var.db_schema
 }
 
-output "redis_primary_endpoint" {
-  description = "ElastiCache Redis primary endpoint — use as TIDYBOARD_REDIS_HOST."
-  value       = module.redis.primary_endpoint
-}
-
 output "media_bucket_name" {
   description = "S3 media bucket name."
   value       = module.s3.media_bucket_name
@@ -61,14 +46,4 @@ output "media_bucket_name" {
 output "backup_bucket_name" {
   description = "S3 backup bucket name."
   value       = module.s3.backup_bucket_name
-}
-
-output "ecs_cluster_name" {
-  description = "ECS cluster name — used in ECS update-service commands."
-  value       = module.ecs.cluster_name
-}
-
-output "acm_validation_records" {
-  description = "DNS CNAME records required to validate the ACM certificate. Add these to your DNS provider if create_route53_records = false."
-  value       = module.cloudfront.acm_validation_records
 }
