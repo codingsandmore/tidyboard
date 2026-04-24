@@ -110,8 +110,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # uvicorn inside the container listens on 8001 (see services/sync-worker/Dockerfile CMD).
+    # Host:container port mapping must match the internal port or callers get ECONNREFUSED.
     ports:
-      - "8081:8081"
+      - "8001:8001"
     environment:
       TIDYBOARD_DATABASE_HOST: postgres
       TIDYBOARD_DATABASE_PORT: 5432
@@ -120,7 +122,7 @@ services:
       TIDYBOARD_DATABASE_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
       TIDYBOARD_REDIS_HOST: redis
       TIDYBOARD_REDIS_PORT: 6379
-      SYNC_WORKER_PORT: 8081
+      SYNC_WORKER_PORT: 8001
 
   recipe-scraper:
     build:
@@ -132,15 +134,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # uvicorn inside the container listens on 8002 (see services/recipe-scraper/Dockerfile CMD).
     ports:
-      - "8082:8082"
+      - "8002:8002"
     environment:
       TIDYBOARD_DATABASE_HOST: postgres
       TIDYBOARD_DATABASE_PORT: 5432
       TIDYBOARD_DATABASE_NAME: tidyboard
       TIDYBOARD_DATABASE_USER: tidyboard
       TIDYBOARD_DATABASE_PASSWORD: ${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}
-      RECIPE_SCRAPER_PORT: 8082
+      RECIPE_SCRAPER_PORT: 8002
 
   # MinIO — S3-compatible local object storage for development and testing.
   # Not started by default. Use the "s3-dev" profile to enable:

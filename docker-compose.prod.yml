@@ -1,0 +1,88 @@
+# docker-compose.prod.yml — production overrides for Tidyboard.
+#
+# Use alongside the base docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What this file does:
+#   - Adds a Caddy reverse proxy with automatic TLS via Let's Encrypt
+#   - Adds the Next.js `web` service (Dockerfile build in ./web)
+#   - Removes host-port exposure from app services (only Caddy is public)
+#   - Disables the local postgres + MinIO services via `dev-only` profile
+#     (production reuses the shared cutly-db RDS instance and real S3)
+#   - Resets base environment + depends_on so the real .env values apply
+
+networks:
+  tidyboard:
+    driver: bridge
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+services:
+  # ── Dev-only services, never started in prod ────────────────────────────────
+  postgres:
+    profiles: [dev-only]
+  minio:
+    profiles: [dev-only]
+
+  # ── Caddy — TLS termination + reverse proxy ──────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks: [tidyboard]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - /var/log/caddy:/var/log/caddy
+    environment:
+      TIDYBOARD_DOMAIN: ${TIDYBOARD_DOMAIN:-tidyboard.org}
+    depends_on: [tidyboard, web]
+
+  # ── Next.js web app (built from ./web) ──────────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks: [tidyboard]
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+
+  # ── App services — no host-port exposure in production ──────────────────────
+  # `environment: !reset null` is critical: base docker-compose.yml sets dev
+  # defaults on `environment:` (e.g. TIDYBOARD_DATABASE_HOST: postgres). Per
+  # Compose precedence, `environment:` beats `env_file:`, so without the reset
+  # the dev defaults silently clobber the real .env values in production.
+  #
+  # `depends_on: !reset` drops references to `postgres` since the local postgres
+  # service is dev-only; production talks to cutly-db RDS directly.
+  tidyboard:
+    ports: []
+    environment: !reset null
+    env_file: [.env]
+    depends_on: !reset
+      redis:
+        condition: service_healthy
+
+  sync-worker:
+    ports: []
+    environment: !reset null
+    env_file: [.env]
+    depends_on: !reset
+      redis:
+        condition: service_healthy
+
+  recipe-scraper:
+    ports: []
+    environment: !reset null
+    env_file: [.env]
+    depends_on: !reset []
+
+  redis:
+    ports: []

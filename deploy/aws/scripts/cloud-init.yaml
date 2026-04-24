@@ -1,0 +1,169 @@
+#cloud-config
+# Tidyboard EC2 bootstrap — Amazon Linux 2023 / ARM64
+# Runs once on first boot.
+#
+# Variables injected by Terraform templatefile():
+#   repo_url                   = ${repo_url}
+#   repo_branch                = ${repo_branch}
+#   domain_name                = ${domain_name}
+#   project                    = ${project}
+#   environment                = ${environment}
+#   db_host                    = ${db_host}
+#   db_port                    = ${db_port}
+#   db_schema                  = ${db_schema}
+#   jwt_secret                 = (sensitive)
+#   db_password                = (sensitive)
+#   stripe_secret_key          = (sensitive)
+#   stripe_webhook_secret      = (sensitive)
+#   google_oauth_client_id     = (sensitive)
+#   google_oauth_client_secret = (sensitive)
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - docker
+
+write_files:
+  - path: /opt/tidyboard/.env
+    owner: root:root
+    permissions: "0600"
+    defer: true
+    content: |
+      TIDYBOARD_DATABASE_HOST=${db_host}
+      TIDYBOARD_DATABASE_PORT=${db_port}
+      TIDYBOARD_DATABASE_NAME=cutlist
+      TIDYBOARD_DATABASE_USER=tidyboard
+      TIDYBOARD_DATABASE_PASSWORD=${db_password}
+      TIDYBOARD_DATABASE_SCHEMA=${db_schema}
+      TIDYBOARD_DATABASE_SSLMODE=require
+      TIDYBOARD_AUTH_JWT_SECRET=${jwt_secret}
+      TIDYBOARD_STRIPE_SECRET_KEY=${stripe_secret_key}
+      TIDYBOARD_STRIPE_WEBHOOK_SECRET=${stripe_webhook_secret}
+      TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_ID=${google_oauth_client_id}
+      TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_SECRET=${google_oauth_client_secret}
+      TIDYBOARD_DOMAIN=${domain_name}
+      NEXT_PUBLIC_API_URL=https://${domain_name}
+      TIDYBOARD_REDIS_HOST=redis
+      TIDYBOARD_REDIS_PORT=6379
+      TIDYBOARD_SERVER_HOST=0.0.0.0
+      TIDYBOARD_SERVER_PORT=8080
+      TIDYBOARD_SERVER_CORS_ORIGINS=https://${domain_name}
+      # Internal service URLs — docker DNS + the port uvicorn actually listens on.
+      TIDYBOARD_SYNC_WORKER_URL=http://sync-worker:8001
+      TIDYBOARD_RECIPE_SCRAPER_URL=http://recipe-scraper:8002
+
+runcmd:
+  # ── Docker setup ────────────────────────────────────────────────────────────
+  - systemctl enable --now docker
+  - usermod -aG docker ec2-user
+
+  # ── Docker Compose plugin ───────────────────────────────────────────────────
+  - mkdir -p /usr/local/lib/docker/cli-plugins
+  - |
+    COMPOSE_VERSION=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+    curl -fsSL "https://github.com/docker/compose/releases/download/v$${COMPOSE_VERSION}/docker-compose-linux-aarch64" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose
+  - chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+  # ── Clone repository ────────────────────────────────────────────────────────
+  - git clone --branch ${repo_branch} ${repo_url} /opt/tidyboard
+  - chown -R ec2-user:ec2-user /opt/tidyboard
+
+  # ── Fix .env ownership (write_files runs before repo clone may create dir) ──
+  - chown ec2-user:ec2-user /opt/tidyboard/.env
+  - chmod 600 /opt/tidyboard/.env
+
+  # ── Render config.yaml from the example (Kong loads it; env vars override values).
+  # Without this, the base compose bind-mount ./config.yaml:/app/config.yaml:ro
+  # would fail because docker silently auto-creates the missing source as an empty
+  # directory — next start errors out with "not a directory".
+  - cp /opt/tidyboard/config.example.yaml /opt/tidyboard/config.yaml
+  - chown ec2-user:ec2-user /opt/tidyboard/config.yaml
+
+  # ── Write Caddyfile ─────────────────────────────────────────────────────────
+  - |
+    mkdir -p /var/log/caddy
+    cat > /opt/tidyboard/Caddyfile <<CADDYEOF
+    ${domain_name} {
+        encode gzip zstd
+
+        @api {
+            path /api/*
+            path /v1/*
+            path /health
+            path /ready
+            path /metrics
+        }
+        handle @api {
+            reverse_proxy tidyboard:8080
+        }
+
+        @ws {
+            path /ws/*
+        }
+        handle @ws {
+            reverse_proxy tidyboard:8080 {
+                header_up Host {host}
+                header_up X-Real-IP {remote}
+            }
+        }
+
+        handle {
+            reverse_proxy web:3000
+        }
+
+        log {
+            output file /var/log/caddy/access.log {
+                roll_size 50mb
+                roll_keep 5
+            }
+        }
+    }
+
+    www.${domain_name} {
+        redir https://${domain_name}{uri}
+    }
+    CADDYEOF
+    chown -R ec2-user:ec2-user /opt/tidyboard/Caddyfile /var/log/caddy
+
+  # ── Start services ──────────────────────────────────────────────────────────
+  - |
+    cd /opt/tidyboard && \
+    sudo -u ec2-user docker compose \
+      -f docker-compose.yml \
+      -f docker-compose.prod.yml \
+      up -d --build
+
+  # ── systemd service for auto-start on reboot ────────────────────────────────
+  - |
+    cat > /etc/systemd/system/tidyboard.service <<'SVCEOF'
+    [Unit]
+    Description=Tidyboard docker compose stack
+    Requires=docker.service
+    After=docker.service network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=simple
+    User=ec2-user
+    WorkingDirectory=/opt/tidyboard
+    ExecStart=/usr/bin/docker compose -f /opt/tidyboard/docker-compose.yml -f /opt/tidyboard/docker-compose.prod.yml up
+    ExecStop=/usr/bin/docker compose -f /opt/tidyboard/docker-compose.yml -f /opt/tidyboard/docker-compose.prod.yml down
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    SVCEOF
+    systemctl daemon-reload
+    systemctl enable tidyboard
+
+  # ── Daily security updates ──────────────────────────────────────────────────
+  - |
+    cat > /etc/cron.daily/security-updates <<'CRONEOF'
+    #!/bin/bash
+    dnf upgrade --security -y --quiet 2>&1 | logger -t security-updates
+    CRONEOF
+    chmod +x /etc/cron.daily/security-updates

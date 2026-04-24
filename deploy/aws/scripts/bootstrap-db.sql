@@ -4,23 +4,31 @@
 --
 -- Usage: see bootstrap-db.sh (it handles password substitution and psql invocation).
 --
--- What this does:
---   1. Creates the dedicated `tidyboard` role with the password stored in
---      Secrets Manager (tidyboard-prod/database/password).
---   2. Creates the `tidyboard` schema owned by that role.
---   3. Sets search_path so every subsequent connection by the tidyboard role
---      lands tables in the tidyboard schema — no migration changes needed.
---   4. Grants the minimum permissions needed on the shared `public` schema.
+-- Idempotent: safe to re-run. CREATE USER is guarded; CREATE SCHEMA uses IF NOT EXISTS.
 
-CREATE USER tidyboard WITH ENCRYPTED PASSWORD 'TIDYBOARD_DB_PASSWORD_PLACEHOLDER';
+-- 1. Create or update the tidyboard role.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tidyboard') THEN
+    CREATE USER tidyboard WITH ENCRYPTED PASSWORD 'TIDYBOARD_DB_PASSWORD_PLACEHOLDER';
+  ELSE
+    ALTER USER tidyboard WITH ENCRYPTED PASSWORD 'TIDYBOARD_DB_PASSWORD_PLACEHOLDER';
+  END IF;
+END$$;
 
+-- 2. RDS quirk: the master user is `rds_superuser`, not a real superuser.
+-- To CREATE SCHEMA AUTHORIZATION tidyboard, the executing role must be a member
+-- of the tidyboard role. Grant membership to whoever is running this script.
+GRANT tidyboard TO current_user;
+
+-- 3. Create the schema owned by tidyboard.
 CREATE SCHEMA IF NOT EXISTS tidyboard AUTHORIZATION tidyboard;
 
--- search_path sticks to the role permanently; applied on every new connection.
+-- 4. search_path sticks to the role permanently; applied on every new connection.
 ALTER ROLE tidyboard SET search_path TO tidyboard, public;
 
--- Allow tidyboard to use public (e.g. extensions like pgcrypto live there).
+-- 5. Minimum grants on the shared public schema (extensions like pgcrypto live there).
 GRANT USAGE ON SCHEMA public TO tidyboard;
 
--- Allow tidyboard to create objects only in its own schema.
+-- 6. Let tidyboard create objects in its own schema.
 GRANT CREATE ON SCHEMA tidyboard TO tidyboard;

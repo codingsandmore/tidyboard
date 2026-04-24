@@ -71,11 +71,11 @@ type DatabaseConfig struct {
 	Name            string        `help:"Database name" default:"tidyboard" env:"TIDYBOARD_DATABASE_NAME" yaml:"name"`
 	User            string        `help:"Database user" default:"tidyboard" env:"TIDYBOARD_DATABASE_USER" yaml:"user"`
 	Password        string        `help:"Database password" env:"TIDYBOARD_DATABASE_PASSWORD" yaml:"password"`
-	SSLMode         string        `help:"SSL mode" default:"disable" enum:"disable,require,verify-ca,verify-full" yaml:"sslmode"`
-	MaxOpenConns    int           `help:"Max open connections" default:"25" yaml:"max_open_conns"`
-	MaxIdleConns    int           `help:"Max idle connections" default:"5" yaml:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `help:"Connection max lifetime" default:"15m" yaml:"conn_max_lifetime"`
-	MigrationsDir   string        `help:"Migrations directory" default:"./migrations" yaml:"migrations_dir"`
+	SSLMode         string        `help:"SSL mode" default:"disable" enum:"disable,require,verify-ca,verify-full" env:"TIDYBOARD_DATABASE_SSLMODE" yaml:"sslmode"`
+	MaxOpenConns    int           `help:"Max open connections" default:"25" env:"TIDYBOARD_DATABASE_MAX_OPEN_CONNS" yaml:"max_open_conns"`
+	MaxIdleConns    int           `help:"Max idle connections" default:"5" env:"TIDYBOARD_DATABASE_MAX_IDLE_CONNS" yaml:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `help:"Connection max lifetime" default:"15m" env:"TIDYBOARD_DATABASE_CONN_MAX_LIFETIME" yaml:"conn_max_lifetime"`
+	MigrationsDir   string        `help:"Migrations directory" default:"./migrations" env:"TIDYBOARD_DATABASE_MIGRATIONS_DIR" yaml:"migrations_dir"`
 }
 
 // DSN returns a PostgreSQL connection string for pgx.

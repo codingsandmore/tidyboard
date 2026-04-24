@@ -4,16 +4,15 @@
 # Prerequisites:
 #   - psql on PATH
 #   - AWS CLI configured with the "home" profile (account 812063707282)
-#   - The tidyboard Secrets Manager secret already exists
-#     (run `terraform apply` first to create the secret, then set its value,
-#      then run this script)
+#   - The tidyboard role password already written to SSM at
+#     /tidyboard/prod/db-password (see scripts/put-ssm-params.sh)
 #
 # What it does:
-#   1. Reads the tidyboard DB password from Secrets Manager.
+#   1. Reads the tidyboard DB password from SSM Parameter Store.
 #   2. Prompts you for the RDS master user password (never stored).
 #   3. Runs bootstrap-db.sql against cutly-db as the master user.
 #
-# After this script succeeds, ECS tasks can connect as `tidyboard` and all
+# After this script succeeds, the EC2 app can connect as `tidyboard` and all
 # CREATE TABLE statements land in the `tidyboard` schema automatically.
 
 set -euo pipefail
@@ -24,27 +23,27 @@ SQL_FILE="${SCRIPT_DIR}/bootstrap-db.sql"
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 AWS_PROFILE="${AWS_PROFILE:-home}"
-SECRET_ID="tidyboard-prod/database/password"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+SSM_PARAM="/tidyboard/prod/db-password"
 DB_HOST="cutly-db.c858qwm0sac7.us-east-1.rds.amazonaws.com"
 DB_PORT="5432"
-DB_NAME="cutly"
-MASTER_USER="postgres"   # Change if your RDS master username differs
+DB_NAME="cutlist"        # RDS DBName field, not the instance identifier
+MASTER_USER="cutlist"    # RDS MasterUsername for cutly-db
 
-# ── Fetch the tidyboard role password from Secrets Manager ────────────────────
+# ── Fetch the tidyboard role password from SSM Parameter Store ────────────────
 
-echo "Fetching tidyboard DB password from Secrets Manager (profile: ${AWS_PROFILE})..."
+echo "Fetching tidyboard DB password from SSM (profile: ${AWS_PROFILE}, region: ${AWS_REGION})..."
 TIDYBOARD_PASSWORD=$(
-  aws --profile "${AWS_PROFILE}" secretsmanager get-secret-value \
-    --secret-id "${SECRET_ID}" \
-    --query SecretString \
+  aws --profile "${AWS_PROFILE}" --region "${AWS_REGION}" ssm get-parameter \
+    --name "${SSM_PARAM}" \
+    --with-decryption \
+    --query 'Parameter.Value' \
     --output text
 )
 
 if [[ -z "${TIDYBOARD_PASSWORD}" ]]; then
-  echo "ERROR: Secret '${SECRET_ID}' is empty. Set it first:"
-  echo "  aws --profile ${AWS_PROFILE} secretsmanager put-secret-value \\"
-  echo "    --secret-id '${SECRET_ID}' \\"
-  echo "    --secret-string \"\$(openssl rand -base64 32)\""
+  echo "ERROR: SSM parameter '${SSM_PARAM}' is empty. Set it first via:"
+  echo "  ./scripts/put-ssm-params.sh --profile ${AWS_PROFILE} --region ${AWS_REGION}"
   exit 1
 fi
 
