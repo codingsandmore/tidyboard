@@ -32,6 +32,16 @@ type Identity struct {
 	Name     string
 	Picture  string // optional avatar URL (Google fills this).
 	Provider string // "cognito" in production; "test" for the HMAC stub.
+
+	// Test-only direct overrides. When the HMAC stub finds these claims in a
+	// test token, the middleware trusts them rather than doing a DB lookup
+	// — this keeps the existing testutil.MakeJWT(account, household, member, role)
+	// signature working without requiring every integration test to seed
+	// matching `oidc_subject` rows. Always empty under the production verifier.
+	TestAccountID   string
+	TestHouseholdID string
+	TestMemberID    string
+	TestRole        string
 }
 
 // Verifier turns a Bearer token string into a verified Identity, or an error.
@@ -143,6 +153,20 @@ func (v *hmacVerifier) Verify(_ context.Context, raw string) (*Identity, error) 
 	}
 	if p, _ := claims["picture"].(string); p != "" {
 		id.Picture = p
+	}
+	// Lift legacy custom-JWT claims through so the existing testutil.MakeJWT
+	// signature keeps working under the new middleware. See Identity docs.
+	if v, _ := claims["account_id"].(string); v != "" {
+		id.TestAccountID = v
+	}
+	if v, _ := claims["household_id"].(string); v != "" {
+		id.TestHouseholdID = v
+	}
+	if v, _ := claims["member_id"].(string); v != "" {
+		id.TestMemberID = v
+	}
+	if v, _ := claims["role"].(string); v != "" {
+		id.TestRole = v
 	}
 	return id, nil
 }

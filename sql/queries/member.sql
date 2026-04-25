@@ -55,3 +55,13 @@ WHERE id = $1 AND household_id = $2;
 SELECT * FROM members
 WHERE account_id = $1 AND household_id = $2
 LIMIT 1;
+
+-- name: GetPrimaryMemberByAccount :one
+-- Returns the user's earliest-created membership; used by the auth middleware
+-- to populate household + role context for users that belong to one or more
+-- households. New users with no household yet get pgx.ErrNoRows here, which
+-- the middleware treats as "valid login, no household yet".
+SELECT id, household_id, role FROM members
+WHERE account_id = $1
+ORDER BY created_at
+LIMIT 1;

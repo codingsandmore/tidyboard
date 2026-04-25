@@ -167,6 +167,30 @@ func (q *Queries) GetMemberByAccountAndHousehold(ctx context.Context, arg GetMem
 	return i, err
 }
 
+const getPrimaryMemberByAccount = `-- name: GetPrimaryMemberByAccount :one
+SELECT id, household_id, role FROM members
+WHERE account_id = $1
+ORDER BY created_at
+LIMIT 1
+`
+
+type GetPrimaryMemberByAccountRow struct {
+	ID          uuid.UUID `json:"id"`
+	HouseholdID uuid.UUID `json:"household_id"`
+	Role        string    `json:"role"`
+}
+
+// Returns the user's earliest-created membership; used by the auth middleware
+// to populate household + role context for users that belong to one or more
+// households. New users with no household yet get pgx.ErrNoRows here, which
+// the middleware treats as "valid login, no household yet".
+func (q *Queries) GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid.NullUUID) (GetPrimaryMemberByAccountRow, error) {
+	row := q.db.QueryRow(ctx, getPrimaryMemberByAccount, accountID)
+	var i GetPrimaryMemberByAccountRow
+	err := row.Scan(&i.ID, &i.HouseholdID, &i.Role)
+	return i, err
+}
+
 const listMembers = `-- name: ListMembers :many
 SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at FROM members
 WHERE household_id = $1

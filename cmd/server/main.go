@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/client"
 	"github.com/tidyboard/tidyboard/internal/config"
@@ -145,6 +146,16 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	if jwtSecret == "" {
 		jwtSecret = os.Getenv("TIDYBOARD_AUTH_JWT_SECRET")
 	}
+	cfg.Auth.JWTSecret = jwtSecret // ensure verifier picks up env-supplied secret in dev/test
+
+	// Cognito-backed verifier in production; HMAC stub when CognitoUserPoolID
+	// is empty (tests + local dev). Initialisation hits the JWKS endpoint, so
+	// failure here means the network/config is wrong — fail fast.
+	verifier, err := auth.NewVerifier(context.Background(), cfg.Auth)
+	if err != nil {
+		slog.Error("auth: verifier init failed", "err", err)
+		os.Exit(1)
+	}
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	householdHandler := handler.NewHouseholdHandler(householdSvc)
@@ -154,7 +165,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)
 	syncHandler := handler.NewSyncHandler(syncSvc)
 	calendarHandler := handler.NewCalendarHandler(q, syncSvc)
-	wsHandler := handler.NewWSHandler(bc, jwtSecret)
+	wsHandler := handler.NewWSHandler(bc, verifier, q)
 	adminHandler := handler.NewAdminHandler(auditSvc, backupSvc)
 	billingHandler := handler.NewBillingHandler(billingSvc)
 	oauthHandler := handler.NewOAuthHandler(oauthSvc)
@@ -260,7 +271,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 
 	// Authenticated API routes.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(jwtSecret))
+		r.Use(middleware.Auth(verifier, q))
 		// Per-account rate limiting after auth so account_id is in context.
 		if accountLimiter != nil {
 			r.Use(accountLimiter.Middleware)
@@ -339,7 +350,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 
 	// Media sign endpoint — authenticated, outside the group above.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(jwtSecret))
+		r.Use(middleware.Auth(verifier, q))
 		if accountLimiter != nil {
 			r.Use(accountLimiter.Middleware)
 		}
