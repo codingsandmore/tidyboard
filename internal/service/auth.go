@@ -40,7 +40,12 @@ func (s *AuthService) CheckPIN(hash, pin string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin))
 }
 
-// IssueToken generates a signed JWT for the given account/household/member context.
+// IssueToken generates a bespoke HMAC-HS256 JWT for the kiosk PIN flow.
+// This is NOT a Cognito artifact and is NOT legacy code awaiting deletion.
+// The PIN flow is a standalone kiosk path: a child member authenticates by
+// 4-6 digit PIN and receives a short-lived JWT scoped to their household.
+// Cognito is used exclusively for adult account holders (OIDC). The only
+// caller is PINLogin; do not add callers without a clear PIN-flow reason.
 func (s *AuthService) IssueToken(accountID, householdID, memberID uuid.UUID, role string) (string, time.Time, error) {
 	expiresAt := time.Now().Add(s.cfg.JWTExpiry)
 	claims := jwt.MapClaims{
