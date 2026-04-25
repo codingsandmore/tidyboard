@@ -10,7 +10,11 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+# --legacy-peer-deps tolerates @storybook/nextjs@8.6 not listing Next 16 in its
+# peer range. Storybook is dev-only; install-time peer warnings don't affect
+# the production runtime. Drop the flag once @storybook/nextjs@9 lands with
+# next@16 support.
+RUN npm ci --ignore-scripts --legacy-peer-deps
 
 # ── Stage 2: builder ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
