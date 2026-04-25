@@ -64,6 +64,32 @@ type Calendar struct {
 	DisplayName       string             `json:"display_name"`
 }
 
+type DomainOwnership struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	DomainID           uuid.UUID          `json:"domain_id"`
+	OwnerMemberID      uuid.UUID          `json:"owner_member_id"`
+	AssignedAt         pgtype.Timestamptz `json:"assigned_at"`
+	AssignedByMemberID *uuid.NullUUID     `json:"assigned_by_member_id"`
+	Notes              string             `json:"notes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type EquityTask struct {
+	ID            uuid.UUID          `json:"id"`
+	HouseholdID   uuid.UUID          `json:"household_id"`
+	DomainID      uuid.UUID          `json:"domain_id"`
+	Name          string             `json:"name"`
+	TaskType      string             `json:"task_type"`
+	Recurrence    string             `json:"recurrence"`
+	EstMinutes    int32              `json:"est_minutes"`
+	OwnerMemberID *uuid.NullUUID     `json:"owner_member_id"`
+	SharePct      int32              `json:"share_pct"`
+	Archived      bool               `json:"archived"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Event struct {
 	ID              uuid.UUID          `json:"id"`
 	HouseholdID     uuid.UUID          `json:"household_id"`
@@ -274,4 +300,29 @@ type Subscription struct {
 	CurrentPeriodEnd     pgtype.Timestamptz `json:"current_period_end"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TaskDomain struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Icon        string             `json:"icon"`
+	Description string             `json:"description"`
+	IsSystem    bool               `json:"is_system"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TaskLog struct {
+	ID              uuid.UUID          `json:"id"`
+	TaskID          uuid.UUID          `json:"task_id"`
+	HouseholdID     uuid.UUID          `json:"household_id"`
+	MemberID        uuid.UUID          `json:"member_id"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	IsCognitive     bool               `json:"is_cognitive"`
+	Notes           string             `json:"notes"`
+	Source          string             `json:"source"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }

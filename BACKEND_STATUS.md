@@ -219,6 +219,37 @@ New migration `20260425000020_shopping.sql` adds three tables:
 
 **Frontend**: `useGenerateShoppingList()` hook added to `web/src/lib/api/hooks.ts`; "Generate shopping list" button on the MealPlan screen calls `POST /v1/shopping/generate` for the current ISO week and navigates to `/shopping` on success.
 
+## Household Equity Engine (2026-04-24)
+
+### Schema — migration `20260425000030_equity.sql`
+- `task_domains` — household task categories (12 system defaults seeded on first `GET /v1/equity/domains`)
+- `domain_ownerships` — exactly one owner per domain (UNIQUE on domain_id)
+- `equity_tasks` — recurring household tasks with `task_type` (cognitive|physical|both), `est_minutes`, `owner_member_id`
+- `task_logs` — time tracking per task per member (`is_cognitive`, `source` enum)
+
+### Equity engine API
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `GET /v1/equity?from=&to=` | JWT | Dashboard: per-member load%, cognitive/physical split, domain list, weekly trend. Default: last 30 days |
+| `GET /v1/equity/suggestions` | JWT | Heuristic rebalance: up to 2 task reassignments when most-burdened member >55% load |
+| `GET /v1/equity/domains` | JWT | Lists all task domains; seeds 12 defaults on first call |
+| `GET /v1/equity/tasks` | JWT | Lists non-archived tasks |
+| `POST /v1/equity/tasks` | JWT | Create task: `{domain_id, name, task_type, recurrence, est_minutes, owner_member_id, share_pct}` |
+| `PATCH /v1/equity/tasks/:id` | JWT | Partial update (assign, share, archive) |
+| `DELETE /v1/equity/tasks/:id` | JWT | Soft-deletes (sets `archived=true`) |
+| `POST /v1/equity/tasks/:id/log` | JWT | Log time: `{member_id, duration_minutes, is_cognitive, notes, source}` |
+
+### Design decisions / edge cases
+
+- **Members with zero time logged** are excluded from the `members[]` array in the dashboard response (no task_log rows → no aggregation row). Callers should treat absence as 0%.
+- **Load thresholds**: green <60%, yellow 60–70%, red ≥70%. These match the spec's configurable thresholds; they are currently hardcoded — make them household settings in a future iteration.
+- **Rebalance heuristic**: only fires when top-loaded member carries >55% of total logged time. Suggests the top-2 tasks by `est_minutes` to move to the least-loaded member. No ML.
+- **Cognitive vs physical**: per task-log entry (`is_cognitive` bool). The `task_type` column on `equity_tasks` is a default hint; actual tracking happens at log time.
+- **Domain seeding**: `SeedDefaultDomains` is idempotent — safe to call multiple times.
+
+**Frontend**: `useEquityDashboard()`, `useEquityTasks()`, `useEquityDomains()`, `useRebalanceSuggestions()`, `useCreateEquityTask()`, `useUpdateEquityTask()`, `useDeleteEquityTask()`, `useLogTaskTime()` hooks added to `web/src/lib/api/hooks.ts`. `equity.tsx` wires live data with graceful fallback to stub data.
+
 ## To do (next iteration)
 
 1. **PIN lockout counter** — store failed attempts in Redis or Postgres, enforce `cfg.Auth.PINMaxAttempts`

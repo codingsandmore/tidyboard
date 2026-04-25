@@ -132,6 +132,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
+	equitySvc := service.NewEquityService(q)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -173,6 +174,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	billingHandler := handler.NewBillingHandler(billingSvc)
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
+	equityHandler := handler.NewEquityHandler(equitySvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -337,6 +339,16 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 
 		// Ingredients search.
 		r.Get("/v1/ingredients/search", shoppingHandler.SearchIngredients)
+
+		// Equity engine.
+		r.Get("/v1/equity", equityHandler.GetDashboard)
+		r.Get("/v1/equity/suggestions", equityHandler.GetSuggestions)
+		r.Get("/v1/equity/domains", equityHandler.ListDomains)
+		r.Get("/v1/equity/tasks", equityHandler.ListTasks)
+		r.Post("/v1/equity/tasks", equityHandler.CreateTask)
+		r.Patch("/v1/equity/tasks/{id}", equityHandler.UpdateTask)
+		r.Delete("/v1/equity/tasks/{id}", equityHandler.DeleteTask)
+		r.Post("/v1/equity/tasks/{id}/log", equityHandler.LogTaskTime)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)

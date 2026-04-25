@@ -11,11 +11,15 @@ import (
 )
 
 type Querier interface {
+	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
+	// Returns (domain_id, owner_member_id, task_count) for all active tasks.
+	CountTasksByDomain(ctx context.Context, householdID uuid.UUID) ([]CountTasksByDomainRow, error)
 	// sql/queries/account.sql
 	// Account queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error)
+	CreateEquityTask(ctx context.Context, arg CreateEquityTaskParams) (EquityTask, error)
 	// sql/queries/event.sql
 	// Event queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateEvent(ctx context.Context, arg CreateEventParams) (Event, error)
@@ -35,6 +39,9 @@ type Querier interface {
 	// sql/queries/shopping.sql
 	// Shopping list queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateShoppingList(ctx context.Context, arg CreateShoppingListParams) (ShoppingList, error)
+	CreateTaskDomain(ctx context.Context, arg CreateTaskDomainParams) (TaskDomain, error)
+	// ── Task Logs ────────────────────────────────────────────────────────────────
+	CreateTaskLog(ctx context.Context, arg CreateTaskLogParams) (TaskLog, error)
 	DeactivateAccount(ctx context.Context, id uuid.UUID) error
 	DeactivateShoppingLists(ctx context.Context, householdID uuid.UUID) error
 	DeleteEvent(ctx context.Context, arg DeleteEventParams) error
@@ -46,11 +53,13 @@ type Querier interface {
 	DeletePantryStaple(ctx context.Context, arg DeletePantryStapleParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
 	DeleteShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) error
+	DeleteTaskDomain(ctx context.Context, arg DeleteTaskDomainParams) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)
 	GetActiveShoppingList(ctx context.Context, householdID uuid.UUID) (ShoppingList, error)
 	GetCalendar(ctx context.Context, arg GetCalendarParams) (Calendar, error)
+	GetEquityTask(ctx context.Context, arg GetEquityTaskParams) (EquityTask, error)
 	GetEvent(ctx context.Context, arg GetEventParams) (Event, error)
 	GetEventByExternalID(ctx context.Context, arg GetEventByExternalIDParams) (Event, error)
 	GetHousehold(ctx context.Context, id uuid.UUID) (Household, error)
@@ -69,6 +78,7 @@ type Querier interface {
 	GetShoppingList(ctx context.Context, arg GetShoppingListParams) (ShoppingList, error)
 	GetSubscriptionByCustomer(ctx context.Context, stripeCustomerID string) (Subscription, error)
 	GetSubscriptionByHousehold(ctx context.Context, householdID uuid.UUID) (Subscription, error)
+	GetTaskDomain(ctx context.Context, arg GetTaskDomainParams) (GetTaskDomainRow, error)
 	IncrementTimesCooked(ctx context.Context, arg IncrementTimesCookedParams) (Recipe, error)
 	// sql/queries/audit.sql
 	// Audit log queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -80,6 +90,9 @@ type Querier interface {
 	ListAccountAudit(ctx context.Context, arg ListAccountAuditParams) ([]AuditEntry, error)
 	ListBackupRecords(ctx context.Context, arg ListBackupRecordsParams) ([]BackupRecord, error)
 	ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error)
+	// ── Equity Tasks ─────────────────────────────────────────────────────────────
+	ListEquityTasks(ctx context.Context, householdID uuid.UUID) ([]EquityTask, error)
+	ListEquityTasksByDomain(ctx context.Context, arg ListEquityTasksByDomainParams) ([]EquityTask, error)
 	ListEventsInRange(ctx context.Context, arg ListEventsInRangeParams) ([]Event, error)
 	ListFavoriteRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	ListHouseholdAudit(ctx context.Context, arg ListHouseholdAuditParams) ([]AuditEntry, error)
@@ -95,13 +108,23 @@ type Querier interface {
 	ListPantryStaples(ctx context.Context, householdID uuid.UUID) ([]PantryStaple, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	ListShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) ([]ShoppingListItem, error)
+	// sql/queries/equity.sql
+	// Equity engine queries. Run `sqlc generate` to produce Go code in internal/query/.
+	// ── Task Domains ─────────────────────────────────────────────────────────────
+	ListTaskDomains(ctx context.Context, householdID uuid.UUID) ([]ListTaskDomainsRow, error)
+	ListTaskLogs(ctx context.Context, arg ListTaskLogsParams) ([]ListTaskLogsRow, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
 	// Canonical ingredient search
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
+	// Returns total minutes logged per member within a time window.
+	SumMinutesByMember(ctx context.Context, arg SumMinutesByMemberParams) ([]SumMinutesByMemberRow, error)
+	// Returns minutes per (member, domain) for the equity domain detail view.
+	SumMinutesByMemberAndDomain(ctx context.Context, arg SumMinutesByMemberAndDomainParams) ([]SumMinutesByMemberAndDomainRow, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateBackupRecord(ctx context.Context, arg UpdateBackupRecordParams) (BackupRecord, error)
 	UpdateBackupS3Key(ctx context.Context, arg UpdateBackupS3KeyParams) (BackupRecord, error)
+	UpdateEquityTask(ctx context.Context, arg UpdateEquityTaskParams) (EquityTask, error)
 	UpdateEvent(ctx context.Context, arg UpdateEventParams) (Event, error)
 	UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams) (Household, error)
 	UpdateList(ctx context.Context, arg UpdateListParams) (List, error)
@@ -110,6 +133,8 @@ type Querier interface {
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
 	UpdateShoppingListItem(ctx context.Context, arg UpdateShoppingListItemParams) (ShoppingListItem, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
+	UpdateTaskDomain(ctx context.Context, arg UpdateTaskDomainParams) (TaskDomain, error)
+	UpsertDomainOwnership(ctx context.Context, arg UpsertDomainOwnershipParams) (DomainOwnership, error)
 	UpsertEventByExternalID(ctx context.Context, arg UpsertEventByExternalIDParams) (Event, error)
 	// sql/queries/meal_plan.sql
 	// Meal plan entry queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -119,6 +144,8 @@ type Querier interface {
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
+	// Returns weekly aggregates for trend chart (last N weeks).
+	WeeklyMinutesByMember(ctx context.Context, arg WeeklyMinutesByMemberParams) ([]WeeklyMinutesByMemberRow, error)
 }
 
 var _ Querier = (*Queries)(nil)
