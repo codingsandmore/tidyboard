@@ -16,7 +16,7 @@ export default function Page() {
           }}
         >
           <CalAgenda />
-          <EventModal />
+          <EventModal onClose={() => {}} />
         </div>
       </PhoneFrame>
     </Scene>

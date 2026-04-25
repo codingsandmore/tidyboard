@@ -184,11 +184,68 @@ export function useEquity(period?: string) {
 export function useToggleListItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ listId, itemId, done }: { listId: string; itemId: string; done: boolean }) =>
-      api.put<ListItem>(`/v1/lists/${listId}/items/${itemId}`, { done }),
+    mutationFn: ({ listId, itemId, completed }: { listId: string; itemId: string; completed: boolean }) =>
+      api.patch<ListItem>(`/v1/lists/${listId}/items/${itemId}`, { completed }),
     onSuccess: (_data, { listId }) => {
       qc.invalidateQueries({ queryKey: qk.list(listId) });
       qc.invalidateQueries({ queryKey: qk.lists() });
+    },
+  });
+}
+
+export function useCreateList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, type = "todo" }: { name: string; type?: string }) =>
+      api.post<FamilyList>("/v1/lists", { name, type }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.lists() });
+    },
+  });
+}
+
+export function useAddListItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ listId, text }: { listId: string; text: string }) =>
+      api.post<ListItem>(`/v1/lists/${listId}/items`, { text }),
+    onSuccess: (_data, { listId }) => {
+      qc.invalidateQueries({ queryKey: qk.list(listId) });
+      qc.invalidateQueries({ queryKey: qk.lists() });
+    },
+  });
+}
+
+export function useDeleteListItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ listId, itemId }: { listId: string; itemId: string }) =>
+      api.delete<void>(`/v1/lists/${listId}/items/${itemId}`),
+    onSuccess: (_data, { listId }) => {
+      qc.invalidateQueries({ queryKey: qk.list(listId) });
+      qc.invalidateQueries({ queryKey: qk.lists() });
+    },
+  });
+}
+
+export function useCreateEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { title: string; start_time: string; end_time: string; location?: string; description?: string; all_day?: boolean }) =>
+      api.post<TBDEvent>("/v1/events", req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+export function useUpdateEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...req }: { id: string; title?: string; start_time?: string; end_time?: string; location?: string; description?: string }) =>
+      api.patch<TBDEvent>(`/v1/events/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
     },
   });
 }

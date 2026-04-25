@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useState } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
 // TBD import kept for CalWeek (TBD.week) and CalAgenda static group fixtures
@@ -10,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
-import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
@@ -722,11 +723,104 @@ const Row = ({
   </div>
 );
 
-export function EventModal() {
+// Formats a Date to "YYYY-MM-DDThh:mm" for datetime-local inputs
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export type EventFormData = {
+  id?: string;
+  title?: string;
+  start?: string;
+  end?: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  description?: string;
+  members?: string[];
+};
+
+export type EventModalProps = {
+  event?: EventFormData;
+  onClose: () => void;
+};
+
+export function EventModal({ event, onClose }: EventModalProps) {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const { data: apiMembers } = useMembers();
   const members = apiMembers ?? [];
+
+  const now = new Date();
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
+  // Resolve the initial start/end from either ISO start_time or legacy "HH:mm" start
+  const resolveStart = (): string => {
+    if (event?.start_time) return toDatetimeLocal(new Date(event.start_time));
+    if (event?.start && event.start.includes("T")) return toDatetimeLocal(new Date(event.start));
+    return toDatetimeLocal(now);
+  };
+  const resolveEnd = (): string => {
+    if (event?.end_time) return toDatetimeLocal(new Date(event.end_time));
+    if (event?.end && event.end.includes("T")) return toDatetimeLocal(new Date(event.end));
+    return toDatetimeLocal(oneHourLater);
+  };
+
+  const [title, setTitle] = useState(event?.title ?? "");
+  const [startTime, setStartTime] = useState(resolveStart);
+  const [endTime, setEndTime] = useState(resolveEnd);
+  const [location, setLocation] = useState(event?.location ?? "");
+  const [description, setDescription] = useState(event?.description ?? "");
+  const [error, setError] = useState("");
+
+  const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
+  const deleteEvent = useDeleteEvent();
+
+  const isEdit = Boolean(event?.id);
+  const busy = createEvent.isPending || updateEvent.isPending || deleteEvent.isPending;
+
+  const handleSave = () => {
+    if (!title.trim()) {
+      setError(t("titleRequired") || "Title is required");
+      return;
+    }
+    setError("");
+    const start_time = new Date(startTime).toISOString();
+    const end_time = new Date(endTime).toISOString();
+
+    if (isEdit && event?.id) {
+      updateEvent.mutate(
+        { id: event.id, title: title.trim(), start_time, end_time, location, description },
+        { onSuccess: onClose }
+      );
+    } else {
+      createEvent.mutate(
+        { title: title.trim(), start_time, end_time, location, description },
+        { onSuccess: onClose }
+      );
+    }
+  };
+
+  const handleDelete = () => {
+    if (!event?.id) return;
+    deleteEvent.mutate(event.id, { onSuccess: onClose });
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    padding: "6px 0",
+    border: "none",
+    borderBottom: `1px solid ${TB.border}`,
+    fontFamily: TB.fontBody,
+    fontSize: 13,
+    color: TB.text,
+    background: "transparent",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
   return (
     <div
       style={{
@@ -750,13 +844,11 @@ export function EventModal() {
           overflow: "auto",
         }}
       >
+        {/* drag handle */}
         <div
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${TB.borderSoft}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
           }}
         >
           <div
@@ -769,10 +861,13 @@ export function EventModal() {
             }}
           />
         </div>
+
         <div style={{ padding: 20 }}>
+          {/* Title */}
           <Input
-            value="Dentist — Jackson"
-            onChange={() => {}}
+            value={title}
+            onChange={(v) => setTitle(v)}
+            placeholder="Event title"
             style={{
               height: 54,
               fontSize: 20,
@@ -782,7 +877,11 @@ export function EventModal() {
               fontFamily: TB.fontDisplay,
             }}
           />
+          {error && (
+            <div style={{ fontSize: 12, color: TB.destructive, marginTop: 4 }}>{error}</div>
+          )}
 
+          {/* Time fields */}
           <div
             style={{
               marginTop: 16,
@@ -795,120 +894,64 @@ export function EventModal() {
             }}
           >
             <Row icon="clock" label={t("start")}>
-              <span style={{ fontFamily: TB.fontMono, fontSize: 13 }}>
-                Thu, Apr 22 · 9:00 AM
-              </span>
+              <input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                style={inputStyle}
+              />
             </Row>
             <Row icon="clock" label={t("end")}>
-              <span style={{ fontFamily: TB.fontMono, fontSize: 13 }}>
-                Thu, Apr 22 · 10:00 AM
-              </span>
+              <input
+                type="datetime-local"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                style={inputStyle}
+              />
             </Row>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "4px 12px",
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 20,
-                  borderRadius: 9999,
-                  background: TB.border,
-                  padding: 2,
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: 13 }}>{t("allDay")}</div>
-            </div>
           </div>
 
+          {/* Location */}
           <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: TB.text2,
-                marginBottom: 8,
-                letterSpacing: "0.04em",
-              }}
-            >
-              {t("assignedTo")}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              {members.map((m) => {
-                const sel = ["mom", "jackson"].includes(m.id);
-                return (
-                  <div
-                    key={m.id}
-                    style={{ textAlign: "center", opacity: sel ? 1 : 0.35 }}
-                  >
-                    <Avatar member={m} size={44} selected={sel} />
+            <Row icon="mapPin" label={t("location")}>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Add location"
+                style={inputStyle}
+              />
+            </Row>
+          </div>
+
+          {/* Members (display only — no assignment API on create yet) */}
+          {members.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: TB.text2,
+                  marginBottom: 8,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {t("assignedTo")}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {members.map((m) => (
+                  <div key={m.id} style={{ textAlign: "center", opacity: 0.5 }}>
+                    <Avatar member={m} size={44} selected={false} />
                     <div style={{ fontSize: 10, marginTop: 4, color: TB.text2 }}>
                       {m.name}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            <Row icon="mapPin" label={t("location")}>
-              <span style={{ fontSize: 13 }}>Dr. Patel, Market St</span>
-            </Row>
-            <Row icon="calendar" label={t("calendarLabel")}>
-              <span style={{ fontSize: 13 }}>Family · Google</span>
-            </Row>
-            <Row icon="bell" label={t("reminder")}>
-              <span style={{ fontSize: 13 }}>{t("reminderBefore")}</span>
-            </Row>
-            <Row icon="arrowR" label={t("repeat")}>
-              <span style={{ fontSize: 13, color: TB.text2 }}>{t("doesNotRepeat")}</span>
-            </Row>
-          </div>
-
-          <div
-            style={{
-              marginTop: 14,
-              padding: "10px 12px",
-              background: TB.warning + "18",
-              border: `1px solid ${TB.warning}40`,
-              borderRadius: 8,
-              display: "flex",
-              gap: 10,
-              alignItems: "flex-start",
-            }}
-          >
-            <Icon name="bell" size={16} color={TB.warning} />
-            <div style={{ fontSize: 12, color: "#92400E" }}>
-              <div style={{ fontWeight: 600 }}>
-                {t("conflict")}
+                ))}
               </div>
-              <div style={{ marginTop: 2 }}>{t("conflictHint")}</div>
             </div>
-          </div>
+          )}
 
+          {/* Notes / description */}
           <div style={{ marginTop: 14 }}>
             <div
               style={{
@@ -920,20 +963,29 @@ export function EventModal() {
             >
               {t("notes")}
             </div>
-            <div
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add notes…"
+              rows={3}
               style={{
+                width: "100%",
                 padding: "10px 12px",
                 border: `1px solid ${TB.border}`,
                 borderRadius: 6,
                 fontSize: 13,
-                color: TB.text2,
-                minHeight: 60,
+                color: TB.text,
+                background: TB.bg,
+                fontFamily: TB.fontBody,
+                resize: "vertical",
+                outline: "none",
+                boxSizing: "border-box",
               }}
-            >
-              Bring Jackson&apos;s insurance card. Parking validated — bring ticket.
-            </div>
+            />
           </div>
         </div>
+
+        {/* Footer */}
         <div
           style={{
             padding: 14,
@@ -943,15 +995,24 @@ export function EventModal() {
             alignItems: "center",
           }}
         >
-          <Btn kind="ghost" size="md" icon="trash" style={{ color: TB.destructive }}>
-            {tCommon("delete")}
-          </Btn>
+          {isEdit && (
+            <Btn
+              kind="ghost"
+              size="md"
+              icon="trash"
+              style={{ color: TB.destructive }}
+              onClick={handleDelete}
+              disabled={busy}
+            >
+              {tCommon("delete")}
+            </Btn>
+          )}
           <div style={{ flex: 1 }} />
-          <Btn kind="secondary" size="md">
+          <Btn kind="secondary" size="md" onClick={onClose} disabled={busy}>
             {tCommon("cancel")}
           </Btn>
-          <Btn kind="primary" size="md">
-            {tCommon("save")}
+          <Btn kind="primary" size="md" onClick={handleSave} disabled={busy}>
+            {busy ? "…" : tCommon("save")}
           </Btn>
         </div>
       </div>

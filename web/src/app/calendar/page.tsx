@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TB } from "@/lib/tokens";
 import { CalAgenda, CalDay, CalMonth, CalWeek, EventModal } from "@/components/screens/calendar";
+import type { EventFormData } from "@/components/screens/calendar";
 import { useTheme } from "@/components/theme-provider";
 import { useTranslations } from "next-intl";
 
@@ -10,7 +11,7 @@ type View = "Day" | "Week" | "Month" | "Agenda";
 
 export default function CalendarPage() {
   const [view, setView] = useState<View>("Day");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalEvent, setModalEvent] = useState<EventFormData | null>(null);
   const { theme } = useTheme();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
@@ -94,7 +95,7 @@ export default function CalendarPage() {
           })}
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => setModalEvent({})}
           style={{
             padding: "6px 12px",
             borderRadius: 6,
@@ -116,35 +117,14 @@ export default function CalendarPage() {
         {view === "Week" && <CalWeek />}
         {view === "Month" && <CalMonth />}
         {view === "Agenda" && <CalAgenda />}
-        {modalOpen && (
+        {modalEvent !== null && (
           <div
             onClick={(e) => {
-              if (e.target === e.currentTarget) setModalOpen(false);
+              if (e.target === e.currentTarget) setModalEvent(null);
             }}
             style={{ position: "absolute", inset: 0 }}
           >
-            <EventModal />
-            <button
-              onClick={() => setModalOpen(false)}
-              aria-label="Close event"
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                background: "rgba(0,0,0,0.4)",
-                color: "#fff",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 18,
-                lineHeight: 1,
-                zIndex: 10,
-              }}
-            >
-              ×
-            </button>
+            <EventModal event={modalEvent} onClose={() => setModalEvent(null)} />
           </div>
         )}
       </div>
