@@ -221,4 +221,50 @@ describe("OnboardingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /common\.back/i }));
     await waitFor(() => expect(screen.getByText(/Step 1 \/ 7/)).toBeTruthy());
   });
+
+  it("typed household name is sent verbatim in POST body — not 'My Family'", async () => {
+    const capturedBodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const body = init?.body ? JSON.parse(init.body as string) : null;
+        capturedBodies.push({ url, body });
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: "hh-typed", name: "The Typers" }),
+        };
+      })
+    );
+
+    renderOnboarding();
+
+    // Step 0 → 1
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy());
+
+    // Step 1 → 2 (no API call on step 1)
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
+
+    // On step 2 (household name), type a name into the input
+    const nameInput = screen.getByPlaceholderText("e.g. The Smiths");
+    fireEvent.change(nameInput, { target: { value: "The Typers" } });
+
+    // Step 2 → 3 (creates household)
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+
+    // Find the household-create call (POST to /households, not /members)
+    const hhCall = capturedBodies.find(
+      (c) =>
+        typeof (c as { url: string }).url === "string" &&
+        (c as { url: string }).url.includes("/households") &&
+        !(c as { url: string }).url.includes("/members")
+    ) as { url: string; body: Record<string, unknown> } | undefined;
+
+    expect(hhCall).toBeTruthy();
+    expect(hhCall?.body?.name).toBe("The Typers");
+    expect(hhCall?.body?.name).not.toBe("My Family");
+  });
 });

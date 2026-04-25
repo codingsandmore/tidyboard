@@ -262,7 +262,13 @@ const ObCreate = () => {
   );
 };
 
-const ObHousehold = () => {
+const ObHousehold = ({
+  householdName,
+  setHouseholdName,
+}: {
+  householdName: string;
+  setHouseholdName: (v: string) => void;
+}) => {
   const t = useTranslations("onboarding.household");
   return (
     <ObShell
@@ -292,8 +298,9 @@ const ObHousehold = () => {
       </div>
       <div style={{ padding: "20px 0" }}>
         <Input
-          value="The Smith Family"
-          onChange={() => {}}
+          value={householdName}
+          onChange={setHouseholdName}
+          placeholder="e.g. The Smiths"
           style={{
             height: 56,
             fontSize: 20,
@@ -316,12 +323,14 @@ const ObHousehold = () => {
             (s) => (
               <span
                 key={s}
+                onClick={() => setHouseholdName(s)}
                 style={{
                   fontSize: 12,
                   color: TB.text2,
                   padding: "6px 10px",
                   background: TB.bg2,
                   borderRadius: 9999,
+                  cursor: "pointer",
                 }}
               >
                 {s}
@@ -334,10 +343,24 @@ const ObHousehold = () => {
   );
 };
 
-const ObSelf = () => {
+const ObSelf = ({
+  selfName,
+  setSelfName,
+  selfDisplayName,
+  setSelfDisplayName,
+  selfColor,
+  setSelfColor,
+}: {
+  selfName: string;
+  setSelfName: (v: string) => void;
+  selfDisplayName: string;
+  setSelfDisplayName: (v: string) => void;
+  selfColor: string;
+  setSelfColor: (v: string) => void;
+}) => {
   const t = useTranslations("onboarding.self");
   const colors = TB.memberColors;
-  const [pick, setPick] = useState(1);
+  const initial = selfName.trim()[0]?.toUpperCase() ?? "?";
   return (
     <ObShell
       footer={
@@ -358,7 +381,7 @@ const ObSelf = () => {
               width: 96,
               height: 96,
               borderRadius: "50%",
-              background: colors[pick],
+              background: selfColor,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -368,7 +391,7 @@ const ObSelf = () => {
               fontWeight: 600,
             }}
           >
-            S
+            {initial}
           </div>
           <div
             style={{
@@ -393,10 +416,10 @@ const ObSelf = () => {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label={t("fullName")}>
-          <Input value="Sarah Smith" onChange={() => {}} />
+          <Input value={selfName} onChange={setSelfName} placeholder="Your full name" />
         </Field>
         <Field label={t("displayName")} hint={t("displayNameHint")}>
-          <Input value="Mom" onChange={() => {}} />
+          <Input value={selfDisplayName} onChange={setSelfDisplayName} placeholder="e.g. Mom, Dad, Alex" />
         </Field>
         <Field label={t("color")} hint={t("colorHint")}>
           <div
@@ -410,21 +433,21 @@ const ObSelf = () => {
             {colors.map((c, i) => (
               <div
                 key={i}
-                onClick={() => setPick(i)}
+                onClick={() => setSelfColor(c)}
                 style={{
                   aspectRatio: "1",
                   borderRadius: "50%",
                   background: c,
                   cursor: "pointer",
                   boxShadow:
-                    pick === i ? `0 0 0 3px ${TB.surface}, 0 0 0 5px ${c}` : "none",
+                    selfColor === c ? `0 0 0 3px ${TB.surface}, 0 0 0 5px ${c}` : "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   transition: "transform .1s",
                 }}
               >
-                {pick === i && <Icon name="check" size={18} color="#fff" stroke={2.5} />}
+                {selfColor === c && <Icon name="check" size={18} color="#fff" stroke={2.5} />}
               </div>
             ))}
           </div>
@@ -859,11 +882,38 @@ const ObLanding = () => {
   );
 };
 
-const STEPS = [ObWelcome, ObCreate, ObHousehold, ObSelf, ObFamily, ObCalendar, ObLanding];
+export interface OnboardingFormProps {
+  householdName?: string;
+  setHouseholdName?: (v: string) => void;
+  selfName?: string;
+  setSelfName?: (v: string) => void;
+  selfDisplayName?: string;
+  setSelfDisplayName?: (v: string) => void;
+  selfColor?: string;
+  setSelfColor?: (v: string) => void;
+}
 
-export function Onboarding({ step = 0 }: { step?: number }) {
-  const S = STEPS[step] ?? ObWelcome;
-  return <S />;
+export function Onboarding({
+  step = 0,
+  householdName = "",
+  setHouseholdName = () => {},
+  selfName = "",
+  setSelfName = () => {},
+  selfDisplayName = "",
+  setSelfDisplayName = () => {},
+  selfColor = TB.memberColors[0],
+  setSelfColor = () => {},
+}: { step?: number } & OnboardingFormProps) {
+  switch (step) {
+    case 0: return <ObWelcome />;
+    case 1: return <ObCreate />;
+    case 2: return <ObHousehold householdName={householdName} setHouseholdName={setHouseholdName} />;
+    case 3: return <ObSelf selfName={selfName} setSelfName={setSelfName} selfDisplayName={selfDisplayName} setSelfDisplayName={setSelfDisplayName} selfColor={selfColor} setSelfColor={setSelfColor} />;
+    case 4: return <ObFamily />;
+    case 5: return <ObCalendar />;
+    case 6: return <ObLanding />;
+    default: return <ObWelcome />;
+  }
 }
 
 export const ONBOARDING_LABELS = [

@@ -89,7 +89,7 @@ export default function OnboardingPage() {
   // Step 3 state (add self)
   const [selfName, setSelfName] = useState("");
   const [selfDisplayName, setSelfDisplayName] = useState("");
-  const [selfColor, setSelfColor] = useState(TB.memberColors[0]);
+  const [selfColor, setSelfColor] = useState<string>(TB.memberColors[0]);
 
   // Step 4 state (family members)
   const [familyMembers] = useState<FamilyMemberDraft[]>([]);
@@ -130,7 +130,7 @@ export default function OnboardingPage() {
         // step 1 is now just a "you're signed in as X" confirmation.
       } else if (step === 2) {
         // Create household
-        const hh = await createHousehold(householdName || "My Family");
+        const hh = await createHousehold(householdName);
         setHouseholdId(hh.id);
       } else if (step === 3 && householdId) {
         // Add self as adult member, linking to the signed-in account so
@@ -138,8 +138,8 @@ export default function OnboardingPage() {
         await addMember(
           householdId,
           {
-            name: selfName || "Admin",
-            display_name: selfDisplayName || selfName || "Admin",
+            name: selfName,
+            display_name: selfDisplayName || selfName,
             role: "adult",
             color: selfColor,
           },
@@ -201,7 +201,17 @@ export default function OnboardingPage() {
           boxShadow: "0 0 0 1px rgba(0,0,0,.03)",
         }}
       >
-        <Onboarding step={step} />
+        <Onboarding
+          step={step}
+          householdName={householdName}
+          setHouseholdName={setHouseholdName}
+          selfName={selfName}
+          setSelfName={setSelfName}
+          selfDisplayName={selfDisplayName}
+          setSelfDisplayName={setSelfDisplayName}
+          selfColor={selfColor}
+          setSelfColor={setSelfColor}
+        />
 
         {/* Error overlay — shown above the visual step */}
         {error && (
