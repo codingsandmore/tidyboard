@@ -120,7 +120,6 @@ type AuthConfig struct {
 	PINLockoutDuration time.Duration `help:"PIN lockout duration (kiosk flow)" default:"5m" yaml:"pin_lockout_duration"`
 	RateLimitPerMin    int           `help:"Authenticated requests per minute per account" default:"60" yaml:"rate_limit_per_min"`
 	Cognito            CognitoConfig `embed:"" prefix:"cognito." yaml:"cognito"`
-	OAuth              OAuthConfig   `embed:"" prefix:"oauth." yaml:"oauth"`
 }
 
 // CognitoConfig holds AWS Cognito User Pool settings used by the JWT verifier
@@ -132,16 +131,6 @@ type CognitoConfig struct {
 	UserPoolID  string `help:"Cognito user pool ID, e.g. us-east-1_0we181NKh. Empty means 'use the HMAC test verifier' (tests only)." env:"TIDYBOARD_AUTH_COGNITO_USER_POOL_ID" yaml:"user_pool_id"`
 	ClientID    string `help:"Cognito app client ID. Tokens with a different aud are rejected." env:"TIDYBOARD_AUTH_COGNITO_CLIENT_ID" yaml:"client_id"`
 	IssuerURL   string `help:"Override for the Cognito issuer URL. Defaults to https://cognito-idp.<region>.amazonaws.com/<user-pool-id>." env:"TIDYBOARD_AUTH_COGNITO_ISSUER_URL" yaml:"issuer_url"`
-}
-
-// OAuthConfig holds OAuth/OIDC provider settings.
-type OAuthConfig struct {
-	GoogleEnabled      bool   `help:"Enable Google OAuth" default:"false" yaml:"google_enabled"`
-	GoogleClientID     string `help:"Google OAuth client ID" env:"TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_ID" yaml:"google_client_id"`
-	GoogleClientSecret string `help:"Google OAuth client secret" env:"TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_SECRET" yaml:"google_client_secret"`
-	AppleEnabled       bool   `help:"Enable Apple OAuth" default:"false" yaml:"apple_enabled"`
-	AppleClientID      string `help:"Apple OAuth client ID" yaml:"apple_client_id"`
-	AppleTeamID        string `help:"Apple team ID" yaml:"apple_team_id"`
 }
 
 // SyncConfig holds calendar sync settings.
