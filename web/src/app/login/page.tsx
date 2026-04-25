@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-store";
 import { TB } from "@/lib/tokens";
 import { Btn } from "@/components/ui/button";
@@ -9,81 +9,36 @@ import { Card } from "@/components/ui/card";
 import { H } from "@/components/ui/heading";
 import { useTranslations } from "next-intl";
 
-// Styled native input that matches the app's Input component visuals
-function Field({
-  id,
-  label,
-  type,
-  value,
-  onChange,
-  placeholder,
-  autoComplete,
-}: {
-  id: string;
-  label: string;
-  type: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  autoComplete?: string;
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={id}
-        style={{ display: "block", fontSize: 13, fontWeight: 550, marginBottom: 6 }}
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        style={{
-          width: "100%",
-          height: 44,
-          padding: "0 12px",
-          fontFamily: TB.fontBody,
-          fontSize: 14,
-          color: TB.text,
-          background: TB.surface,
-          border: `1px solid ${TB.border}`,
-          borderRadius: TB.r.sm,
-          outline: "none",
-          boxSizing: "border-box",
-        }}
-      />
-    </div>
-  );
-}
-
+/**
+ * Sign-in landing page.
+ *
+ * Email/password and the home-rolled Google flow are gone — Cognito's Hosted
+ * UI now drives signup, password auth, and Google federation. This page is
+ * a single "Continue" CTA that redirects to Cognito; the user picks an
+ * identity provider there and is bounced back to /auth/callback.
+ */
 export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useAuth();
+  const params = useSearchParams();
+  const { signIn } = useAuth();
   const t = useTranslations("auth");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const returnTo = params.get("returnTo") ?? "/";
+
+  async function handleClick() {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
-      router.push("/");
+      // signIn redirects the browser; resolution doesn't usually return.
+      await signIn(returnTo);
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "message" in err
           ? String((err as { message: string }).message)
-          : "Login failed. Please check your credentials.";
+          : "Sign-in failed.";
       setError(msg);
-    } finally {
       setLoading(false);
     }
   }
@@ -103,7 +58,6 @@ export default function LoginPage() {
       }}
     >
       <div style={{ width: "100%", maxWidth: 400 }}>
-        {/* Logo */}
         <div
           style={{
             fontFamily: TB.fontDisplay,
@@ -143,37 +97,28 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field
-              id="email"
-              label={t("email")}
-              type="email"
-              value={email}
-              onChange={setEmail}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
+          <Btn
+            kind="primary"
+            size="xl"
+            full
+            disabled={loading}
+            onClick={handleClick}
+            style={{ marginBottom: 14 }}
+          >
+            {loading ? t("signingIn") : t("logIn")}
+          </Btn>
 
-            <Field
-              id="password"
-              label={t("password")}
-              type="password"
-              value={password}
-              onChange={setPassword}
-              placeholder={t("yourPassword")}
-              autoComplete="current-password"
-            />
-
-            <Btn
-              kind="primary"
-              size="xl"
-              full
-              disabled={loading}
-              style={{ marginTop: 6 }}
-            >
-              {loading ? t("signingIn") : t("logIn")}
-            </Btn>
-          </form>
+          <div
+            style={{
+              fontSize: 12,
+              color: TB.text2,
+              textAlign: "center",
+              lineHeight: 1.5,
+            }}
+          >
+            You will be redirected to a secure sign-in page where you can use
+            your Google account or your email address.
+          </div>
 
           <div
             style={{
@@ -183,12 +128,11 @@ export default function LoginPage() {
               color: TB.text2,
             }}
           >
-            {t("noAccount")}{" "}
             <a
-              href="/onboarding"
+              href="/pin-login"
               style={{ color: TB.accent, fontWeight: 600, textDecoration: "none" }}
             >
-              {t("createOne")}
+              Kiosk PIN login →
             </a>
           </div>
         </Card>

@@ -58,17 +58,27 @@ async function addMember(
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { register } = useAuth();
+  const { status: authStatus, account } = useAuth();
   const t = useTranslations();
+
+  // Onboarding requires a signed-in Cognito user — sign-up + email/password is
+  // owned by Cognito's Hosted UI, not this page. Redirect unauthenticated users
+  // to /login with the return-to set so they land back here.
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      router.replace(`/login?returnTo=${encodeURIComponent("/onboarding")}`);
+    }
+  }, [authStatus, router]);
 
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
 
-  // Step 1 state
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Step 1 (account) is fulfilled by Cognito sign-in before the user reaches
+  // this page. The email below is read from the Cognito-hydrated auth context
+  // so we can display it as confirmation (no edit, no submit).
+  const email = account?.email ?? "";
 
   // Step 2 state
   const [householdName, setHouseholdName] = useState("");
@@ -113,8 +123,9 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       if (step === 1) {
-        // Create account
-        await register(email || "demo@example.com", password || "placeholder");
+        // Account already exists — Cognito created it on first sign-in and
+        // the auth middleware populated /v1/auth/me. Nothing to do here;
+        // step 1 is now just a "you're signed in as X" confirmation.
       } else if (step === 2) {
         // Create household
         const hh = await createHousehold(householdName || "My Family");
@@ -133,16 +144,11 @@ export default function OnboardingPage() {
           await addMember(householdId, m);
         }
       } else if (step === 5) {
-        // Google Calendar OAuth — if already connected, advance directly
-        if (!calendarConnected) {
-          const res = await api.post<{ redirect_url: string }>(
-            "/v1/auth/oauth/google/start",
-            {}
-          );
-          // Full-window redirect: Google → callback → /onboarding?step=5&connected=1
-          window.location.href = res.redirect_url;
-          return; // navigation takes over; don't advance step here
-        }
+        // Google Calendar OAuth used to live here (separate scope from the
+        // sign-in OAuth Cognito federates). Disabled for now — users can add
+        // an iCal URL from Settings → Calendars to subscribe to a calendar
+        // without read-only Google integration. A scoped Google Calendar
+        // OAuth flow is a future enhancement and not blocking onboarding.
       }
       // Steps 0, 5 (calendar — skip network or already connected), 6 (landing) advance directly
       if (step < TOTAL - 1) setStep(step + 1);

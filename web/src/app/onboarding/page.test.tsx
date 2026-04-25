@@ -86,32 +86,10 @@ describe("OnboardingPage", () => {
     });
   });
 
-  it("shows error when step 1 register fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 409,
-        statusText: "Conflict",
-        json: async () => ({ code: "CONFLICT", message: "Email already in use", status: 409 }),
-      })
-    );
-
-    renderOnboarding();
-
-    // Advance to step 1
-    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
-    await waitFor(() => expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy());
-
-    // Try to advance from step 1 — triggers register
-    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeTruthy();
-    });
-    // Should stay on step 2 (step 1 in 0-indexed = UI step 2)
-    expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy();
-  });
+  // The "step 1 register fails" test was removed: step 1 no longer calls
+  // register() — Cognito's Hosted UI owns signup before the user reaches
+  // /onboarding. Step 1 is now a "you're signed in" confirmation that
+  // advances directly with no network call.
 
   it("advance from step 2 creates household", async () => {
     // register mock

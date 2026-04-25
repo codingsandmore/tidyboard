@@ -8,13 +8,19 @@ function makeLocalStorageMock() {
   const store: Record<string, string> = {};
   return {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v; },
-    removeItem: (k: string) => { delete store[k]; },
-    clear: () => { for (const k in store) delete store[k]; },
+    setItem: (k: string, v: string) => {
+      store[k] = v;
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      for (const k in store) delete store[k];
+    },
   };
 }
 
-// Consumer component that exposes auth state via data-testid spans
+// Consumer component that exposes auth state via data-testid spans.
 function AuthDisplay() {
   const auth = useAuth();
   return (
@@ -23,8 +29,9 @@ function AuthDisplay() {
       <span data-testid="token">{auth.token ?? "null"}</span>
       <span data-testid="account-id">{auth.account?.id ?? "null"}</span>
       <span data-testid="household-id">{auth.household?.id ?? "null"}</span>
-      <button onClick={() => auth.login("a@b.com", "pw").catch(() => {})}>login</button>
-      <button onClick={() => auth.register("a@b.com", "pw").catch(() => {})}>register</button>
+      <button onClick={() => auth.acceptToken("test-id-token").catch(() => {})}>
+        accept
+      </button>
       <button onClick={auth.logout}>logout</button>
     </div>
   );
@@ -34,6 +41,14 @@ function AuthDisplay() {
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", makeLocalStorageMock());
+  // window.location.assign is called by oidc.signOut() during logout; stub it
+  // so JSDOM doesn't navigate (which would tear the test environment down).
+  if (typeof window !== "undefined" && window.location) {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign: vi.fn(), replace: vi.fn() },
+    });
+  }
 });
 
 afterEach(() => {
@@ -41,28 +56,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ── Fallback mode ──────────────────────────────────────────────────────────
-// isApiFallbackMode() reads from a module-level const fixed at import time,
-// so we can't stub it per-test via env vars. We verify the FALLBACK_AUTH
-// constants are correct by inspecting the module directly.
+// ── Provider mount ─────────────────────────────────────────────────────────
 
-describe("fallback mode constants", () => {
-  it("isApiFallbackMode returns false when API URL is the default (not in fallback)", async () => {
-    const { isApiFallbackMode } = await import("@/lib/api/fallback");
-    // In test environment NEXT_PUBLIC_API_URL defaults to http://localhost:8080
-    // so fallback mode is off — this mirrors the non-demo production state.
-    expect(typeof isApiFallbackMode()).toBe("boolean");
-  });
-
-  it("AuthProvider exports useAuth hook that returns context shape", () => {
-    // Verify the provider renders and useAuth returns the correct shape
+describe("AuthProvider", () => {
+  it("mounts without crashing", () => {
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
-    // During loading, status is 'loading'
-    // The provider must render without crashing
     expect(screen.getByTestId("status")).toBeTruthy();
   });
 });
@@ -74,7 +76,7 @@ describe("no stored token", () => {
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -101,13 +103,13 @@ describe("/me hydration", () => {
           member_id: "mem-1",
           role: "adult",
         }),
-      })
+      }),
     );
 
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -115,36 +117,6 @@ describe("/me hydration", () => {
     });
     expect(screen.getByTestId("account-id").textContent).toBe("acct-1");
     expect(screen.getByTestId("household-id").textContent).toBe("hh-1");
-  });
-
-  it("hydrates member_id and household_id from /me response", async () => {
-    localStorage.setItem("tb-auth-token", "tok");
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          account_id: "acct-5",
-          household_id: "hh-5",
-          member_id: "mem-5",
-          role: "child",
-        }),
-      })
-    );
-
-    render(
-      <AuthProvider>
-        <AuthDisplay />
-      </AuthProvider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("authenticated");
-    });
-    expect(screen.getByTestId("account-id").textContent).toBe("acct-5");
-    expect(screen.getByTestId("household-id").textContent).toBe("hh-5");
   });
 
   it("clears token and goes unauthenticated when /me fails", async () => {
@@ -157,13 +129,13 @@ describe("/me hydration", () => {
         status: 401,
         statusText: "Unauthorized",
         json: async () => ({ code: "UNAUTHORIZED", message: "Unauthorized", status: 401 }),
-      })
+      }),
     );
 
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -171,114 +143,63 @@ describe("/me hydration", () => {
     });
     expect(localStorage.getItem("tb-auth-token")).toBeNull();
   });
-});
 
-// ── register ───────────────────────────────────────────────────────────────
+  it("accepts a Cognito-style /me with no household yet (mid-onboarding)", async () => {
+    localStorage.setItem("tb-auth-token", "tok");
 
-describe("register()", () => {
-  it("calls POST /v1/auth/register, stores token, hydrates via /me", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn()
-        // First call: register
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({ token: "reg-token", account_id: "acct-new" }),
-        })
-        // Second call: /me hydration
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            account_id: "acct-new",
-            household_id: null,
-            member_id: null,
-            role: "adult",
-          }),
-        })
-    );
-
-    render(
-      <AuthProvider>
-        <AuthDisplay />
-      </AuthProvider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("unauthenticated");
-    });
-
-    await act(async () => {
-      screen.getByText("register").click();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("authenticated");
-    });
-    expect(screen.getByTestId("token").textContent).toBe("reg-token");
-    expect(localStorage.getItem("tb-auth-token")).toBe("reg-token");
-  });
-
-  it("surfaces error when register fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 409,
-        statusText: "Conflict",
-        json: async () => ({ code: "CONFLICT", message: "Email already in use", status: 409 }),
-      })
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-fresh",
+          household_id: null,
+          member_id: null,
+          role: "",
+        }),
+      }),
     );
 
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("unauthenticated");
+      expect(screen.getByTestId("status").textContent).toBe("authenticated");
     });
-
-    await act(async () => {
-      screen.getByText("register").click();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("unauthenticated");
-    });
+    expect(screen.getByTestId("account-id").textContent).toBe("acct-fresh");
+    expect(screen.getByTestId("household-id").textContent).toBe("null");
   });
 });
 
-// ── login ──────────────────────────────────────────────────────────────────
+// ── acceptToken ─────────────────────────────────────────────────────────────
+// Replaces the old register / login tests. acceptToken() is the entry point
+// the /auth/callback page uses after the OIDC code exchange returns an
+// id_token. Token gets persisted, /me hydrates the account.
 
-describe("login()", () => {
-  it("calls POST /v1/auth/login, stores token, hydrates via /me", async () => {
+describe("acceptToken()", () => {
+  it("stores the id_token and hydrates account context", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({ token: "login-token", account_id: "acct-42" }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            account_id: "acct-42",
-            household_id: "hh-99",
-            member_id: null,
-            role: "adult",
-          }),
-        })
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-cog",
+          household_id: "hh-cog",
+          member_id: "mem-cog",
+          role: "adult",
+        }),
+      }),
     );
 
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -286,14 +207,15 @@ describe("login()", () => {
     });
 
     await act(async () => {
-      screen.getByText("login").click();
+      screen.getByText("accept").click();
     });
 
     await waitFor(() => {
       expect(screen.getByTestId("status").textContent).toBe("authenticated");
     });
-    expect(screen.getByTestId("token").textContent).toBe("login-token");
-    expect(screen.getByTestId("household-id").textContent).toBe("hh-99");
+    expect(screen.getByTestId("token").textContent).toBe("test-id-token");
+    expect(localStorage.getItem("tb-auth-token")).toBe("test-id-token");
+    expect(screen.getByTestId("household-id").textContent).toBe("hh-cog");
   });
 });
 
@@ -307,10 +229,9 @@ describe("pinLogin()", () => {
         ok: true,
         status: 200,
         json: async () => ({ token: "pin-token", member_id: "mem-kid" }),
-      })
+      }),
     );
 
-    // Consumer that calls pinLogin
     function PinDisplay() {
       const auth = useAuth();
       return (
@@ -325,7 +246,7 @@ describe("pinLogin()", () => {
     render(
       <AuthProvider>
         <PinDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
@@ -347,7 +268,7 @@ describe("pinLogin()", () => {
 // ── logout ─────────────────────────────────────────────────────────────────
 
 describe("logout()", () => {
-  it("clears token and state, sets unauthenticated", async () => {
+  it("clears token + state and triggers Cognito /logout redirect", async () => {
     localStorage.setItem("tb-auth-token", "tok");
     vi.stubGlobal(
       "fetch",
@@ -360,13 +281,13 @@ describe("logout()", () => {
           member_id: null,
           role: "adult",
         }),
-      })
+      }),
     );
 
     render(
       <AuthProvider>
         <AuthDisplay />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => {
