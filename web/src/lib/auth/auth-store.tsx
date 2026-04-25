@@ -55,11 +55,21 @@ export interface AuthState {
   household: AuthHousehold | null;
   member: AuthMember | null;
   token: string | null;
+  /**
+   * The currently "active" member in kiosk mode. In non-kiosk use this is
+   * the same as `member`. In kiosk mode any household member can claim the
+   * active session by entering their PIN; `activeMember` reflects who did.
+   */
+  activeMember: AuthMember | null;
+  /** Explicitly set the active member (e.g. adult switching without PIN). */
+  setActiveMember(m: AuthMember | null): void;
+  /** Return to the lock screen (clears activeMember, does NOT clear token). */
+  lockKiosk(): void;
   /** Redirect to Cognito Hosted UI; never returns. `returnTo` defaults to "/". */
   signIn(returnTo?: string): Promise<void>;
   /** Set the Cognito-issued id_token after the callback page exchanges it. */
   acceptToken(idToken: string): Promise<void>;
-  /** Kiosk PIN auth — backend issues a member-scoped JWT. */
+  /** Kiosk PIN auth — backend issues a member-scoped JWT, sets activeMember. */
   pinLogin(memberId: string, pin: string): Promise<void>;
   /** Clear local state + redirect to Cognito /logout. */
   logout(): void;
@@ -85,12 +95,13 @@ const TOKEN_KEY = "tb-auth-token";
 
 // ── Fallback mock auth ─────────────────────────────────────────────────────
 
-const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token"> = {
+const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token" | "activeMember"> = {
   status: "authenticated",
   account: { id: "demo-account", email: "demo@smithfamily.net" },
   household: { id: "demo-household", name: "Smith Family" },
   member: { id: "demo-member", name: "Sarah Smith", role: "adult" },
   token: "demo-token",
+  activeMember: { id: "demo-member", name: "Sarah Smith", role: "adult" },
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -101,6 +112,9 @@ const AuthContext = createContext<AuthState>({
   household: null,
   member: null,
   token: null,
+  activeMember: null,
+  setActiveMember: () => {},
+  lockKiosk: () => {},
   signIn: async () => {},
   acceptToken: async () => {},
   pinLogin: async () => {},
@@ -142,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<AuthHousehold | null>(null);
   const [member, setMember] = useState<AuthMember | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [activeMember, setActiveMemberState] = useState<AuthMember | null>(null);
 
   const hydrate = useCallback(async (): Promise<boolean> => {
     try {
@@ -175,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHousehold(FALLBACK_AUTH.household);
       setMember(FALLBACK_AUTH.member);
       setToken(FALLBACK_AUTH.token);
+      setActiveMemberState(FALLBACK_AUTH.activeMember);
       return;
     }
 
@@ -218,12 +234,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(res.token);
     setStatus("authenticated");
     if (res.member_id) {
-      setMember((prev) =>
-        prev
-          ? { ...prev, id: res.member_id! }
-          : { id: res.member_id!, name: "", role: "child" },
-      );
+      const m: AuthMember = { id: res.member_id, name: "", role: "child" };
+      setMember((prev) => prev ? { ...prev, id: res.member_id! } : m);
+      setActiveMemberState(m);
     }
+  }, []);
+
+  const setActiveMember = useCallback((m: AuthMember | null): void => {
+    setActiveMemberState(m);
+  }, []);
+
+  const lockKiosk = useCallback((): void => {
+    setActiveMemberState(null);
   }, []);
 
   const logout = useCallback((): void => {
@@ -242,7 +264,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ status, account, household, member, token, signIn, acceptToken, pinLogin, logout }}
+      value={{
+        status, account, household, member, token,
+        activeMember: activeMember ?? member,
+        setActiveMember,
+        lockKiosk,
+        signIn, acceptToken, pinLogin, logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

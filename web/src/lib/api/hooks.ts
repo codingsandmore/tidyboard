@@ -670,6 +670,48 @@ export function useUpdateMember() {
   });
 }
 
+// ── Household settings hooks ───────────────────────────────────────────────
+
+export interface HouseholdSettings {
+  kiosk_mode_enabled?: boolean;
+  [key: string]: unknown;
+}
+
+export interface HouseholdResponse {
+  id: string;
+  name: string;
+  timezone: string;
+  settings: HouseholdSettings;
+  invite_code: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useHousehold(householdId: string | undefined) {
+  return useQuery<HouseholdResponse>({
+    queryKey: ["household", householdId],
+    queryFn: () => api.get<HouseholdResponse>(`/v1/households/${householdId}`),
+    enabled: Boolean(householdId),
+  });
+}
+
+export function useUpdateHouseholdSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      householdId,
+      settings,
+    }: {
+      householdId: string;
+      settings: HouseholdSettings;
+    }) =>
+      api.patch<HouseholdResponse>(`/v1/households/${householdId}`, { settings }),
+    onSuccess: (_data, { householdId }) => {
+      qc.invalidateQueries({ queryKey: ["household", householdId] });
+    },
+  });
+}
+
 export function useDeleteMember() {
   const qc = useQueryClient();
   return useMutation({

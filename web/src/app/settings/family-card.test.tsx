@@ -62,6 +62,11 @@ vi.mock("@/lib/api/hooks", () => ({
   }),
   useCalendars: () => ({ data: [], isLoading: false }),
   useAddICalCalendar: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useHousehold: () => ({
+    data: { id: "hh-1", name: "Smith Family", timezone: "UTC", settings: {}, invite_code: "abc", created_at: "", updated_at: "" },
+    isLoading: false,
+  }),
+  useUpdateHouseholdSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/lib/auth/auth-store", async (importOriginal) => {

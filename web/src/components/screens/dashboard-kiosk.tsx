@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -9,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { H } from "@/components/ui/heading";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
 const KIOSK_TABS = [
@@ -27,6 +29,8 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const [sel, setSel] = useState<string | null>(null);
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
+  const { lockKiosk, status } = useAuth();
+  const router = useRouter();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
   const selMember = members.find((m) => m.id === sel) ?? members[0];
@@ -111,6 +115,27 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           >
             <Icon name="sun" size={28} color={TB.warning} />
           </div>
+          {status === "authenticated" && (
+            <button
+              data-testid="kiosk-lock-btn"
+              onClick={() => { lockKiosk(); router.push("/kiosk"); }}
+              title="Lock screen"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: dark ? "rgba(255,255,255,0.08)" : TB.bg2,
+                border: `1px solid ${border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="lock" size={20} color={tc2} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -130,7 +155,12 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           {members.map((m) => (
             <div
               key={m.id}
-              onClick={() => setSel(m.id)}
+              data-testid={`dashboard-member-${m.id}`}
+              onClick={() => {
+                setSel(m.id);
+                // Trigger PIN login for the selected member
+                router.push(`/kiosk?member=${m.id}`);
+              }}
               style={{
                 display: "flex",
                 flexDirection: "column",

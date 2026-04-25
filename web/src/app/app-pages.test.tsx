@@ -158,7 +158,7 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/equity/preview-dark", EquityPreviewDarkPage);
   smoke("/equity/preview-scales", EquityPreviewScalesPage);
 
-  smoke("/lock", LockPage);
+  smokeWithAuth("/lock", LockPage);
   smoke("/lock/members", LockMembersPage);
   smoke("/lock/screen", LockScreenPage);
 

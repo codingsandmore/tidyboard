@@ -20,6 +20,8 @@ import {
   useCreateMember,
   useUpdateMember,
   useDeleteMember,
+  useHousehold,
+  useUpdateHouseholdSettings,
 } from "@/lib/api/hooks";
 
 function AppearanceCard() {
@@ -927,6 +929,90 @@ function CalendarsCard() {
   );
 }
 
+function KioskModeCard() {
+  const { household } = useAuth();
+  const { data: hh, isLoading } = useHousehold(household?.id);
+  const updateSettings = useUpdateHouseholdSettings();
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+
+  const enabled =
+    optimistic !== null
+      ? optimistic
+      : (hh?.settings?.kiosk_mode_enabled ?? false);
+
+  async function handleToggle() {
+    if (!household?.id) return;
+    const next = !enabled;
+    setOptimistic(next);
+    try {
+      await updateSettings.mutateAsync({
+        householdId: household.id,
+        settings: { ...hh?.settings, kiosk_mode_enabled: next },
+      });
+    } catch {
+      setOptimistic(null);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        padding: "12px 16px",
+        background: TB.surface,
+        borderBottom: `1px solid ${TB.border}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        fontFamily: TB.fontBody,
+        fontSize: 13,
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <div style={{ color: TB.text2, fontWeight: 500 }}>Kiosk Mode</div>
+        <div style={{ color: TB.muted, fontSize: 11, marginTop: 2 }}>
+          When on, the app starts at the lock screen. Any family member can
+          claim the session with their PIN.
+        </div>
+      </div>
+      {isLoading ? (
+        <span style={{ color: TB.muted, fontSize: 12 }}>Loading…</span>
+      ) : (
+        <button
+          data-testid="kiosk-mode-toggle"
+          onClick={handleToggle}
+          disabled={updateSettings.isPending}
+          aria-pressed={enabled}
+          style={{
+            width: 44,
+            height: 24,
+            borderRadius: 9999,
+            background: enabled ? TB.primary : TB.bg2,
+            border: `1px solid ${enabled ? TB.primary : TB.border}`,
+            position: "relative",
+            cursor: updateSettings.isPending ? "wait" : "pointer",
+            transition: "background 0.2s, border-color 0.2s",
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: 2,
+              left: enabled ? 22 : 2,
+              width: 18,
+              height: 18,
+              borderRadius: "50%",
+              background: "#fff",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              transition: "left 0.2s",
+            }}
+          />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const tCommon = useTranslations("common");
   return (
@@ -967,6 +1053,7 @@ export default function SettingsPage() {
 
       <AppearanceCard />
       <LanguageCard />
+      <KioskModeCard />
       <FamilyCard />
       <ConnectionCard />
       <CalendarsCard />
