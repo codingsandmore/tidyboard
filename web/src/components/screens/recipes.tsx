@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { H } from "@/components/ui/heading";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
-import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe } from "@/lib/api/hooks";
+import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe, useGenerateShoppingList } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -721,8 +721,35 @@ export function MealPlan() {
   const { data: apiMealPlan } = useMealPlan();
   const { data: apiRecipes } = useRecipes();
   const upsertMealPlan = useUpsertMealPlanEntry();
+  const generateShopping = useGenerateShoppingList();
   const mealPlan = apiMealPlan;
   const recipes = apiRecipes ?? [];
+  const [generateStatus, setGenerateStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  function handleGenerateShopping() {
+    if (!mealPlan?.weekOf) return;
+    const from = mealPlan.weekOf;
+    const toDate = new Date(from);
+    toDate.setUTCDate(toDate.getUTCDate() + 6);
+    const to = toDate.toISOString().slice(0, 10);
+    setGenerateStatus("loading");
+    generateShopping.mutate(
+      { dateFrom: from, dateTo: to },
+      {
+        onSuccess: () => {
+          setGenerateStatus("ok");
+          // Navigate to shopping list after a brief moment
+          setTimeout(() => {
+            window.location.href = "/shopping";
+          }, 600);
+        },
+        onError: () => {
+          setGenerateStatus("error");
+          setTimeout(() => setGenerateStatus("idle"), 3000);
+        },
+      }
+    );
+  }
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const emoji: Record<string, string> = {
     r1: "🍝",
@@ -922,8 +949,20 @@ export function MealPlan() {
               {aiStatus === "loading" ? "Thinking…" : t("aiSuggest")}
             </Btn>
           </div>
-          <Btn kind="primary" size="sm" icon="list">
-            {t("generateShoppingList")}
+          <Btn
+            kind="primary"
+            size="sm"
+            icon="list"
+            onClick={handleGenerateShopping}
+            disabled={generateStatus === "loading"}
+          >
+            {generateStatus === "loading"
+              ? "Generating…"
+              : generateStatus === "ok"
+              ? "Done!"
+              : generateStatus === "error"
+              ? "Error — retry"
+              : t("generateShoppingList")}
           </Btn>
         </div>
       </div>

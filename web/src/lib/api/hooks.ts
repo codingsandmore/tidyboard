@@ -413,6 +413,46 @@ export function useImportRecipe() {
   });
 }
 
+// ── Shopping mutation hooks ────────────────────────────────────────────────
+
+export interface GeneratedShoppingListItem {
+  id: string;
+  shopping_list_id: string;
+  name: string;
+  amount: number;
+  unit: string;
+  aisle: string;
+  source_recipes: string[];
+  completed: boolean;
+  sort_order: number;
+}
+
+export interface GeneratedShoppingList {
+  id: string;
+  household_id: string;
+  name: string;
+  date_from: string;
+  date_to: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  items: GeneratedShoppingListItem[];
+}
+
+export function useGenerateShoppingList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) =>
+      api.post<GeneratedShoppingList>("/v1/shopping/generate", {
+        date_from: dateFrom,
+        date_to: dateTo,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.shopping() });
+    },
+  });
+}
+
 // ── Calendar hooks ─────────────────────────────────────────────────────────
 
 export interface Calendar {
