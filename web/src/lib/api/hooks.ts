@@ -374,6 +374,97 @@ export function useSyncICal(calendarId: string) {
   });
 }
 
+// ── Members mutation hooks ─────────────────────────────────────────────────
+
+export function useCreateMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      householdId,
+      name,
+      displayName,
+      color,
+      role,
+      ageGroup,
+      pin,
+    }: {
+      householdId: string;
+      name: string;
+      displayName: string;
+      color: string;
+      role: string;
+      ageGroup: string;
+      pin?: string;
+    }) =>
+      api.post<Member>(`/v1/households/${householdId}/members`, {
+        name,
+        display_name: displayName,
+        color,
+        role,
+        age_group: ageGroup,
+        ...(pin ? { pin } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.members() });
+    },
+  });
+}
+
+export function useUpdateMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      householdId,
+      memberId,
+      name,
+      displayName,
+      color,
+      role,
+      ageGroup,
+      pin,
+    }: {
+      householdId: string;
+      memberId: string;
+      name?: string;
+      displayName?: string;
+      color?: string;
+      role?: string;
+      ageGroup?: string;
+      pin?: string;
+    }) =>
+      api.patch<Member>(`/v1/households/${householdId}/members/${memberId}`, {
+        ...(name !== undefined ? { name } : {}),
+        ...(displayName !== undefined ? { display_name: displayName } : {}),
+        ...(color !== undefined ? { color } : {}),
+        ...(role !== undefined ? { role } : {}),
+        ...(ageGroup !== undefined ? { age_group: ageGroup } : {}),
+        ...(pin !== undefined ? { pin } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.members() });
+    },
+  });
+}
+
+export function useDeleteMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      householdId,
+      memberId,
+    }: {
+      householdId: string;
+      memberId: string;
+    }) =>
+      api.delete<void>(
+        `/v1/households/${householdId}/members/${memberId}`
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.members() });
+    },
+  });
+}
+
 export function useAudit(
   limit = 50,
   offset = 0,

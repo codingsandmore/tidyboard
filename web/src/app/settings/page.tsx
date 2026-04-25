@@ -13,7 +13,14 @@ import { useWS } from "@/lib/ws/ws-provider";
 import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 import { AISettingsCard } from "./ai-section";
-import { useCalendars, useAddICalCalendar } from "@/lib/api/hooks";
+import {
+  useCalendars,
+  useAddICalCalendar,
+  useMembers,
+  useCreateMember,
+  useUpdateMember,
+  useDeleteMember,
+} from "@/lib/api/hooks";
 
 function AppearanceCard() {
   const { preference, setTheme } = useTheme();
@@ -354,6 +361,374 @@ function AuditLogCard() {
   );
 }
 
+const COLOR_OPTIONS = [
+  "#3B82F6", "#EF4444", "#22C55E", "#F59E0B", "#8B5CF6",
+  "#EC4899", "#14B8A6", "#F97316", "#6366F1", "#84CC16",
+];
+
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Admin" },
+  { value: "member", label: "Member" },
+  { value: "child", label: "Child" },
+  { value: "guest", label: "Guest" },
+];
+
+const AGE_OPTIONS = [
+  { value: "toddler", label: "Toddler" },
+  { value: "child", label: "Child" },
+  { value: "tween", label: "Tween" },
+  { value: "teen", label: "Teen" },
+  { value: "adult", label: "Adult" },
+];
+
+interface MemberFormState {
+  name: string;
+  displayName: string;
+  color: string;
+  role: string;
+  ageGroup: string;
+  pin: string;
+}
+
+const EMPTY_FORM: MemberFormState = {
+  name: "",
+  displayName: "",
+  color: COLOR_OPTIONS[0],
+  role: "member",
+  ageGroup: "adult",
+  pin: "",
+};
+
+function FamilyCard() {
+  const { household } = useAuth();
+  const { data: members, isLoading } = useMembers();
+  const createMember = useCreateMember();
+  const updateMember = useUpdateMember();
+  const deleteMember = useDeleteMember();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<MemberFormState>(EMPTY_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function openAdd() {
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setEditingId(null);
+    setShowAdd(true);
+  }
+
+  function openEdit(m: { id: string; name: string; display_name?: string; color: string; role: string; age_group?: string }) {
+    setForm({
+      name: m.name,
+      displayName: m.display_name ?? m.name,
+      color: m.color,
+      role: m.role,
+      ageGroup: m.age_group ?? "adult",
+      pin: "",
+    });
+    setFormError(null);
+    setEditingId(m.id);
+    setShowAdd(true);
+  }
+
+  function cancelForm() {
+    setShowAdd(false);
+    setEditingId(null);
+    setFormError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (!form.name.trim()) { setFormError("Name is required."); return; }
+    if (!form.displayName.trim()) { setFormError("Display name is required."); return; }
+    if (!household?.id) { setFormError("No household found — try refreshing."); return; }
+    if (form.pin && !/^\d{4,6}$/.test(form.pin)) { setFormError("PIN must be 4-6 digits."); return; }
+
+    try {
+      if (editingId) {
+        await updateMember.mutateAsync({
+          householdId: household.id,
+          memberId: editingId,
+          name: form.name.trim(),
+          displayName: form.displayName.trim(),
+          color: form.color,
+          role: form.role,
+          ageGroup: form.ageGroup,
+          ...(form.pin ? { pin: form.pin } : {}),
+        });
+      } else {
+        await createMember.mutateAsync({
+          householdId: household.id,
+          name: form.name.trim(),
+          displayName: form.displayName.trim(),
+          color: form.color,
+          role: form.role,
+          ageGroup: form.ageGroup,
+          ...(form.pin ? { pin: form.pin } : {}),
+        });
+      }
+      cancelForm();
+    } catch {
+      setFormError(editingId ? "Failed to update member." : "Failed to add member.");
+    }
+  }
+
+  async function handleDelete(memberId: string) {
+    if (!household?.id) return;
+    try {
+      await deleteMember.mutateAsync({ householdId: household.id, memberId });
+    } catch {
+      // silent — member list will not update
+    }
+  }
+
+  const inputStyle = {
+    padding: "6px 10px",
+    borderRadius: TB.r.md,
+    border: `1px solid ${TB.border}`,
+    fontFamily: TB.fontBody,
+    fontSize: 13,
+    background: TB.bg,
+    color: TB.text,
+    width: "100%",
+    boxSizing: "border-box" as const,
+  };
+
+  const isPending = createMember.isPending || updateMember.isPending;
+
+  return (
+    <div
+      style={{
+        padding: "12px 16px",
+        background: TB.surface,
+        borderBottom: `1px solid ${TB.border}`,
+        fontFamily: TB.fontBody,
+        fontSize: 13,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8 }}>
+        <span style={{ color: TB.text2, fontWeight: 500, flex: 1 }}>Family Members</span>
+        <button
+          data-testid="add-member-btn"
+          onClick={openAdd}
+          style={{
+            padding: "5px 12px",
+            borderRadius: TB.r.md,
+            border: `1px solid ${TB.border}`,
+            background: TB.surface,
+            color: TB.primary,
+            cursor: "pointer",
+            fontFamily: TB.fontBody,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          + Add Member
+        </button>
+      </div>
+
+      {isLoading && <div style={{ color: TB.muted, fontSize: 12 }}>Loading…</div>}
+
+      {!isLoading && members && members.length === 0 && (
+        <div style={{ color: TB.muted, fontSize: 12 }}>No members yet.</div>
+      )}
+
+      {members && members.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(members as Array<{ id: string; name: string; display_name?: string; color: string; role: string; age_group?: string }>).map((m) => (
+            <div
+              key={m.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "6px 10px",
+                background: TB.bg2,
+                borderRadius: TB.r.md,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: m.color,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {(m.display_name ?? m.name).charAt(0).toUpperCase()}
+              </div>
+              <span style={{ flex: 1, fontWeight: 500 }}>{m.display_name ?? m.name}</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "2px 7px",
+                  borderRadius: 9999,
+                  background: TB.primary + "18",
+                  color: TB.primary,
+                }}
+              >
+                {m.role}
+              </span>
+              <button
+                data-testid={`edit-member-${m.id}`}
+                onClick={() => openEdit(m)}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: TB.r.md,
+                  border: `1px solid ${TB.border}`,
+                  background: "transparent",
+                  color: TB.text2,
+                  cursor: "pointer",
+                  fontFamily: TB.fontBody,
+                  fontSize: 11,
+                }}
+              >
+                Edit
+              </button>
+              <button
+                data-testid={`delete-member-${m.id}`}
+                onClick={() => handleDelete(m.id)}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: TB.r.md,
+                  border: `1px solid ${TB.destructive}`,
+                  background: "transparent",
+                  color: TB.destructive,
+                  cursor: "pointer",
+                  fontFamily: TB.fontBody,
+                  fontSize: 11,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <form
+          data-testid="member-form"
+          onSubmit={handleSubmit}
+          style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}
+        >
+          <input
+            type="text"
+            placeholder="Full name (e.g. Jackson Smith)"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            style={inputStyle}
+          />
+          <input
+            type="text"
+            placeholder="Display name (e.g. Jackson)"
+            value={form.displayName}
+            onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+            style={inputStyle}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <select
+              value={form.role}
+              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              {ROLE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <select
+              value={form.ageGroup}
+              onChange={(e) => setForm((f) => ({ ...f, ageGroup: e.target.value }))}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              {AGE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: TB.text2, marginBottom: 4 }}>Color</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {COLOR_OPTIONS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, color: c }))}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: c,
+                    border: form.color === c ? `3px solid ${TB.text}` : "2px solid transparent",
+                    cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="PIN (4-6 digits, optional)"
+            value={form.pin}
+            onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value }))}
+            style={inputStyle}
+          />
+          {formError && (
+            <div style={{ fontSize: 12, color: TB.destructive }}>{formError}</div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="submit"
+              disabled={isPending}
+              data-testid="member-form-submit"
+              style={{
+                padding: "6px 14px",
+                borderRadius: TB.r.md,
+                border: "none",
+                background: TB.primary,
+                color: TB.primaryFg,
+                cursor: isPending ? "wait" : "pointer",
+                fontFamily: TB.fontBody,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {isPending ? "Saving…" : editingId ? "Save Changes" : "Add Member"}
+            </button>
+            <button
+              type="button"
+              onClick={cancelForm}
+              style={{
+                padding: "6px 14px",
+                borderRadius: TB.r.md,
+                border: `1px solid ${TB.border}`,
+                background: "transparent",
+                color: TB.text2,
+                cursor: "pointer",
+                fontFamily: TB.fontBody,
+                fontSize: 13,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 const KIND_LABEL: Record<string, string> = {
   google: "Google",
   ical_url: "iCal",
@@ -592,6 +967,7 @@ export default function SettingsPage() {
 
       <AppearanceCard />
       <LanguageCard />
+      <FamilyCard />
       <ConnectionCard />
       <CalendarsCard />
       <BillingCard />
