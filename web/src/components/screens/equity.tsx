@@ -111,9 +111,19 @@ export function Equity({ dark = false }: { dark?: boolean }) {
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
-  const eq = equityData ?? TBD.equity;
   const mom = getMember("mom");
   const dad = getMember("dad");
+
+  if (!equityData) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("householdBalance")}</H>
+        <div style={{ fontSize: 14, color: tc2 }}>{t("noEquityData")}</div>
+      </div>
+    );
+  }
+
+  const eq = equityData;
 
   return (
     <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, padding: 24, boxSizing: "border-box", overflow: "auto" }}>
@@ -437,7 +447,16 @@ export function Settings() {
 export function Race() {
   const t = useTranslations("race");
   const { data: apiRace } = useRace();
-  const r = apiRace ?? TBD.race;
+
+  if (!apiRace) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #FFF7ED 0%, #FEF3C7 100%)", fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: TB.text2, fontSize: 20 }}>{t("noRaceActive")}</H>
+      </div>
+    );
+  }
+
+  const r = apiRace;
 
   return (
     <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #FFF7ED 0%, #FEF3C7 100%)", fontFamily: TB.fontBody, padding: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>

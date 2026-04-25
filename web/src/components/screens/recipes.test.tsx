@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBD } from "@/lib/data";
 import { RecipeImport, RecipeDetail, RecipePreview, MealPlan, ShoppingList } from "./recipes";
+
+vi.mock("@/lib/api/hooks", () => ({
+  useRecipe: (_id: string) => ({ data: TBD.recipes[0] }),
+  useRecipes: () => ({ data: TBD.recipes }),
+  useMealPlan: () => ({ data: TBD.mealPlan }),
+  useShopping: () => ({ data: TBD.shopping }),
+  useToggleShoppingItem: () => ({ mutate: vi.fn() }),
+  useImportRecipe: () => ({ mutate: vi.fn() }),
+}));
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

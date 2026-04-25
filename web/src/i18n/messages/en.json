@@ -91,6 +91,7 @@
   "calendar": {
     "today": "Today",
     "noEvents": "No events",
+    "noEventsYet": "No events yet",
     "addEvent": "+ Event",
     "agenda": "Agenda",
     "searchPlaceholder": "Search events, locations, people…",
@@ -144,7 +145,8 @@
     "recipe": "Recipe",
     "event": "Event",
     "stars": "{n} stars",
-    "streak": "{n}d"
+    "streak": "{n}d",
+    "noEvents": "No events yet"
   },
   "recipe": {
     "addRecipe": "Add a recipe",
@@ -186,7 +188,10 @@
       "lunch": "LUNCH",
       "dinner": "DINNER",
       "snack": "SNACK"
-    }
+    },
+    "noRecipeFound": "Recipe not found",
+    "noMealPlanYet": "No meal plan yet. Generate one from your recipes.",
+    "emptyShoppingList": "Your shopping list is empty"
   },
   "routine": {
     "goodMorning": "GOOD MORNING",
@@ -205,7 +210,8 @@
     "enterPassword": "Enter password",
     "pctDone": "{pct}% done — keep going!",
     "starsCount": "{n} stars",
-    "streakDays": "{n} day streak"
+    "streakDays": "{n} day streak",
+    "noRoutineYet": "No routine set up yet"
   },
   "equity": {
     "householdBalance": "Household balance",
@@ -229,7 +235,8 @@
     "suggestRebalance": "Suggest rebalance →",
     "cognitive": "cognitive",
     "physical": "physical",
-    "personal": "personal"
+    "personal": "personal",
+    "noEquityData": "No equity data yet. Start tracking tasks to see your balance."
   },
   "settings": {
     "appearance": "Appearance",
@@ -299,7 +306,8 @@
   "race": {
     "firstToFinish": "First to finish wins!",
     "timeLeft": "TIME LEFT",
-    "tasksTapToClaim": "TASKS · TAP TO CLAIM"
+    "tasksTapToClaim": "TASKS · TAP TO CLAIM",
+    "noRaceActive": "No race active"
   },
   "list": {
     "lists": "Lists",

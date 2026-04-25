@@ -1,7 +1,7 @@
 "use client";
 
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime } from "@/lib/data";
+import { fmtTime } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
@@ -14,8 +14,8 @@ export function DashKioskColumns() {
   const tNav = useTranslations("nav");
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
   const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
   const startH = 7;
   const endH = 21;

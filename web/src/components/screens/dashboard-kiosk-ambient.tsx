@@ -1,7 +1,7 @@
 "use client";
 
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
@@ -12,8 +12,8 @@ export function DashKioskAmbient() {
   const t = useTranslations("dashboard");
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
   const nextEvent = events.find((e) => e.start >= "10:34") ?? events[0];
   return (
     <div
@@ -91,22 +91,30 @@ export function DashKioskAmbient() {
         >
           {t("nextUpIn", { min: 26 })}
         </div>
-        <div
-          style={{
-            fontFamily: TB.fontDisplay,
-            fontSize: 28,
-            fontWeight: 500,
-            marginTop: 6,
-          }}
-        >
-          {nextEvent.title}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-          <StackedAvatars members={getMembers(nextEvent.members)} size={28} />
-          <div style={{ fontSize: 13, opacity: 0.92 }}>
-            {fmtTime(nextEvent.start)} · {nextEvent.location}
+        {nextEvent ? (
+          <>
+            <div
+              style={{
+                fontFamily: TB.fontDisplay,
+                fontSize: 28,
+                fontWeight: 500,
+                marginTop: 6,
+              }}
+            >
+              {nextEvent.title}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+              <StackedAvatars members={getMembers(nextEvent.members)} size={28} />
+              <div style={{ fontSize: 13, opacity: 0.92 }}>
+                {fmtTime(nextEvent.start)} · {nextEvent.location}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 18, fontWeight: 500, marginTop: 6, opacity: 0.85 }}>
+            {t("noEvents")}
           </div>
-        </div>
+        )}
       </div>
 
       <div

@@ -182,14 +182,22 @@ export function RecipeImport() {
 // ═══════ Recipe Detail ═══════
 export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean }) {
   const t = useTranslations("recipe");
-  const { data: apiRecipe } = useRecipe(id ?? TBD.recipes[0].id);
-  const r = apiRecipe ?? TBD.recipes[0];
+  const { data: apiRecipe } = useRecipe(id ?? "");
+  const r = apiRecipe;
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
   const [tab, setTab] = useState("ing");
+
+  if (!r) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("noRecipeFound")}</H>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -671,8 +679,8 @@ export function MealPlan() {
   const t = useTranslations("recipe");
   const { data: apiMealPlan } = useMealPlan();
   const { data: apiRecipes } = useRecipes();
-  const mealPlan = apiMealPlan ?? TBD.mealPlan;
-  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : TBD.recipes;
+  const mealPlan = apiMealPlan;
+  const recipes = apiRecipes ?? [];
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const emoji: Record<string, string> = {
     r1: "🍝",
@@ -736,6 +744,15 @@ export function MealPlan() {
     } catch {
       showToast("AI request failed. Check your key in Settings.", "error");
     }
+  }
+
+  if (!mealPlan) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: TB.bg, color: TB.text, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: TB.text2, fontSize: 20 }}>{t("mealPlan")}</H>
+        <div style={{ fontSize: 14, color: TB.text2 }}>{t("noMealPlanYet")}</div>
+      </div>
+    );
   }
 
   return (
@@ -940,10 +957,9 @@ export function ShoppingList() {
   const { data: shopping } = useShopping();
   const toggleMutation = useToggleShoppingItem();
 
-  // Initialize from fallback immediately so there is never an empty state.
-  // When API data arrives it will replace the fallback via the effect below.
+  // Initialize from API data or empty; re-seed when API data changes.
   const [categories, setCategories] = useState<ShoppingCategory[]>(() =>
-    TBD.shopping.categories.map((cat) => ({ ...cat, items: cat.items.map((it) => ({ ...it })) }))
+    shopping ? shopping.categories.map((cat) => ({ ...cat, items: cat.items.map((it) => ({ ...it })) })) : []
   );
 
   // When API data arrives (and differs from current), re-seed local state.
@@ -952,7 +968,7 @@ export function ShoppingList() {
   if (incomingVersion && incomingVersion !== apiVersion) {
     setApiVersion(incomingVersion);
     setCategories(
-      (shopping?.categories ?? TBD.shopping.categories).map((cat) => ({
+      (shopping?.categories ?? []).map((cat) => ({
         ...cat,
         items: cat.items.map((it) => ({ ...it })),
       }))
@@ -978,8 +994,8 @@ export function ShoppingList() {
     });
   };
 
-  const weekOf = shopping?.weekOf ?? TBD.shopping.weekOf;
-  const fromRecipes = shopping?.fromRecipes ?? TBD.shopping.fromRecipes;
+  const weekOf = shopping?.weekOf ?? "";
+  const fromRecipes = shopping?.fromRecipes ?? 0;
 
   return (
     <div
@@ -1015,6 +1031,11 @@ export function ShoppingList() {
         </div>
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "8px 0 100px" }}>
+        {categories.length === 0 && (
+          <div style={{ padding: "48px 20px", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+            {t("emptyShoppingList")}
+          </div>
+        )}
         {categories.map((cat, catIdx) => (
           <div key={cat.name} style={{ padding: "6px 20px" }}>
             <div

@@ -1,7 +1,23 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ListsIndex, ListDetail } from "./lists";
 import { TBD } from "@/lib/data";
+
+vi.mock("@/lib/api/hooks", () => ({
+  useLists: () => ({ data: TBD.lists }),
+}));
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
+function renderWithQuery(ui: React.ReactElement) {
+  return render(ui, { wrapper: createWrapper() });
+}
 
 describe("ListsIndex", () => {
   it("renders without crashing", () => {

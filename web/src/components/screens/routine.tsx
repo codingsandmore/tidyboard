@@ -15,25 +15,16 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
   const { data: routines } = useRoutines();
   const toggleMutation = useToggleRoutineStep();
 
-  // Pick first routine from API or fall back to TBD sample
-  const fallbackRoutine = TBD.routine;
   const apiRoutine = routines?.[0];
-  const r = apiRoutine ?? fallbackRoutine;
 
-  const member = getMember(r.member);
+  const [steps, setSteps] = useState<RoutineStep[]>(() => apiRoutine?.steps.map((s) => ({ ...s })) ?? []);
 
-  const [steps, setSteps] = useState<RoutineStep[]>(() => r.steps.map((s) => ({ ...s })));
-
-  // Re-seed steps if API data replaces fallback
-  const [lastRoutineId, setLastRoutineId] = useState<string>(r.member);
+  // Re-seed steps when API data changes
+  const [lastRoutineId, setLastRoutineId] = useState<string | null>(apiRoutine?.member ?? null);
   if (apiRoutine && apiRoutine.member !== lastRoutineId) {
     setSteps(apiRoutine.steps.map((s) => ({ ...s })));
     setLastRoutineId(apiRoutine.member);
   }
-
-  const progress = steps.filter((s) => s.done).length;
-  const total = steps.length;
-  const pct = progress / total;
 
   const bg = dark ? TB.dBg : "#F7F9F3";
   const surf = dark ? TB.dElevated : TB.surface;
@@ -41,11 +32,24 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
 
+  if (!apiRoutine) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("noRoutineYet")}</H>
+      </div>
+    );
+  }
+
+  const member = getMember(apiRoutine.member);
+  const progress = steps.filter((s) => s.done).length;
+  const total = steps.length;
+  const pct = total > 0 ? progress / total : 0;
+
   function toggleStep(id: string) {
     setSteps((prev) =>
       prev.map((s) => (s.id === id ? { ...s, done: !s.done } : s))
     );
-    toggleMutation.mutate({ routineId: r.member, stepId: id, done: !steps.find((s) => s.id === id)?.done });
+    toggleMutation.mutate({ routineId: apiRoutine!.member, stepId: id, done: !steps.find((s) => s.id === id)?.done });
   }
 
   return (
@@ -69,7 +73,7 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12, color: tc2 }}>
           <span>{t("keepGoing", { pct: Math.round(pct * 100) })}</span>
-          <span style={{ color: TB.warning, fontWeight: 600 }}>⏱ {t("minLeft", { n: r.minutesLeft })}</span>
+          <span style={{ color: TB.warning, fontWeight: 600 }}>⏱ {t("minLeft", { n: apiRoutine.minutesLeft })}</span>
         </div>
       </div>
 

@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBD } from "@/lib/data";
 import { RoutineKid, RoutineChecklist, RoutinePath, KioskLock, KioskLockMembers } from "./routine";
+
+vi.mock("@/lib/api/hooks", () => ({
+  useRoutines: () => ({ data: [TBD.routine] }),
+  useToggleRoutineStep: () => ({ mutate: vi.fn() }),
+}));
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
+// TBD import kept for CalWeek (TBD.week) and CalAgenda static group fixtures
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -65,8 +66,8 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
 
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
 
   const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
   const startH = 7;
@@ -561,10 +562,7 @@ export function CalAgenda() {
 
   const { data: apiEvents } = useEvents({ start, end });
 
-  // Fallback to TBD sample events when API data is unavailable
-  const todayEvents: TBDEvent[] = (apiEvents && apiEvents.length > 0)
-    ? apiEvents
-    : TBD.events.slice(0, 5);
+  const todayEvents: TBDEvent[] = apiEvents ?? [];
 
   const groups: { label: string; items: TBDEvent[] }[] = [
     { label: `${t("today").toUpperCase()} · THURSDAY, APR 22`, items: todayEvents },
@@ -670,6 +668,11 @@ export function CalAgenda() {
               {group.label}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {group.items.length === 0 && (
+                <div style={{ fontSize: 13, color: TB.text2, padding: "8px 0" }}>
+                  {t("noEventsYet")}
+                </div>
+              )}
               {group.items.map((e) => {
                 const ms = getMembers(e.members);
                 return (
@@ -723,7 +726,7 @@ export function EventModal() {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const { data: apiMembers } = useMembers();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
+  const members = apiMembers ?? [];
   return (
     <div
       style={{

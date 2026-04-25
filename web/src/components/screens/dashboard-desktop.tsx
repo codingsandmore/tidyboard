@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -16,8 +16,8 @@ export function DashDesktop() {
   const tNav = useTranslations("nav");
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
 
   const NAV: { i: IconName; l: string; href: string; active?: boolean }[] = [
     { i: "calendar", l: tNav("calendar"), href: "/calendar", active: true },
@@ -164,6 +164,11 @@ export function DashDesktop() {
         </div>
         <div style={{ flex: 1, padding: 20, overflow: "auto" }}>
           <Card pad={0} style={{ overflow: "hidden" }}>
+            {events.length === 0 && (
+              <div style={{ padding: "32px 20px", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+                {t("noEvents")}
+              </div>
+            )}
             {events.map((e, i) => {
               const ms = getMembers(e.members);
               return (

@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { TB } from "@/lib/tokens";
-import { TBD, getMember } from "@/lib/data";
+import { getMember } from "@/lib/data";
 import type { FamilyList, ListItem } from "@/lib/data";
+import { useLists } from "@/lib/api/hooks";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,8 @@ const CATEGORY_COLOR: Record<FamilyList["category"], string> = {
 
 export function ListsIndex() {
   const t = useTranslations("list");
+  const { data: apiLists } = useLists();
+  const lists = apiLists ?? [];
   return (
     <div
       style={{
@@ -75,7 +78,12 @@ export function ListsIndex() {
       {/* List cards */}
       <div style={{ flex: 1, overflow: "auto", padding: "12px 20px 24px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {TBD.lists.map((list) => {
+          {lists.length === 0 && (
+            <div style={{ padding: "48px 0", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+              {t("emptyState")}
+            </div>
+          )}
+          {lists.map((list) => {
             const done = list.items.filter((i) => i.done).length;
             const total = list.items.length;
             const pct = total === 0 ? 0 : (done / total) * 100;

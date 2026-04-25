@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBD } from "@/lib/data";
 import { Equity, EquityScales, Settings, Race, arc } from "./equity";
+
+vi.mock("@/lib/api/hooks", () => ({
+  useEquity: () => ({ data: TBD.equity }),
+  useRace: () => ({ data: TBD.race }),
+}));
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -1,7 +1,7 @@
 "use client";
 
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -14,8 +14,8 @@ export function DashPhone() {
   const tDash = useTranslations("dashboard");
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
   return (
     <div
       style={{
@@ -50,7 +50,7 @@ export function DashPhone() {
         >
           tidyboard
         </div>
-        <Avatar member={members[1] ?? TBD.members[1]} size={30} ring={false} />
+        {members[1] && <Avatar member={members[1]} size={30} ring={false} />}
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 8px" }}>
@@ -71,6 +71,11 @@ export function DashPhone() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {events.length === 0 && (
+            <div style={{ padding: "20px 0", textAlign: "center", color: TB.text2, fontSize: 13 }}>
+              {tDash("noEvents")}
+            </div>
+          )}
           {events.slice(0, 5).map((e) => {
             const ms = getMembers(e.members);
             const accent = ms.length > 1 ? TB.primary : ms[0].color;

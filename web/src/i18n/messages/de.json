@@ -91,6 +91,7 @@
   "calendar": {
     "today": "Heute",
     "noEvents": "Keine Termine",
+    "noEventsYet": "Noch keine Termine",
     "addEvent": "+ Termin",
     "agenda": "Agenda",
     "searchPlaceholder": "Termine, Orte, Personen suchen…",
@@ -144,7 +145,8 @@
     "recipe": "Rezept",
     "event": "Termin",
     "stars": "{n} Sterne",
-    "streak": "{n}T"
+    "streak": "{n}T",
+    "noEvents": "Noch keine Termine"
   },
   "recipe": {
     "addRecipe": "Rezept hinzufügen",
@@ -186,7 +188,10 @@
       "lunch": "MITTAGESSEN",
       "dinner": "ABENDESSEN",
       "snack": "SNACK"
-    }
+    },
+    "noRecipeFound": "Rezept nicht gefunden",
+    "noMealPlanYet": "Noch kein Speiseplan. Erstelle einen aus deinen Rezepten.",
+    "emptyShoppingList": "Die Einkaufsliste ist leer"
   },
   "routine": {
     "goodMorning": "GUTEN MORGEN",
@@ -205,7 +210,8 @@
     "enterPassword": "Passwort eingeben",
     "pctDone": "{pct}% geschafft — weiter so!",
     "starsCount": "{n} Sterne",
-    "streakDays": "{n} Tage am Stück"
+    "streakDays": "{n} Tage am Stück",
+    "noRoutineYet": "Noch keine Routine eingerichtet"
   },
   "equity": {
     "householdBalance": "Haushaltsbalance",
@@ -229,7 +235,8 @@
     "suggestRebalance": "Neuverteilung vorschlagen →",
     "cognitive": "kognitiv",
     "physical": "physisch",
-    "personal": "persönlich"
+    "personal": "persönlich",
+    "noEquityData": "Noch keine Daten. Beginne Aufgaben zu verfolgen, um dein Gleichgewicht zu sehen."
   },
   "settings": {
     "appearance": "Erscheinungsbild",
@@ -299,7 +306,8 @@
   "race": {
     "firstToFinish": "Wer zuerst fertig ist, gewinnt!",
     "timeLeft": "VERBLEIBENDE ZEIT",
-    "tasksTapToClaim": "AUFGABEN · TIPPEN ZUM ÜBERNEHMEN"
+    "tasksTapToClaim": "AUFGABEN · TIPPEN ZUM ÜBERNEHMEN",
+    "noRaceActive": "Kein Rennen aktiv"
   },
   "list": {
     "lists": "Listen",

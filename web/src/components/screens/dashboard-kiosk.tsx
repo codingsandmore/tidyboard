@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMember, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -24,12 +24,12 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
   const tRecipe = useTranslations("recipe");
-  const [sel, setSel] = useState("jackson");
+  const [sel, setSel] = useState<string | null>(null);
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
-  const selMember = members.find((m) => m.id === sel) ?? getMember(sel);
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
+  const selMember = members.find((m) => m.id === sel) ?? members[0];
   const bg = dark ? TB.dBg : TB.bg;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
@@ -152,36 +152,38 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             </div>
           ))}
           <div style={{ flex: 1 }} />
-          <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>{selMember.name}</div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <Icon name="star" size={16} color={TB.warning} />
-              <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
-                {selMember.stars}
+          {selMember && (
+            <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>{selMember.name}</div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Icon name="star" size={16} color={TB.warning} />
+                <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
+                  {selMember.stars}
+                </div>
               </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 6,
-              }}
-            >
-              <Icon name="flame" size={14} color="#F97316" />
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#F97316" }}>
-                {t("streak", { n: selMember.streak })}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 6,
+                }}
+              >
+                <Icon name="flame" size={14} color="#F97316" />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F97316" }}>
+                  {t("streak", { n: selMember.streak })}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
 
         <div style={{ flex: 1, padding: 28, overflow: "auto" }}>
@@ -201,6 +203,11 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {events.length === 0 && (
+              <div style={{ padding: "24px 0", textAlign: "center", color: tc2, fontSize: 14 }}>
+                {t("noEvents")}
+              </div>
+            )}
             {events.map((e) => {
               const ms = getMembers(e.members);
               const accent = ms.length > 1 ? TB.primary : ms[0].color;
