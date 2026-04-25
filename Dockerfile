@@ -14,7 +14,11 @@ RUN go mod download
 
 # Copy source and build
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+# Build natively for the docker build host's architecture. On the prod EC2
+# (Graviton t4g.small / aarch64) this produces an arm64 binary; on amd64 CI
+# runners it produces amd64. Forcing GOARCH=amd64 here, like an earlier
+# revision did, breaks the EC2 with `exec format error`.
+RUN CGO_ENABLED=0 GOOS=linux \
     go build -trimpath -ldflags="-s -w" -o tidyboard ./cmd/server
 
 # Stage 2: minimal runtime image
