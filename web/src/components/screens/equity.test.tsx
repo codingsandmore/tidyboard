@@ -7,6 +7,9 @@ import { Equity, EquityScales, Settings, Race, arc } from "./equity";
 vi.mock("@/lib/api/hooks", () => ({
   useEquity: () => ({ data: TBD.equity }),
   useRace: () => ({ data: TBD.race }),
+  // New equity engine hooks — return undefined so the component falls back to stub data
+  useEquityDashboard: () => ({ data: undefined }),
+  useRebalanceSuggestions: () => ({ data: undefined }),
 }));
 
 function createWrapper() {

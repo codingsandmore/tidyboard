@@ -27,6 +27,14 @@ import type {
   MealPlan,
   Race,
   ListAuditResponse,
+  ApiEquityDashboard,
+  ApiEquityTask,
+  ApiTaskDomain,
+  ApiTaskLog,
+  ApiRebalanceSuggestion,
+  CreateEquityTaskRequest,
+  UpdateEquityTaskRequest,
+  LogTaskTimeRequest,
 } from "./types";
 
 // ── Query key factory ──────────────────────────────────────────────────────
@@ -42,6 +50,10 @@ export const qk = {
   shopping: () => ["shopping"] as const,
   routines: () => ["routines"] as const,
   equity: (period?: string) => ["equity", period] as const,
+  equityDashboard: (from?: string, to?: string) => ["equity", "dashboard", from, to] as const,
+  equityTasks: () => ["equity", "tasks"] as const,
+  equityDomains: () => ["equity", "domains"] as const,
+  equitySuggestions: () => ["equity", "suggestions"] as const,
   mealPlan: (weekOf?: string) => ["mealPlan", weekOf ?? "current"] as const,
   race: () => ["race"] as const,
   audit: (
@@ -176,6 +188,92 @@ export function useEquity(period?: string) {
         },
         () => fallback.equity()
       ),
+  });
+}
+
+// ── Equity engine hooks ────────────────────────────────────────────────────
+
+/** Returns the live equity dashboard from the backend. */
+export function useEquityDashboard(from?: string, to?: string) {
+  return useQuery<ApiEquityDashboard>({
+    queryKey: qk.equityDashboard(from, to),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return api.get<ApiEquityDashboard>(`/v1/equity${qs}`);
+    },
+  });
+}
+
+/** Returns canonical task domains for the household (seeds defaults on first call). */
+export function useEquityDomains() {
+  return useQuery<ApiTaskDomain[]>({
+    queryKey: qk.equityDomains(),
+    queryFn: () => api.get<ApiTaskDomain[]>("/v1/equity/domains"),
+  });
+}
+
+/** Returns all non-archived equity tasks. */
+export function useEquityTasks() {
+  return useQuery<ApiEquityTask[]>({
+    queryKey: qk.equityTasks(),
+    queryFn: () => api.get<ApiEquityTask[]>("/v1/equity/tasks"),
+  });
+}
+
+/** Returns rebalance suggestions based on last 30 days of data. */
+export function useRebalanceSuggestions() {
+  return useQuery<ApiRebalanceSuggestion[]>({
+    queryKey: qk.equitySuggestions(),
+    queryFn: () => api.get<ApiRebalanceSuggestion[]>("/v1/equity/suggestions"),
+  });
+}
+
+export function useCreateEquityTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateEquityTaskRequest) =>
+      api.post<ApiEquityTask>("/v1/equity/tasks", req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.equityTasks() });
+      qc.invalidateQueries({ queryKey: ["equity"] });
+    },
+  });
+}
+
+export function useUpdateEquityTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...req }: UpdateEquityTaskRequest & { id: string }) =>
+      api.patch<ApiEquityTask>(`/v1/equity/tasks/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.equityTasks() });
+      qc.invalidateQueries({ queryKey: ["equity"] });
+    },
+  });
+}
+
+export function useDeleteEquityTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/v1/equity/tasks/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.equityTasks() });
+      qc.invalidateQueries({ queryKey: ["equity"] });
+    },
+  });
+}
+
+export function useLogTaskTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, ...req }: LogTaskTimeRequest & { taskId: string }) =>
+      api.post<ApiTaskLog>(`/v1/equity/tasks/${taskId}/log`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["equity"] });
+    },
   });
 }
 

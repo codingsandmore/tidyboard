@@ -7,7 +7,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEquity, useRace } from "@/lib/api/hooks";
+import { useEquity, useEquityDashboard, useRebalanceSuggestions, useRace } from "@/lib/api/hooks";
+import type { ApiEquityDashboard, ApiRebalanceSuggestion } from "@/lib/api/types";
 import { useTranslations } from "next-intl";
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
@@ -101,11 +102,60 @@ const Ring = ({
   );
 };
 
+// ── Backend → legacy shape adapter ───────────────────────────────────────────
+
+function adaptDashboard(api: ApiEquityDashboard, members: Member[]) {
+  // Build member id → Member lookup
+  const memberById: Record<string, Member> = {};
+  for (const m of members) memberById[m.id] = m;
+
+  // adults array: map ApiMemberEquity → EquityAdult-like shape
+  const adults = api.members.map((me) => ({
+    id: me.member_id,
+    total: Math.round(me.total_minutes / 60 * 10) / 10,
+    cognitive: Math.round(me.cognitive_minutes / 60 * 10) / 10,
+    physical: Math.round(me.physical_minutes / 60 * 10) / 10,
+    personalHrs: 0,
+    personalGoal: 5,
+    load: me.load_status as "green" | "yellow" | "red",
+    loadPct: Math.round(me.load_pct),
+  }));
+
+  // domainList: map ApiDomainSummary → Domain-like shape
+  const domainList = api.domain_list.map((d) => ({
+    name: d.name,
+    owner: d.owner_member_id ?? "",
+    hours: Math.round(d.total_minutes / 60 * 10) / 10,
+    tasks: d.task_count,
+  }));
+
+  // trend: convert per-member minutes map to weekly points
+  // We use the first 2 members (sorted) as "mom" / "dad" slots
+  const sortedMemberIds = api.members.map((m) => m.member_id).sort();
+  const [id0, id1] = sortedMemberIds;
+  const trend = api.trend.map((tp, i) => ({
+    w: i === api.trend.length - 1 ? "This" : `W-${api.trend.length - 1 - i}`,
+    mom: Math.round((tp.minutes[id0] ?? 0) / 60 * 10) / 10,
+    dad: Math.round((tp.minutes[id1] ?? 0) / 60 * 10) / 10,
+  }));
+
+  return { period: `${api.from} – ${api.to}`, domains: api.domain_list.length, adults, domainList, trend };
+}
+
 // ─── Equity (full dashboard, desktop) ────────────────────────────────────────
 
 export function Equity({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("equity");
-  const { data: equityData } = useEquity("This Week");
+  // Try live backend first; fall back to stub data
+  const { data: liveData } = useEquityDashboard();
+  const { data: stubData } = useEquity("This Week");
+  const { data: suggestions } = useRebalanceSuggestions();
+
+  const allMembers = TBD.members as Member[];
+  const equityData = liveData
+    ? adaptDashboard(liveData, allMembers)
+    : stubData ?? null;
+
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
   const tc = dark ? TB.dText : TB.text;
@@ -181,7 +231,13 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           <LoadRow member={mom} status="yellow" label={t("watch")} detail="Carrying 58% this week" dark={dark} />
           <div style={{ height: 1, background: border, margin: "12px 0" }} />
           <LoadRow member={dad} status="green" label={t("balanced")} detail="On track" dark={dark} />
-          <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600, cursor: "pointer" }}>{t("suggestRebalance")}</div>
+          {suggestions && suggestions.length > 0 ? (
+            <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600 }}>
+              {suggestions[0].reason}
+            </div>
+          ) : (
+            <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600, cursor: "pointer" }}>{t("suggestRebalance")}</div>
+          )}
         </Card>
 
         {/* Personal time */}
