@@ -4,13 +4,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBD } from "@/lib/data";
 import { RecipeImport, RecipeDetail, RecipePreview, MealPlan, ShoppingList } from "./recipes";
 
+const importMutateMock = vi.fn();
+
 vi.mock("@/lib/api/hooks", () => ({
   useRecipe: (_id: string) => ({ data: TBD.recipes[0] }),
   useRecipes: () => ({ data: TBD.recipes }),
   useMealPlan: () => ({ data: TBD.mealPlan }),
   useShopping: () => ({ data: TBD.shopping }),
   useToggleShoppingItem: () => ({ mutate: vi.fn() }),
-  useImportRecipe: () => ({ mutate: vi.fn() }),
+  useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
 }));
 
 function createWrapper() {
@@ -56,6 +58,37 @@ describe("RecipeImport", () => {
     fireEvent.click(screen.getByText("Import recipe"));
     // Mutation fires in fallback mode — no crash expected
     expect(screen.getByText("Import recipe")).toBeTruthy();
+  });
+
+  it("calls importMutation.mutate with the entered URL", () => {
+    importMutateMock.mockImplementation(() => {});
+    renderWithQuery(<RecipeImport />);
+    const input = screen.getByDisplayValue("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+    fireEvent.change(input, { target: { value: "https://example.com/recipe" } });
+    fireEvent.click(screen.getByText("Import recipe"));
+    expect(importMutateMock).toHaveBeenCalledWith(
+      "https://example.com/recipe",
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    );
+  });
+
+  it("shows error message when onError callback is invoked", () => {
+    importMutateMock.mockImplementation((_url: string, opts: { onError: () => void }) => {
+      opts.onError();
+    });
+    renderWithQuery(<RecipeImport />);
+    fireEvent.click(screen.getByText("Import recipe"));
+    expect(screen.getByTestId("import-error")).toBeTruthy();
+    expect(screen.getByText(/Failed to import recipe/)).toBeTruthy();
+  });
+
+  it("shows success message when onSuccess callback is invoked", () => {
+    importMutateMock.mockImplementation((_url: string, opts: { onSuccess: () => void }) => {
+      opts.onSuccess();
+    });
+    renderWithQuery(<RecipeImport />);
+    fireEvent.click(screen.getByText("Import recipe"));
+    expect(screen.getByTestId("import-success")).toBeTruthy();
   });
 });
 
@@ -234,6 +267,40 @@ describe("MealPlan", () => {
     await waitFor(() => {
       expect(screen.getByText(/AI request failed/)).toBeTruthy();
     });
+  });
+
+  it("clicking a meal cell opens the recipe picker", () => {
+    renderWithQuery(<MealPlan />);
+    const cell = screen.getByTestId("meal-cell-0-0");
+    fireEvent.click(cell);
+    expect(screen.getByTestId("meal-picker")).toBeTruthy();
+    expect(screen.getByText(/Pick a recipe/)).toBeTruthy();
+  });
+
+  it("picker shows all available recipes", () => {
+    renderWithQuery(<MealPlan />);
+    fireEvent.click(screen.getByTestId("meal-cell-0-0"));
+    // TBD.recipes includes "Spaghetti Carbonara" — may also appear in grid cells
+    expect(screen.getAllByText("Spaghetti Carbonara").length).toBeGreaterThan(0);
+  });
+
+  it("clicking Cancel in picker closes the modal", () => {
+    renderWithQuery(<MealPlan />);
+    fireEvent.click(screen.getByTestId("meal-cell-0-0"));
+    expect(screen.getByTestId("meal-picker")).toBeTruthy();
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("meal-picker")).toBeNull();
+  });
+
+  it("picking a recipe updates the cell and closes the picker", () => {
+    renderWithQuery(<MealPlan />);
+    // Click an empty cell
+    const emptyCell = screen.getByTestId("meal-cell-0-0");
+    fireEvent.click(emptyCell);
+    // Pick the first recipe
+    fireEvent.click(screen.getByTestId("pick-recipe-r1"));
+    // Picker should be gone
+    expect(screen.queryByTestId("meal-picker")).toBeNull();
   });
 });
 

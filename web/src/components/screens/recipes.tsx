@@ -45,7 +45,24 @@ export function RecipeImport() {
   const t = useTranslations("recipe");
   const tCommon = useTranslations("common");
   const [url, setUrl] = useState("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
   const importMutation = useImportRecipe();
+
+  function handleImport() {
+    if (!url.trim()) return;
+    setImportError(null);
+    setImportSuccess(false);
+    importMutation.mutate(url.trim(), {
+      onSuccess: () => {
+        setImportSuccess(true);
+        setUrl("");
+      },
+      onError: () => {
+        setImportError("Failed to import recipe. Check the URL and try again.");
+      },
+    });
+  }
 
   return (
     <div
@@ -101,12 +118,33 @@ export function RecipeImport() {
 
         <Input
           value={url}
-          onChange={(v) => setUrl(v)}
+          onChange={(v) => { setUrl(v); setImportError(null); setImportSuccess(false); }}
           style={{ height: 52, fontSize: 14 }}
         />
+        {importError && (
+          <div
+            data-testid="import-error"
+            style={{ marginTop: 8, fontSize: 12, color: TB.destructive }}
+          >
+            {importError}
+          </div>
+        )}
+        {importSuccess && (
+          <div
+            data-testid="import-success"
+            style={{ marginTop: 8, fontSize: 12, color: TB.success }}
+          >
+            {t("importRecipe")} — saved to your collection!
+          </div>
+        )}
         <div style={{ marginTop: 12 }}>
-          <Btn kind="primary" size="lg" full onClick={() => importMutation.mutate(url)}>
-            {t("importRecipe")}
+          <Btn
+            kind="primary"
+            size="lg"
+            full
+            onClick={handleImport}
+          >
+            {importMutation.isPending ? "Importing…" : t("importRecipe")}
           </Btn>
         </div>
 
@@ -675,6 +713,9 @@ export function RecipePreview() {
 }
 
 // ═══════ Meal Plan — weekly grid (tablet) ═══════
+
+interface MealSlot { rowIdx: number; colIdx: number; date: string; meal: string }
+
 export function MealPlan() {
   const t = useTranslations("recipe");
   const { data: apiMealPlan } = useMealPlan();
@@ -692,6 +733,46 @@ export function MealPlan() {
     r7: "🥗",
     r8: "🧀",
   };
+
+  // Local grid state (optimistic — backend /v1/meal-plan not yet wired, see BACKEND_STATUS.md)
+  const [localGrid, setLocalGrid] = useState<(string | null)[][]>([]);
+  const [pickerSlot, setPickerSlot] = useState<MealSlot | null>(null);
+
+  // Seed local grid from API data when it arrives
+  const [seededWeek, setSeededWeek] = useState<string | null>(null);
+  if (mealPlan && mealPlan.weekOf !== seededWeek) {
+    setSeededWeek(mealPlan.weekOf);
+    setLocalGrid(mealPlan.grid.map((row) => [...row]));
+  }
+
+  function openPicker(rowIdx: number, colIdx: number, date: string, meal: string) {
+    setPickerSlot({ rowIdx, colIdx, date, meal });
+  }
+
+  function pickRecipe(recipeId: string) {
+    if (!pickerSlot) return;
+    const { rowIdx, colIdx } = pickerSlot;
+    setLocalGrid((prev) => {
+      const next: (string | null)[][] = prev.map((row) => [...row]);
+      if (!next[rowIdx]) next[rowIdx] = [];
+      next[rowIdx][colIdx] = recipeId;
+      return next;
+    });
+    // NOTE: POST /v1/meal-plan not implemented in backend — see BACKEND_STATUS.md
+    setPickerSlot(null);
+  }
+
+  function clearSlot(rowIdx: number, colIdx: number) {
+    setLocalGrid((prev) => {
+      const next: (string | null)[][] = prev.map((row) => [...row]);
+      if (!next[rowIdx]) next[rowIdx] = [];
+      next[rowIdx][colIdx] = null;
+      return next;
+    });
+  }
+
+  // Use localGrid if seeded, fall back to mealPlan.grid for first render
+  const displayGrid = localGrid.length > 0 ? localGrid : (mealPlan?.grid ?? []);
 
   const { keys } = useAIKeys();
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ok" | "error" | "unconfigured">("idle");
@@ -898,11 +979,14 @@ export function MealPlan() {
               >
                 {rowLabel}
               </div>
-              {mealPlan.grid[ri].map((rid, ci) => {
+              {(displayGrid[ri] ?? []).map((rid: string | null, ci: number) => {
                 const recipe = rid ? recipes.find((rec) => rec.id === rid) : null;
+                const dateLabel = `${mealPlan.weekOf}-d${ci}`;
                 return (
                   <div
                     key={ci}
+                    data-testid={`meal-cell-${ri}-${ci}`}
+                    onClick={() => openPicker(ri, ci, dateLabel, row)}
                     style={{
                       aspectRatio: "1",
                       background: recipe ? TB.surface : "transparent",
@@ -918,11 +1002,12 @@ export function MealPlan() {
                       justifyContent: "center",
                       gap: 4,
                       minHeight: 72,
+                      position: "relative",
                     }}
                   >
                     {recipe ? (
                       <>
-                        <div style={{ fontSize: 28 }}>{emoji[recipe.id]}</div>
+                        <div style={{ fontSize: 28 }}>{emoji[recipe.id] ?? "🍽️"}</div>
                         <div
                           style={{
                             fontSize: 9,
@@ -935,6 +1020,29 @@ export function MealPlan() {
                         >
                           {recipe.title.split(" ").slice(0, 2).join(" ")}
                         </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); clearSlot(ri, ci); }}
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            right: 2,
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: TB.muted,
+                            color: "#fff",
+                            fontSize: 10,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
                       </>
                     ) : (
                       <Icon name="plus" size={18} color={TB.muted} />
@@ -947,6 +1055,86 @@ export function MealPlan() {
           })}
         </div>
       </div>
+
+      {/* Recipe picker modal */}
+      {pickerSlot && (
+        <div
+          data-testid="meal-picker"
+          onClick={() => setPickerSlot(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: TB.surface,
+              borderRadius: 16,
+              padding: 20,
+              width: 320,
+              maxHeight: "70vh",
+              overflow: "auto",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 12 }}>
+              Pick a recipe — {pickerSlot.meal}
+            </div>
+            {recipes.length === 0 && (
+              <div style={{ fontSize: 13, color: TB.muted }}>No recipes yet. Import one first.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {recipes.map((rec) => (
+                <button
+                  key={rec.id}
+                  data-testid={`pick-recipe-${rec.id}`}
+                  onClick={() => pickRecipe(rec.id)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: TB.r.md,
+                    border: `1px solid ${TB.border}`,
+                    background: TB.bg,
+                    color: TB.text,
+                    cursor: "pointer",
+                    fontFamily: TB.fontBody,
+                    fontSize: 13,
+                    textAlign: "left",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{emoji[rec.id] ?? "🍽️"}</span>
+                  <span>{rec.title}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPickerSlot(null)}
+              style={{
+                marginTop: 12,
+                padding: "6px 14px",
+                borderRadius: TB.r.md,
+                border: `1px solid ${TB.border}`,
+                background: "transparent",
+                color: TB.text2,
+                cursor: "pointer",
+                fontFamily: TB.fontBody,
+                fontSize: 13,
+                width: "100%",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
