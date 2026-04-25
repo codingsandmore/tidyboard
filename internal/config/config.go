@@ -113,13 +113,25 @@ type RedisConfig struct {
 
 // AuthConfig holds JWT and PIN authentication settings.
 type AuthConfig struct {
-	JWTSecret          string        `help:"JWT signing secret (required in production)" env:"TIDYBOARD_AUTH_JWT_SECRET" yaml:"jwt_secret"`
-	JWTExpiry          time.Duration `help:"JWT token expiry" default:"15m" yaml:"jwt_expiry"`
-	RefreshTokenExpiry time.Duration `help:"Refresh token expiry" default:"168h" yaml:"refresh_token_expiry"`
-	PINMaxAttempts     int           `help:"Max PIN attempts before lockout" default:"5" yaml:"pin_max_attempts"`
-	PINLockoutDuration time.Duration `help:"PIN lockout duration" default:"5m" yaml:"pin_lockout_duration"`
+	JWTSecret          string        `help:"HMAC test JWT secret used by the in-process Cognito stub when CognitoUserPoolID is empty (e.g. in unit tests). Never used in production." env:"TIDYBOARD_AUTH_JWT_SECRET" yaml:"jwt_secret"`
+	JWTExpiry          time.Duration `help:"JWT token expiry (test stub only)" default:"15m" yaml:"jwt_expiry"`
+	RefreshTokenExpiry time.Duration `help:"Refresh token expiry (legacy, unused after Cognito cutover)" default:"168h" yaml:"refresh_token_expiry"`
+	PINMaxAttempts     int           `help:"Max PIN attempts before lockout (kiosk flow)" default:"5" yaml:"pin_max_attempts"`
+	PINLockoutDuration time.Duration `help:"PIN lockout duration (kiosk flow)" default:"5m" yaml:"pin_lockout_duration"`
 	RateLimitPerMin    int           `help:"Authenticated requests per minute per account" default:"60" yaml:"rate_limit_per_min"`
+	Cognito            CognitoConfig `embed:"" prefix:"cognito." yaml:"cognito"`
 	OAuth              OAuthConfig   `embed:"" prefix:"oauth." yaml:"oauth"`
+}
+
+// CognitoConfig holds AWS Cognito User Pool settings used by the JWT verifier
+// middleware. When CognitoUserPoolID is empty, the middleware falls back to the
+// HMAC test verifier (driven by AuthConfig.JWTSecret) so unit tests can run
+// without network access to JWKS.
+type CognitoConfig struct {
+	Region      string `help:"AWS region of the Cognito user pool (e.g. us-east-1)" env:"TIDYBOARD_AUTH_COGNITO_REGION" yaml:"region"`
+	UserPoolID  string `help:"Cognito user pool ID, e.g. us-east-1_0we181NKh. Empty means 'use the HMAC test verifier' (tests only)." env:"TIDYBOARD_AUTH_COGNITO_USER_POOL_ID" yaml:"user_pool_id"`
+	ClientID    string `help:"Cognito app client ID. Tokens with a different aud are rejected." env:"TIDYBOARD_AUTH_COGNITO_CLIENT_ID" yaml:"client_id"`
+	IssuerURL   string `help:"Override for the Cognito issuer URL. Defaults to https://cognito-idp.<region>.amazonaws.com/<user-pool-id>." env:"TIDYBOARD_AUTH_COGNITO_ISSUER_URL" yaml:"issuer_url"`
 }
 
 // OAuthConfig holds OAuth/OIDC provider settings.

@@ -15,9 +15,9 @@ type Querier interface {
 	// sql/queries/account.sql
 	// Account queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error)
 	// sql/queries/event.sql
 	// Event queries. Run `sqlc generate` to produce Go code in internal/query/.
-	CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error)
 	CreateEvent(ctx context.Context, arg CreateEventParams) (Event, error)
 	// sql/queries/household.sql
 	// Household queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -42,6 +42,7 @@ type Querier interface {
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
+	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)
 	GetCalendar(ctx context.Context, arg GetCalendarParams) (Calendar, error)
 	GetEvent(ctx context.Context, arg GetEventParams) (Event, error)
 	GetEventByExternalID(ctx context.Context, arg GetEventByExternalIDParams) (Event, error)

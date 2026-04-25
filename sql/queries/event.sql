@@ -95,3 +95,13 @@ RETURNING *;
 SELECT * FROM calendars
 WHERE id = $1 AND household_id = $2
 LIMIT 1;
+
+-- name: ListCalendars :many
+SELECT * FROM calendars
+WHERE household_id = $1
+ORDER BY created_at;
+
+-- name: CreateCalendar :one
+INSERT INTO calendars (id, household_id, name, source, url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
