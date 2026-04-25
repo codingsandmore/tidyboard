@@ -129,6 +129,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	listSvc := service.NewListService(q, bc, auditSvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
 	mealPlanSvc := service.NewMealPlanService(q)
+	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 
@@ -164,6 +165,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	listHandler := handler.NewListHandler(listSvc)
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)
 	mealPlanHandler := handler.NewMealPlanHandler(mealPlanSvc)
+	shoppingHandler := handler.NewShoppingHandler(shoppingSvc)
 	syncHandler := handler.NewSyncHandler(syncSvc)
 	calendarHandler := handler.NewCalendarHandler(q, syncSvc)
 	wsHandler := handler.NewWSHandler(bc, verifier, q)
@@ -325,6 +327,16 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/meal-plan", mealPlanHandler.List)
 		r.Post("/v1/meal-plan", mealPlanHandler.Upsert)
 		r.Delete("/v1/meal-plan/{id}", mealPlanHandler.Delete)
+
+		// Shopping lists.
+		r.Post("/v1/shopping/generate", shoppingHandler.Generate)
+		r.Get("/v1/shopping/current", shoppingHandler.GetCurrent)
+		r.Get("/v1/shopping/staples", shoppingHandler.ListStaples)
+		r.Post("/v1/shopping/staples", shoppingHandler.UpsertStaple)
+		r.Delete("/v1/shopping/staples/{id}", shoppingHandler.DeleteStaple)
+
+		// Ingredients search.
+		r.Get("/v1/ingredients/search", shoppingHandler.SearchIngredients)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)

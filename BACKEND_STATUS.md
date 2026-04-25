@@ -195,6 +195,30 @@ goose -dir migrations postgres "$DSN" up
 | `POST /v1/calendars/ical` | JWT | Body: `{name, url}` — creates ical_url calendar |
 | `POST /v1/calendars/:id/sync-ical` | JWT | Body: `{range_start, range_end}` — syncs iCal feed |
 
+## Shopping List Auto-Generation (2026-04-24)
+
+New migration `20260425000020_shopping.sql` adds three tables:
+- `shopping_lists` — one active list per household at a time
+- `shopping_list_items` — line items with aisle, amount, unit, source_recipes provenance
+- `pantry_staples` — recurring items always appended to generated lists
+
+**Aggregation logic** (`internal/service/shopping.go`):
+- Joins `meal_plan_entries → recipes → recipe_ingredients` for the date range
+- Aisle from `ingredient_canonical.category` via LEFT JOIN (falls back to `"other"`)
+- Same ingredient name (case-insensitive) + same unit → amounts summed
+- **V1 limitation**: different units for the same ingredient are kept as separate line items — no unit conversion (e.g. `1 lb butter` + `4 tbsp butter` stay separate). Noted here per spec instructions.
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `POST /v1/shopping/generate` | JWT | Body: `{date_from, date_to}` — deactivates old list, creates new one from meal plan |
+| `GET /v1/shopping/current` | JWT | Returns active list with items grouped by aisle |
+| `GET /v1/shopping/staples` | JWT | Lists pantry staples |
+| `POST /v1/shopping/staples` | JWT | Upsert staple: `{name, amount, unit, aisle}` |
+| `DELETE /v1/shopping/staples/:id` | JWT | Remove staple |
+| `GET /v1/ingredients/search?q=` | JWT | Full-text search against `ingredient_canonical` |
+
+**Frontend**: `useGenerateShoppingList()` hook added to `web/src/lib/api/hooks.ts`; "Generate shopping list" button on the MealPlan screen calls `POST /v1/shopping/generate` for the current ISO week and navigates to `/shopping` on success.
+
 ## To do (next iteration)
 
 1. **PIN lockout counter** — store failed attempts in Redis or Postgres, enforce `cfg.Auth.PINMaxAttempts`

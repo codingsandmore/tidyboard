@@ -32,17 +32,24 @@ type Querier interface {
 	// sql/queries/recipe.sql
 	// Recipe queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateRecipe(ctx context.Context, arg CreateRecipeParams) (Recipe, error)
+	// sql/queries/shopping.sql
+	// Shopping list queries. Run `sqlc generate` to produce Go code in internal/query/.
+	CreateShoppingList(ctx context.Context, arg CreateShoppingListParams) (ShoppingList, error)
 	DeactivateAccount(ctx context.Context, id uuid.UUID) error
+	DeactivateShoppingLists(ctx context.Context, householdID uuid.UUID) error
 	DeleteEvent(ctx context.Context, arg DeleteEventParams) error
 	DeleteHousehold(ctx context.Context, id uuid.UUID) error
 	DeleteList(ctx context.Context, arg DeleteListParams) error
 	DeleteListItem(ctx context.Context, arg DeleteListItemParams) error
 	DeleteMealPlanEntry(ctx context.Context, arg DeleteMealPlanEntryParams) error
 	DeleteMember(ctx context.Context, arg DeleteMemberParams) error
+	DeletePantryStaple(ctx context.Context, arg DeletePantryStapleParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
+	DeleteShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)
+	GetActiveShoppingList(ctx context.Context, householdID uuid.UUID) (ShoppingList, error)
 	GetCalendar(ctx context.Context, arg GetCalendarParams) (Calendar, error)
 	GetEvent(ctx context.Context, arg GetEventParams) (Event, error)
 	GetEventByExternalID(ctx context.Context, arg GetEventByExternalIDParams) (Event, error)
@@ -59,6 +66,7 @@ type Querier interface {
 	GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid.NullUUID) (GetPrimaryMemberByAccountRow, error)
 	GetRecipe(ctx context.Context, arg GetRecipeParams) (Recipe, error)
 	GetRecipeBySourceURL(ctx context.Context, arg GetRecipeBySourceURLParams) (Recipe, error)
+	GetShoppingList(ctx context.Context, arg GetShoppingListParams) (ShoppingList, error)
 	GetSubscriptionByCustomer(ctx context.Context, stripeCustomerID string) (Subscription, error)
 	GetSubscriptionByHousehold(ctx context.Context, householdID uuid.UUID) (Subscription, error)
 	IncrementTimesCooked(ctx context.Context, arg IncrementTimesCookedParams) (Recipe, error)
@@ -68,6 +76,7 @@ type Querier interface {
 	// sql/queries/backup.sql
 	// Backup record queries. Run `sqlc generate` to produce Go code in internal/query/.
 	InsertBackupRecord(ctx context.Context, arg InsertBackupRecordParams) (BackupRecord, error)
+	InsertShoppingListItem(ctx context.Context, arg InsertShoppingListItemParams) (ShoppingListItem, error)
 	ListAccountAudit(ctx context.Context, arg ListAccountAuditParams) ([]AuditEntry, error)
 	ListBackupRecords(ctx context.Context, arg ListBackupRecordsParams) ([]BackupRecord, error)
 	ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error)
@@ -75,12 +84,20 @@ type Querier interface {
 	ListFavoriteRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	ListHouseholdAudit(ctx context.Context, arg ListHouseholdAuditParams) ([]AuditEntry, error)
 	ListHouseholdsByAccount(ctx context.Context, accountID *uuid.NullUUID) ([]Household, error)
+	// Ingredient join for shopping list generation:
+	// fetch all recipe_ingredients for recipes that appear in meal plan entries
+	// within the given date range for the household.
+	ListIngredientsForMealPlanRange(ctx context.Context, arg ListIngredientsForMealPlanRangeParams) ([]ListIngredientsForMealPlanRangeRow, error)
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItem, error)
 	ListLists(ctx context.Context, householdID uuid.UUID) ([]List, error)
 	ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntriesParams) ([]MealPlanEntry, error)
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
+	ListPantryStaples(ctx context.Context, householdID uuid.UUID) ([]PantryStaple, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
+	ListShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) ([]ShoppingListItem, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
+	// Canonical ingredient search
+	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateBackupRecord(ctx context.Context, arg UpdateBackupRecordParams) (BackupRecord, error)
@@ -91,11 +108,14 @@ type Querier interface {
 	UpdateListItem(ctx context.Context, arg UpdateListItemParams) (ListItem, error)
 	UpdateMember(ctx context.Context, arg UpdateMemberParams) (Member, error)
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
+	UpdateShoppingListItem(ctx context.Context, arg UpdateShoppingListItemParams) (ShoppingListItem, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
 	UpsertEventByExternalID(ctx context.Context, arg UpsertEventByExternalIDParams) (Event, error)
 	// sql/queries/meal_plan.sql
 	// Meal plan entry queries. Run `sqlc generate` to produce Go code in internal/query/.
 	UpsertMealPlanEntry(ctx context.Context, arg UpsertMealPlanEntryParams) (MealPlanEntry, error)
+	// Pantry staples
+	UpsertPantryStaple(ctx context.Context, arg UpsertPantryStapleParams) (PantryStaple, error)
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)

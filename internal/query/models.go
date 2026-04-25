@@ -177,6 +177,17 @@ type Member struct {
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PantryStaple struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Amount      pgtype.Numeric     `json:"amount"`
+	Unit        string             `json:"unit"`
+	Aisle       string             `json:"aisle"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Recipe struct {
 	ID           uuid.UUID          `json:"id"`
 	HouseholdID  uuid.UUID          `json:"household_id"`
@@ -226,6 +237,32 @@ type RecipeStep struct {
 	Text         string    `json:"text"`
 	TimerSeconds *int32    `json:"timer_seconds"`
 	ImageUrl     string    `json:"image_url"`
+}
+
+type ShoppingList struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	DateFrom    pgtype.Date        `json:"date_from"`
+	DateTo      pgtype.Date        `json:"date_to"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ShoppingListItem struct {
+	ID             uuid.UUID          `json:"id"`
+	ShoppingListID uuid.UUID          `json:"shopping_list_id"`
+	HouseholdID    uuid.UUID          `json:"household_id"`
+	Name           string             `json:"name"`
+	Amount         pgtype.Numeric     `json:"amount"`
+	Unit           string             `json:"unit"`
+	Aisle          string             `json:"aisle"`
+	SourceRecipes  []string           `json:"source_recipes"`
+	Completed      bool               `json:"completed"`
+	SortOrder      int32              `json:"sort_order"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Subscription struct {
