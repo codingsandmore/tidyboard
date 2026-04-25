@@ -59,5 +59,49 @@ export default async function RecipeDetailPage({
     );
   }
 
-  return <RecipeDetailThemed recipe={recipe} />;
+  return (
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        background: TB.bg,
+        fontFamily: TB.fontBody,
+      }}
+    >
+      {/* Cook button overlay — top right */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 100,
+        }}
+      >
+        <Link
+          href={`/recipes/${id}/cook`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "14px 24px",
+            borderRadius: 14,
+            background: TB.primary,
+            color: "#fff",
+            fontFamily: TB.fontBody,
+            fontSize: 16,
+            fontWeight: 700,
+            textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          }}
+        >
+          Start Cooking
+        </Link>
+      </div>
+
+      <RecipeDetailThemed recipe={recipe} />
+    </div>
+  );
 }

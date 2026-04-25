@@ -139,7 +139,7 @@ describe("App page smoke tests — static pages", () => {
 
   smokeWithQuery("/meals", MealsPage);
   smokeWithQuery("/meals/preview", MealsPreviewPage);
-  smoke("/recipes", RecipesPage);
+  smokeWithQuery("/recipes", RecipesPage);
   smokeWithQuery("/recipes/import", RecipesImportPage);
   smoke("/recipes/preview-preview", RecipesPreviewPage);
   smokeWithQuery("/recipes/preview-detail", RecipesPreviewDetailPage);

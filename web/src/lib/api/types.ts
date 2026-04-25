@@ -187,3 +187,25 @@ export interface LogTaskTimeRequest {
   notes?: string;
   source?: "timer" | "manual" | "auto_estimate";
 }
+
+// ── Recipe Collection types ─────────────────────────────────────────────────
+
+export interface RecipeCollection {
+  id: string;
+  household_id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCollectionRequest {
+  name: string;
+  sort_order?: number;
+}
+
+export interface UpdateCollectionRequest {
+  name?: string;
+  sort_order?: number;
+}

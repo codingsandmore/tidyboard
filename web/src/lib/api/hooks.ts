@@ -35,6 +35,9 @@ import type {
   CreateEquityTaskRequest,
   UpdateEquityTaskRequest,
   LogTaskTimeRequest,
+  RecipeCollection,
+  CreateCollectionRequest,
+  UpdateCollectionRequest,
 } from "./types";
 
 // ── Query key factory ──────────────────────────────────────────────────────
@@ -61,6 +64,8 @@ export const qk = {
     offset: number,
     filters?: { action?: string; target_type?: string; from?: string; to?: string }
   ) => ["audit", limit, offset, filters] as const,
+  collections: () => ["collections"] as const,
+  collectionRecipes: (id: string) => ["collections", id, "recipes"] as const,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -752,5 +757,103 @@ export function useAudit(
         },
         () => fallback.audit(limit, offset, filters)
       ),
+  });
+}
+
+// ── Recipe Collection hooks ────────────────────────────────────────────────
+
+export function useRecipeCollections() {
+  return useQuery<RecipeCollection[]>({
+    queryKey: qk.collections(),
+    queryFn: () =>
+      withFallback(
+        () => api.get<RecipeCollection[]>("/v1/recipe-collections"),
+        () => []
+      ),
+  });
+}
+
+export function useCollectionRecipes(collectionId: string) {
+  return useQuery<Recipe[]>({
+    queryKey: qk.collectionRecipes(collectionId),
+    queryFn: () =>
+      withFallback(
+        () => api.get<Recipe[]>(`/v1/recipe-collections/${collectionId}/recipes`),
+        () => []
+      ),
+    enabled: Boolean(collectionId),
+  });
+}
+
+export function useCreateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateCollectionRequest) =>
+      api.post<RecipeCollection>("/v1/recipe-collections", req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.collections() });
+    },
+  });
+}
+
+export function useUpdateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...req }: UpdateCollectionRequest & { id: string }) =>
+      api.patch<RecipeCollection>(`/v1/recipe-collections/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.collections() });
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/v1/recipe-collections/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.collections() });
+    },
+  });
+}
+
+export function useAssignRecipeToCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      recipeId,
+      sortOrder = 0,
+    }: {
+      collectionId: string;
+      recipeId: string;
+      sortOrder?: number;
+    }) =>
+      api.post<void>(`/v1/recipe-collections/${collectionId}/recipes`, {
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+      }),
+    onSuccess: (_data, { collectionId }) => {
+      qc.invalidateQueries({ queryKey: qk.collectionRecipes(collectionId) });
+      qc.invalidateQueries({ queryKey: qk.collections() });
+    },
+  });
+}
+
+export function useRemoveRecipeFromCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      recipeId,
+    }: {
+      collectionId: string;
+      recipeId: string;
+    }) =>
+      api.delete<void>(`/v1/recipe-collections/${collectionId}/recipes/${recipeId}`),
+    onSuccess: (_data, { collectionId }) => {
+      qc.invalidateQueries({ queryKey: qk.collectionRecipes(collectionId) });
+      qc.invalidateQueries({ queryKey: qk.collections() });
+    },
   });
 }
