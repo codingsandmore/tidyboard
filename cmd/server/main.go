@@ -128,6 +128,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	eventSvc := service.NewEventService(q, bc, auditSvc)
 	listSvc := service.NewListService(q, bc, auditSvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
+	recipeCollectionSvc := service.NewRecipeCollectionService(q)
 	mealPlanSvc := service.NewMealPlanService(q)
 	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
@@ -165,6 +166,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)
+	recipeCollectionHandler := handler.NewRecipeCollectionHandler(recipeCollectionSvc)
 	mealPlanHandler := handler.NewMealPlanHandler(mealPlanSvc)
 	shoppingHandler := handler.NewShoppingHandler(shoppingSvc)
 	syncHandler := handler.NewSyncHandler(syncSvc)
@@ -324,6 +326,15 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/recipes/{id}", recipeHandler.Get)
 		r.Patch("/v1/recipes/{id}", recipeHandler.Update)
 		r.Delete("/v1/recipes/{id}", recipeHandler.Delete)
+
+		// Recipe collections.
+		r.Get("/v1/recipe-collections", recipeCollectionHandler.List)
+		r.Post("/v1/recipe-collections", recipeCollectionHandler.Create)
+		r.Patch("/v1/recipe-collections/{id}", recipeCollectionHandler.Update)
+		r.Delete("/v1/recipe-collections/{id}", recipeCollectionHandler.Delete)
+		r.Post("/v1/recipe-collections/{id}/recipes", recipeCollectionHandler.AddRecipe)
+		r.Delete("/v1/recipe-collections/{id}/recipes/{recipe_id}", recipeCollectionHandler.RemoveRecipe)
+		r.Get("/v1/recipe-collections/{id}/recipes", recipeCollectionHandler.ListRecipes)
 
 		// Meal plan.
 		r.Get("/v1/meal-plan", mealPlanHandler.List)

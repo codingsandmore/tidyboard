@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddRecipeToCollection(ctx context.Context, arg AddRecipeToCollectionParams) error
 	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
 	// Returns (domain_id, owner_member_id, task_count) for all active tasks.
@@ -36,6 +37,9 @@ type Querier interface {
 	// sql/queries/recipe.sql
 	// Recipe queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateRecipe(ctx context.Context, arg CreateRecipeParams) (Recipe, error)
+	// sql/queries/recipe_collection.sql
+	// Recipe collection queries. Run `sqlc generate` to produce Go code in internal/query/.
+	CreateRecipeCollection(ctx context.Context, arg CreateRecipeCollectionParams) (RecipeCollection, error)
 	// sql/queries/shopping.sql
 	// Shopping list queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateShoppingList(ctx context.Context, arg CreateShoppingListParams) (ShoppingList, error)
@@ -52,6 +56,7 @@ type Querier interface {
 	DeleteMember(ctx context.Context, arg DeleteMemberParams) error
 	DeletePantryStaple(ctx context.Context, arg DeletePantryStapleParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
+	DeleteRecipeCollection(ctx context.Context, arg DeleteRecipeCollectionParams) error
 	DeleteShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) error
 	DeleteTaskDomain(ctx context.Context, arg DeleteTaskDomainParams) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
@@ -75,6 +80,7 @@ type Querier interface {
 	GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid.NullUUID) (GetPrimaryMemberByAccountRow, error)
 	GetRecipe(ctx context.Context, arg GetRecipeParams) (Recipe, error)
 	GetRecipeBySourceURL(ctx context.Context, arg GetRecipeBySourceURLParams) (Recipe, error)
+	GetRecipeCollection(ctx context.Context, arg GetRecipeCollectionParams) (RecipeCollection, error)
 	GetShoppingList(ctx context.Context, arg GetShoppingListParams) (ShoppingList, error)
 	GetSubscriptionByCustomer(ctx context.Context, stripeCustomerID string) (Subscription, error)
 	GetSubscriptionByHousehold(ctx context.Context, householdID uuid.UUID) (Subscription, error)
@@ -106,7 +112,9 @@ type Querier interface {
 	ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntriesParams) ([]MealPlanEntry, error)
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
 	ListPantryStaples(ctx context.Context, householdID uuid.UUID) ([]PantryStaple, error)
+	ListRecipeCollections(ctx context.Context, householdID uuid.UUID) ([]RecipeCollection, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
+	ListRecipesByCollection(ctx context.Context, arg ListRecipesByCollectionParams) ([]Recipe, error)
 	ListShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) ([]ShoppingListItem, error)
 	// sql/queries/equity.sql
 	// Equity engine queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -114,6 +122,7 @@ type Querier interface {
 	ListTaskDomains(ctx context.Context, householdID uuid.UUID) ([]ListTaskDomainsRow, error)
 	ListTaskLogs(ctx context.Context, arg ListTaskLogsParams) ([]ListTaskLogsRow, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
+	RemoveRecipeFromCollection(ctx context.Context, arg RemoveRecipeFromCollectionParams) error
 	// Canonical ingredient search
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
@@ -131,6 +140,7 @@ type Querier interface {
 	UpdateListItem(ctx context.Context, arg UpdateListItemParams) (ListItem, error)
 	UpdateMember(ctx context.Context, arg UpdateMemberParams) (Member, error)
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
+	UpdateRecipeCollection(ctx context.Context, arg UpdateRecipeCollectionParams) (RecipeCollection, error)
 	UpdateShoppingListItem(ctx context.Context, arg UpdateShoppingListItemParams) (ShoppingListItem, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
 	UpdateTaskDomain(ctx context.Context, arg UpdateTaskDomainParams) (TaskDomain, error)

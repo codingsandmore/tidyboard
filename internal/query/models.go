@@ -241,6 +241,23 @@ type Recipe struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type RecipeCollection struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Slug        string             `json:"slug"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RecipeCollectionItem struct {
+	CollectionID uuid.UUID          `json:"collection_id"`
+	RecipeID     uuid.UUID          `json:"recipe_id"`
+	SortOrder    int32              `json:"sort_order"`
+	AddedAt      pgtype.Timestamptz `json:"added_at"`
+}
+
 type RecipeIngredient struct {
 	ID               uuid.UUID      `json:"id"`
 	RecipeID         uuid.UUID      `json:"recipe_id"`
