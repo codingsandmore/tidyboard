@@ -1,12 +1,27 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ListsIndex, ListDetail } from "./lists";
 import { TBD } from "@/lib/data";
 
+// ── Shared mutation mocks ──────────────────────────────────────────────────
+
+const mutateFn = vi.fn();
+function mockMutation() {
+  return { mutate: mutateFn, isPending: false };
+}
+
 vi.mock("@/lib/api/hooks", () => ({
   useLists: () => ({ data: TBD.lists }),
+  useCreateList: () => mockMutation(),
+  useToggleListItem: () => mockMutation(),
+  useAddListItem: () => mockMutation(),
+  useDeleteListItem: () => mockMutation(),
 }));
+
+beforeEach(() => {
+  mutateFn.mockReset();
+});
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -19,89 +34,134 @@ function renderWithQuery(ui: React.ReactElement) {
   return render(ui, { wrapper: createWrapper() });
 }
 
+// ── ListsIndex ─────────────────────────────────────────────────────────────
+
 describe("ListsIndex", () => {
   it("renders without crashing", () => {
-    render(<ListsIndex />);
+    renderWithQuery(<ListsIndex />);
   });
 
   it("shows Lists heading", () => {
-    render(<ListsIndex />);
+    renderWithQuery(<ListsIndex />);
     expect(screen.getByText("Lists")).toBeTruthy();
   });
 
   it("shows New list button", () => {
-    render(<ListsIndex />);
+    renderWithQuery(<ListsIndex />);
     expect(screen.getByText("+ New list")).toBeTruthy();
   });
 
   it("renders all list titles from sample data", () => {
-    render(<ListsIndex />);
+    renderWithQuery(<ListsIndex />);
     for (const list of TBD.lists) {
       expect(screen.getByText(list.title)).toBeTruthy();
     }
   });
 
   it("renders category badges", () => {
-    render(<ListsIndex />);
-    // At least one category label visible
+    renderWithQuery(<ListsIndex />);
     expect(screen.getByText("Packing")).toBeTruthy();
     expect(screen.getByText("Chores")).toBeTruthy();
   });
 
   it("renders list emojis", () => {
-    render(<ListsIndex />);
+    renderWithQuery(<ListsIndex />);
     for (const list of TBD.lists) {
       expect(screen.getByText(list.emoji)).toBeTruthy();
     }
   });
+
+  it("clicking New list button shows inline form", () => {
+    renderWithQuery(<ListsIndex />);
+    fireEvent.click(screen.getByText("+ New list"));
+    // Input should appear
+    const input = screen.getByPlaceholderText(/list name/i);
+    expect(input).toBeTruthy();
+  });
+
+  it("submitting new list name calls createList mutation", async () => {
+    // Wire the mutate to call onSuccess immediately
+    mutateFn.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    renderWithQuery(<ListsIndex />);
+    fireEvent.click(screen.getByText("+ New list"));
+    const input = screen.getByPlaceholderText(/list name/i);
+    fireEvent.change(input, { target: { value: "Grocery run" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    await waitFor(() => {
+      expect(mutateFn).toHaveBeenCalledWith(
+        { name: "Grocery run", type: "todo" },
+        expect.any(Object)
+      );
+    });
+  });
 });
+
+// ── ListDetail ─────────────────────────────────────────────────────────────
 
 describe("ListDetail", () => {
   const list = TBD.lists[0]; // Packing for Weekend Trip
 
   it("renders without crashing", () => {
-    render(<ListDetail list={list} />);
+    renderWithQuery(<ListDetail list={list} />);
   });
 
   it("shows list title", () => {
-    render(<ListDetail list={list} />);
+    renderWithQuery(<ListDetail list={list} />);
     expect(screen.getByText(list.title)).toBeTruthy();
   });
 
   it("shows list items", () => {
-    render(<ListDetail list={list} />);
-    // Find at least the first item text
+    renderWithQuery(<ListDetail list={list} />);
     expect(screen.getByText("Pack swimsuits & towels")).toBeTruthy();
   });
 
-  it("toggles an item done/undone", () => {
-    render(<ListDetail list={list} />);
-    // Find the undone item row and click it
-    const item = screen.getByText("Pack Jackson's soccer ball");
-    // Walk up to the clickable container
-    const row = item.closest("div[style*='cursor: pointer']") ?? item.parentElement;
-    expect(row).toBeTruthy();
-    fireEvent.click(row!);
-    // After toggle, item should still be in DOM
-    expect(screen.getByText("Pack Jackson's soccer ball")).toBeTruthy();
+  it("clicking item checkbox calls toggle mutation with correct args", () => {
+    renderWithQuery(<ListDetail list={list} />);
+    // Find an undone item and click its checkbox
+    const itemText = screen.getByText("Pack Jackson's soccer ball");
+    const checkbox = itemText.parentElement?.querySelector("div[style*='cursor: pointer']");
+    expect(checkbox).toBeTruthy();
+    fireEvent.click(checkbox!);
+    expect(mutateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ listId: list.id, completed: expect.any(Boolean) })
+    );
   });
 
-  it("adds a new item via input", () => {
-    render(<ListDetail list={list} />);
+  it("adds a new item via input — calls addListItem mutation", async () => {
+    mutateFn.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    renderWithQuery(<ListDetail list={list} />);
     const input = screen.getByPlaceholderText("Add item…");
     fireEvent.change(input, { target: { value: "New test item" } });
-    // Press Enter to add
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-    expect(screen.getByText("New test item")).toBeTruthy();
+    await waitFor(() => {
+      expect(mutateFn).toHaveBeenCalledWith(
+        { listId: list.id, text: "New test item" },
+        expect.any(Object)
+      );
+    });
+  });
+
+  it("delete button calls deleteListItem mutation", () => {
+    renderWithQuery(<ListDetail list={list} />);
+    const deleteButtons = screen.getAllByLabelText("Delete item");
+    expect(deleteButtons.length).toBeGreaterThan(0);
+    fireEvent.click(deleteButtons[0]);
+    expect(mutateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ listId: list.id, itemId: expect.any(String) })
+    );
   });
 
   it("renders with a chores list", () => {
-    render(<ListDetail list={TBD.lists[1]} />);
+    renderWithQuery(<ListDetail list={TBD.lists[1]} />);
     expect(screen.getByText("Saturday Chores")).toBeTruthy();
   });
 
   it("renders with an errands list", () => {
-    render(<ListDetail list={TBD.lists[2]} />);
+    renderWithQuery(<ListDetail list={TBD.lists[2]} />);
     expect(screen.getByText("Weekly Errands")).toBeTruthy();
   });
 });

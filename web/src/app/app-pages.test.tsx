@@ -148,7 +148,7 @@ describe("App page smoke tests — static pages", () => {
 
   smokeWithQuery("/lists", ListsPage);
   smokeWithQuery("/lists/preview", ListsPreviewPage);
-  smoke("/lists/preview-detail", ListsPreviewDetailPage);
+  smokeWithQuery("/lists/preview-detail", ListsPreviewDetailPage);
 
   smokeWithQuery("/shopping", ShoppingPage);
   smokeWithQuery("/shopping/preview", ShoppingPreviewPage);
