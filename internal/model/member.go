@@ -27,12 +27,13 @@ type Member struct {
 
 // CreateMemberRequest is the payload for POST /v1/households/:id/members.
 type CreateMemberRequest struct {
-	Name        string  `json:"name"         validate:"required,min=1,max=100"`
-	DisplayName string  `json:"display_name" validate:"required,min=1,max=50"`
-	Color       string  `json:"color"        validate:"required"`
-	Role        string  `json:"role"         validate:"required,oneof=admin member child guest"`
-	AgeGroup    string  `json:"age_group"    validate:"required,oneof=toddler child tween teen adult"`
-	PIN         *string `json:"pin,omitempty" validate:"omitempty,min=4,max=6,numeric"`
+	Name        string     `json:"name"         validate:"required,min=1,max=100"`
+	DisplayName string     `json:"display_name" validate:"required,min=1,max=50"`
+	Color       string     `json:"color"        validate:"required"`
+	Role        string     `json:"role"         validate:"required,oneof=admin member child guest"`
+	AgeGroup    string     `json:"age_group"    validate:"required,oneof=toddler child tween teen adult"`
+	PIN         *string    `json:"pin,omitempty"        validate:"omitempty,min=4,max=6,numeric"`
+	AccountID   *uuid.UUID `json:"account_id,omitempty" validate:"omitempty,uuid"`
 }
 
 // UpdateMemberRequest is the payload for PATCH /v1/households/:id/members/:memberID.

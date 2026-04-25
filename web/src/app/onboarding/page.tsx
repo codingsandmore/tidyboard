@@ -43,13 +43,15 @@ async function createHousehold(name: string): Promise<HouseholdResponse> {
 
 async function addMember(
   householdId: string,
-  member: FamilyMemberDraft
+  member: FamilyMemberDraft,
+  accountId?: string
 ): Promise<MemberResponse> {
   return api.post<MemberResponse>(`/v1/households/${householdId}/members`, {
     name: member.name,
     display_name: member.display_name,
     role: member.role,
     color: member.color,
+    ...(accountId ? { account_id: accountId } : {}),
   });
 }
 
@@ -131,13 +133,18 @@ export default function OnboardingPage() {
         const hh = await createHousehold(householdName || "My Family");
         setHouseholdId(hh.id);
       } else if (step === 3 && householdId) {
-        // Add self as adult member
-        await addMember(householdId, {
-          name: selfName || "Admin",
-          display_name: selfDisplayName || selfName || "Admin",
-          role: "adult",
-          color: selfColor,
-        });
+        // Add self as adult member, linking to the signed-in account so
+        // /v1/auth/me can resolve household_id + member_id after onboarding.
+        await addMember(
+          householdId,
+          {
+            name: selfName || "Admin",
+            display_name: selfDisplayName || selfName || "Admin",
+            role: "adult",
+            color: selfColor,
+          },
+          account?.id
+        );
       } else if (step === 4 && householdId) {
         // Add any queued family members
         for (const m of familyMembers) {

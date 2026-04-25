@@ -4,6 +4,17 @@ import OnboardingPage from "./page";
 import { AuthProvider } from "@/lib/auth/auth-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// ── Auth mock (used by specific tests) ────────────────────────────────────
+// Hoisted so vi.mock() can reference it before module evaluation.
+const mockUseAuth = vi.fn();
+vi.mock("@/lib/auth/auth-store", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/auth/auth-store")>();
+  return {
+    ...mod,
+    useAuth: () => mockUseAuth(),
+  };
+});
+
 // ── Shared router mock ──────────────────────────────────────────────────────
 
 const pushMock = vi.fn();
@@ -49,6 +60,19 @@ function renderOnboarding() {
 beforeEach(() => {
   vi.stubGlobal("localStorage", makeLocalStorageMock());
   pushMock.mockClear();
+  // Default: loading state — existing tests that don't care about account
+  // get a neutral auth context that doesn't redirect.
+  mockUseAuth.mockReturnValue({
+    status: "loading",
+    account: null,
+    household: null,
+    member: null,
+    token: null,
+    signIn: vi.fn(),
+    acceptToken: vi.fn(),
+    pinLogin: vi.fn(),
+    logout: vi.fn(),
+  });
 });
 
 afterEach(() => {
@@ -129,6 +153,61 @@ describe("OnboardingPage", () => {
     // Step 2 → 3 (create household)
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
     await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+  });
+
+  it("step 3 add-self request body includes account_id from auth context", async () => {
+    // Arrange: authenticated user with a known account id.
+    mockUseAuth.mockReturnValue({
+      status: "authenticated",
+      account: { id: "acct-uuid-123", email: "user@test.com" },
+      household: null,
+      member: null,
+      token: "tok",
+      signIn: vi.fn(),
+      acceptToken: vi.fn(),
+      pinLogin: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    const capturedBodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const body = init?.body ? JSON.parse(init.body as string) : null;
+        capturedBodies.push({ url, body });
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: "hh-1", name: "My Family", member_id: "m-1" }),
+        };
+      })
+    );
+
+    renderOnboarding();
+
+    // Step 0 → 1
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy());
+
+    // Step 1 → 2 (no API call on step 1)
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
+
+    // Step 2 → 3 (creates household)
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+
+    // Step 3 → 4 (add self as member)
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 5 \/ 7/)).toBeTruthy());
+
+    // Find the member-create call (POST to /members)
+    const memberCall = capturedBodies.find(
+      (c) => typeof (c as { url: string }).url === "string" && (c as { url: string }).url.includes("/members")
+    ) as { url: string; body: Record<string, unknown> } | undefined;
+
+    expect(memberCall).toBeTruthy();
+    expect(memberCall?.body?.account_id).toBe("acct-uuid-123");
   });
 
   it("back button goes back one step", async () => {
