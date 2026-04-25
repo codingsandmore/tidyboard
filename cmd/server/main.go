@@ -128,6 +128,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	eventSvc := service.NewEventService(q, bc, auditSvc)
 	listSvc := service.NewListService(q, bc, auditSvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
+	mealPlanSvc := service.NewMealPlanService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 
@@ -162,6 +163,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)
+	mealPlanHandler := handler.NewMealPlanHandler(mealPlanSvc)
 	syncHandler := handler.NewSyncHandler(syncSvc)
 	calendarHandler := handler.NewCalendarHandler(q, syncSvc)
 	wsHandler := handler.NewWSHandler(bc, verifier, q)
@@ -318,6 +320,11 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/recipes/{id}", recipeHandler.Get)
 		r.Patch("/v1/recipes/{id}", recipeHandler.Update)
 		r.Delete("/v1/recipes/{id}", recipeHandler.Delete)
+
+		// Meal plan.
+		r.Get("/v1/meal-plan", mealPlanHandler.List)
+		r.Post("/v1/meal-plan", mealPlanHandler.Upsert)
+		r.Delete("/v1/meal-plan/{id}", mealPlanHandler.Delete)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)

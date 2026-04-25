@@ -150,6 +150,16 @@ type ListItem struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type MealPlanEntry struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	RecipeID    *uuid.NullUUID     `json:"recipe_id"`
+	Date        pgtype.Date        `json:"date"`
+	Slot        string             `json:"slot"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Member struct {
 	ID                      uuid.UUID          `json:"id"`
 	HouseholdID             uuid.UUID          `json:"household_id"`
@@ -165,18 +175,6 @@ type Member struct {
 	NotificationPreferences []byte             `json:"notification_preferences"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
-}
-
-type OauthToken struct {
-	ID                    uuid.UUID          `json:"id"`
-	AccountID             uuid.UUID          `json:"account_id"`
-	Provider              string             `json:"provider"`
-	AccessTokenEncrypted  string             `json:"access_token_encrypted"`
-	RefreshTokenEncrypted string             `json:"refresh_token_encrypted"`
-	TokenExpiry           pgtype.Timestamptz `json:"token_expiry"`
-	Scopes                []string           `json:"scopes"`
-	CreatedAt             pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Recipe struct {

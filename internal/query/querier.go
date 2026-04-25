@@ -37,6 +37,7 @@ type Querier interface {
 	DeleteHousehold(ctx context.Context, id uuid.UUID) error
 	DeleteList(ctx context.Context, arg DeleteListParams) error
 	DeleteListItem(ctx context.Context, arg DeleteListItemParams) error
+	DeleteMealPlanEntry(ctx context.Context, arg DeleteMealPlanEntryParams) error
 	DeleteMember(ctx context.Context, arg DeleteMemberParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
@@ -76,6 +77,7 @@ type Querier interface {
 	ListHouseholdsByAccount(ctx context.Context, accountID *uuid.NullUUID) ([]Household, error)
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItem, error)
 	ListLists(ctx context.Context, householdID uuid.UUID) ([]List, error)
+	ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntriesParams) ([]MealPlanEntry, error)
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
@@ -91,6 +93,9 @@ type Querier interface {
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
 	UpsertEventByExternalID(ctx context.Context, arg UpsertEventByExternalIDParams) (Event, error)
+	// sql/queries/meal_plan.sql
+	// Meal plan entry queries. Run `sqlc generate` to produce Go code in internal/query/.
+	UpsertMealPlanEntry(ctx context.Context, arg UpsertMealPlanEntryParams) (MealPlanEntry, error)
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
