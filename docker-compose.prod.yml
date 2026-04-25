@@ -44,10 +44,21 @@ services:
     depends_on: [tidyboard, web]
 
   # ── Next.js web app (built from ./web) ──────────────────────────────────────
+  # Compose auto-loads .env (in the same dir) for ${VAR} interpolation, so the
+  # NEXT_PUBLIC_* values written by cloud-init flow into the build args here.
+  # These are the SAME values as the runtime env, but Next.js bakes them into
+  # the client bundle at build time — they have to be present during `next
+  # build`, not just at container start.
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_COGNITO_REGION: ${NEXT_PUBLIC_COGNITO_REGION}
+        NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${NEXT_PUBLIC_COGNITO_USER_POOL_ID}
+        NEXT_PUBLIC_COGNITO_CLIENT_ID: ${NEXT_PUBLIC_COGNITO_CLIENT_ID}
+        NEXT_PUBLIC_COGNITO_DOMAIN: ${NEXT_PUBLIC_COGNITO_DOMAIN}
     restart: unless-stopped
     networks: [tidyboard]
     env_file: [.env]
