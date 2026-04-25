@@ -53,6 +53,15 @@ write_files:
       # Internal service URLs — docker DNS + the port uvicorn actually listens on.
       TIDYBOARD_SYNC_WORKER_URL=http://sync-worker:8001
       TIDYBOARD_RECIPE_SCRAPER_URL=http://recipe-scraper:8002
+      # Cognito (backend JWT validation)
+      TIDYBOARD_AUTH_COGNITO_REGION=${cognito_region}
+      TIDYBOARD_AUTH_COGNITO_USER_POOL_ID=${cognito_user_pool_id}
+      TIDYBOARD_AUTH_COGNITO_CLIENT_ID=${cognito_client_id}
+      # Cognito (Next.js frontend OIDC client; Hosted UI URL derived in-app from these)
+      NEXT_PUBLIC_COGNITO_REGION=${cognito_region}
+      NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}
+      NEXT_PUBLIC_COGNITO_CLIENT_ID=${cognito_client_id}
+      NEXT_PUBLIC_COGNITO_DOMAIN=${cognito_domain}.auth.${cognito_region}.amazoncognito.com
 
 runcmd:
   # ── Docker setup ────────────────────────────────────────────────────────────

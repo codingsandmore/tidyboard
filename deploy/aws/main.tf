@@ -98,6 +98,10 @@ module "ec2" {
   db_port   = var.db_port
   db_schema = var.db_schema
 
+  cognito_user_pool_id = module.cognito.user_pool_id
+  cognito_client_id    = module.cognito.client_id
+  cognito_domain       = module.cognito.domain
+
   secrets = {
     jwt_secret                 = data.aws_ssm_parameter.jwt_secret.value
     db_password                = data.aws_ssm_parameter.db_password.value

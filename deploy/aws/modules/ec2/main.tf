@@ -98,7 +98,7 @@ locals {
 
 resource "aws_iam_role" "ec2" {
   name        = "${var.project}-ec2-role"
-  description = "Tidyboard EC2 runtime role: SSM read + KMS decrypt + S3 media/backup access"
+  description = "Tidyboard EC2 runtime role: SSM read + S3 media/backup access"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -174,14 +174,18 @@ resource "aws_instance" "app" {
   # Prevent accidental replacement — EIP keeps the IP even if instance is
   # replaced, but we still protect against needless reboots.
   user_data = templatefile("${path.module}/../../scripts/cloud-init.yaml", merge({
-    repo_url    = var.repo_url
-    repo_branch = var.repo_branch
-    domain_name = var.domain_name
-    project     = var.project
-    environment = var.environment
-    db_host     = var.db_host
-    db_port     = var.db_port
-    db_schema   = var.db_schema
+    repo_url             = var.repo_url
+    repo_branch          = var.repo_branch
+    domain_name          = var.domain_name
+    project              = var.project
+    environment          = var.environment
+    db_host              = var.db_host
+    db_port              = var.db_port
+    db_schema            = var.db_schema
+    cognito_region       = var.aws_region
+    cognito_user_pool_id = var.cognito_user_pool_id
+    cognito_client_id    = var.cognito_client_id
+    cognito_domain       = var.cognito_domain
   }, var.secrets))
 
   user_data_replace_on_change = false

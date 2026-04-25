@@ -98,3 +98,18 @@ variable "db_schema" {
   type        = string
   default     = "tidyboard"
 }
+
+variable "cognito_user_pool_id" {
+  description = "Cognito user pool ID. Written to /opt/tidyboard/.env so the Go server can fetch JWKS for token validation and the Next.js app can render the OIDC redirect URL."
+  type        = string
+}
+
+variable "cognito_client_id" {
+  description = "Cognito app client ID for the web SPA. Public — included in NEXT_PUBLIC_* env."
+  type        = string
+}
+
+variable "cognito_domain" {
+  description = "Cognito user pool domain prefix (e.g. tidyboard-prod). Cloud-init expands it to <prefix>.auth.<region>.amazoncognito.com when writing the frontend env."
+  type        = string
+}

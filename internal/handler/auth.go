@@ -74,17 +74,30 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	memberID, ok3 := middleware.MemberIDFromCtx(r.Context())
 	role := middleware.RoleFromCtx(r.Context())
 
-	if !ok1 || !ok2 || !ok3 {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing auth context")
+	// account_id is required (Auth middleware would have rejected otherwise);
+	// household_id / member_id / role can legitimately be empty for users
+	// that have logged in via Cognito but haven't created a household yet.
+	if !ok1 {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
-	respond.JSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"account_id":   accountID,
-		"household_id": householdID,
-		"member_id":    memberID,
-		"role":         role,
-	})
+		"household_id": nil,
+		"member_id":    nil,
+		"role":         "",
+	}
+	if ok2 {
+		resp["household_id"] = householdID
+	}
+	if ok3 {
+		resp["member_id"] = memberID
+	}
+	if role != "" {
+		resp["role"] = role
+	}
+	respond.JSON(w, http.StatusOK, resp)
 }
 
 // PINLogin handles POST /v1/auth/pin — child kiosk PIN auth.
