@@ -2,7 +2,7 @@
 # Tidyboard Go server — multi-stage build
 # Stage 1: build the Go binary
 
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
