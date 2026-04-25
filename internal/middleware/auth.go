@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -49,12 +50,14 @@ func Auth(verifier auth.Verifier, q *query.Queries) func(http.Handler) http.Hand
 			ctx := r.Context()
 			id, err := verifier.Verify(ctx, raw)
 			if err != nil {
+				slog.Warn("auth: token rejected", "err", err, "path", r.URL.Path, "remote", r.RemoteAddr)
 				respond.Error(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
 				return
 			}
 
 			accountID, householdID, memberID, role, err := resolveContext(ctx, q, id)
 			if err != nil {
+				slog.Warn("auth: identity resolve failed", "err", err, "sub", id.Subject, "provider", id.Provider, "path", r.URL.Path)
 				respond.Error(w, http.StatusUnauthorized, "unauthorized", "could not resolve identity")
 				return
 			}
