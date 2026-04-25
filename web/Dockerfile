@@ -10,10 +10,12 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-# --legacy-peer-deps tolerates @storybook/nextjs@8.6 not listing Next 16 in its
-# peer range. Storybook is dev-only; install-time peer warnings don't affect
-# the production runtime. Drop the flag once @storybook/nextjs@9 lands with
-# next@16 support.
+# --legacy-peer-deps: @storybook/nextjs@9.1.14+ supports next@16 in its peer
+# range, but the v9 migration removed @storybook/addon-essentials and
+# @storybook/addon-interactions as separate packages (folded into core
+# storybook). Bumping to v9 requires updating .storybook/main.ts config, which
+# is out of scope for this change. Re-evaluate when that migration is done.
+# Storybook is dev-only; the flag has no effect on the production runtime image.
 RUN npm ci --ignore-scripts --legacy-peer-deps
 
 # ── Stage 2: builder ──────────────────────────────────────────────────────────
