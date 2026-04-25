@@ -38,7 +38,6 @@ type Querier interface {
 	DeleteList(ctx context.Context, arg DeleteListParams) error
 	DeleteListItem(ctx context.Context, arg DeleteListItemParams) error
 	DeleteMember(ctx context.Context, arg DeleteMemberParams) error
-	DeleteOAuthToken(ctx context.Context, arg DeleteOAuthTokenParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
@@ -52,7 +51,11 @@ type Querier interface {
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
 	GetMember(ctx context.Context, arg GetMemberParams) (Member, error)
 	GetMemberByAccountAndHousehold(ctx context.Context, arg GetMemberByAccountAndHouseholdParams) (Member, error)
-	GetOAuthToken(ctx context.Context, arg GetOAuthTokenParams) (OauthToken, error)
+	// Returns the user's earliest-created membership; used by the auth middleware
+	// to populate household + role context for users that belong to one or more
+	// households. New users with no household yet get pgx.ErrNoRows here, which
+	// the middleware treats as "valid login, no household yet".
+	GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid.NullUUID) (GetPrimaryMemberByAccountRow, error)
 	GetRecipe(ctx context.Context, arg GetRecipeParams) (Recipe, error)
 	GetRecipeBySourceURL(ctx context.Context, arg GetRecipeBySourceURLParams) (Recipe, error)
 	GetSubscriptionByCustomer(ctx context.Context, stripeCustomerID string) (Subscription, error)
@@ -88,9 +91,6 @@ type Querier interface {
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
 	UpsertEventByExternalID(ctx context.Context, arg UpsertEventByExternalIDParams) (Event, error)
-	// sql/queries/oauth.sql
-	// OAuth token queries. Run `sqlc generate` to produce Go code.
-	UpsertOAuthToken(ctx context.Context, arg UpsertOAuthTokenParams) (OauthToken, error)
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)

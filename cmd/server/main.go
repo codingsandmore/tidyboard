@@ -130,7 +130,6 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
-	oauthSvc := service.NewOAuthService(cfg.Auth.OAuth, q)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -168,7 +167,6 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	wsHandler := handler.NewWSHandler(bc, verifier, q)
 	adminHandler := handler.NewAdminHandler(auditSvc, backupSvc)
 	billingHandler := handler.NewBillingHandler(billingSvc)
-	oauthHandler := handler.NewOAuthHandler(oauthSvc)
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
 
@@ -256,18 +254,17 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	// Auth routes — rate-limited but unauthenticated.
+	// Email/password register + Google OAuth callback used to live here; both
+	// are owned by Cognito now (Hosted UI handles signup, Google federation,
+	// and the auth-code → token exchange). Only the kiosk PIN flow remains
+	// custom: a member-scoped JWT issued by AuthService.PINLogin.
 	r.Group(func(r chi.Router) {
 		r.Use(authLimiter.Middleware)
-		r.Post("/v1/auth/register", authHandler.Register)
-		r.Post("/v1/auth/login", authHandler.Login)
 		r.Post("/v1/auth/pin", authHandler.PINLogin)
 	})
 
 	// Stripe webhook — no auth middleware (Stripe signs its own requests).
 	r.Post("/v1/billing/webhook", billingHandler.Webhook)
-
-	// Google OAuth callback — public (called by Google after consent).
-	r.Get("/v1/auth/oauth/google/callback", oauthHandler.GoogleCallback)
 
 	// Authenticated API routes.
 	r.Group(func(r chi.Router) {
@@ -340,9 +337,6 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Post("/v1/billing/checkout", billingHandler.Checkout)
 		r.Post("/v1/billing/portal", billingHandler.Portal)
 		r.Get("/v1/billing/subscription", billingHandler.Subscription)
-
-		// Google OAuth start (auth required so we know which account).
-		r.Post("/v1/auth/oauth/google/start", oauthHandler.GoogleStart)
 
 		// Media upload — larger body limit (10 MB).
 		r.With(middleware.MaxRequestBody(10 << 20)).Post("/v1/media/upload", mediaHandler.Upload)
