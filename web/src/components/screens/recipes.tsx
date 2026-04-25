@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { H } from "@/components/ui/heading";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
-import { useShopping, useToggleShoppingItem, useMealPlan, useRecipes, useRecipe, useImportRecipe } from "@/lib/api/hooks";
+import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -720,6 +720,7 @@ export function MealPlan() {
   const t = useTranslations("recipe");
   const { data: apiMealPlan } = useMealPlan();
   const { data: apiRecipes } = useRecipes();
+  const upsertMealPlan = useUpsertMealPlanEntry();
   const mealPlan = apiMealPlan;
   const recipes = apiRecipes ?? [];
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -734,7 +735,7 @@ export function MealPlan() {
     r8: "🧀",
   };
 
-  // Local grid state (optimistic — backend /v1/meal-plan not yet wired, see BACKEND_STATUS.md)
+  // Local grid state (optimistic)
   const [localGrid, setLocalGrid] = useState<(string | null)[][]>([]);
   const [pickerSlot, setPickerSlot] = useState<MealSlot | null>(null);
 
@@ -745,20 +746,33 @@ export function MealPlan() {
     setLocalGrid(mealPlan.grid.map((row) => [...row]));
   }
 
+  /** Compute the YYYY-MM-DD date for column colIdx (0=Mon) given the weekOf Monday. */
+  function colDate(weekOf: string, colIdx: number): string {
+    const d = new Date(weekOf);
+    d.setUTCDate(d.getUTCDate() + colIdx);
+    return d.toISOString().slice(0, 10);
+  }
+
+  const ROW_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
+
   function openPicker(rowIdx: number, colIdx: number, date: string, meal: string) {
     setPickerSlot({ rowIdx, colIdx, date, meal });
   }
 
   function pickRecipe(recipeId: string) {
-    if (!pickerSlot) return;
+    if (!pickerSlot || !mealPlan) return;
     const { rowIdx, colIdx } = pickerSlot;
+    // Optimistic local update
     setLocalGrid((prev) => {
       const next: (string | null)[][] = prev.map((row) => [...row]);
       if (!next[rowIdx]) next[rowIdx] = [];
       next[rowIdx][colIdx] = recipeId;
       return next;
     });
-    // NOTE: POST /v1/meal-plan not implemented in backend — see BACKEND_STATUS.md
+    // Persist to backend
+    const date = colDate(mealPlan.weekOf, colIdx);
+    const slot = ROW_SLOTS[rowIdx] ?? "dinner";
+    upsertMealPlan.mutate({ date, slot, recipeId });
     setPickerSlot(null);
   }
 
@@ -981,7 +995,7 @@ export function MealPlan() {
               </div>
               {(displayGrid[ri] ?? []).map((rid: string | null, ci: number) => {
                 const recipe = rid ? recipes.find((rec) => rec.id === rid) : null;
-                const dateLabel = `${mealPlan.weekOf}-d${ci}`;
+                const dateLabel = colDate(mealPlan.weekOf, ci);
                 return (
                   <div
                     key={ci}

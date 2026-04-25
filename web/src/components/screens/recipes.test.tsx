@@ -13,6 +13,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useShopping: () => ({ data: TBD.shopping }),
   useToggleShoppingItem: () => ({ mutate: vi.fn() }),
   useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
+  useUpsertMealPlanEntry: () => ({ mutate: vi.fn() }),
 }));
 
 function createWrapper() {

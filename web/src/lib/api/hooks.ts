@@ -295,14 +295,100 @@ export function useDeleteEvent() {
   });
 }
 
+// Backend flat entry shape returned by GET /v1/meal-plan
+interface MealPlanEntry {
+  id: string;
+  household_id: string;
+  recipe_id?: string | null;
+  date: string; // YYYY-MM-DD
+  slot: string; // breakfast | lunch | dinner | snack
+  created_at: string;
+  updated_at: string;
+}
+
+const MEAL_PLAN_ROWS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
+const SLOT_TO_ROW_IDX: Record<string, number> = {
+  breakfast: 0,
+  lunch: 1,
+  dinner: 2,
+  snack: 3,
+};
+
+/** Returns the Monday of the ISO week containing `date` (YYYY-MM-DD). */
+function weekMonday(date: Date): string {
+  const d = new Date(date);
+  const day = d.getUTCDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Convert a flat MealPlanEntry[] to the MealPlan grid shape the UI expects. */
+function entriesToMealPlan(entries: MealPlanEntry[], from: string): MealPlan {
+  const weekOf = weekMonday(new Date(from));
+  // Build day index: date string → column index 0–6
+  const dayIndex: Record<string, number> = {};
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekOf);
+    d.setUTCDate(d.getUTCDate() + i);
+    dayIndex[d.toISOString().slice(0, 10)] = i;
+  }
+  // Empty grid: 4 rows × 7 cols
+  const grid: (string | null)[][] = Array.from({ length: 4 }, () =>
+    Array(7).fill(null)
+  );
+  for (const e of entries) {
+    const rowIdx = SLOT_TO_ROW_IDX[e.slot];
+    const colIdx = dayIndex[e.date];
+    if (rowIdx !== undefined && colIdx !== undefined && e.recipe_id) {
+      grid[rowIdx][colIdx] = e.recipe_id;
+    }
+  }
+  return { weekOf, rows: [...MEAL_PLAN_ROWS], grid };
+}
+
 export function useMealPlan(weekOf?: string) {
+  // Derive from/to: default to current ISO week Mon–Sun
+  const from = weekOf ?? weekMonday(new Date());
+  const toDate = new Date(from);
+  toDate.setUTCDate(toDate.getUTCDate() + 6);
+  const to = toDate.toISOString().slice(0, 10);
+
   return useQuery<MealPlan>({
-    queryKey: qk.mealPlan(weekOf),
+    queryKey: qk.mealPlan(from),
     queryFn: () =>
       withFallback(
-        () => api.get<MealPlan>(`/v1/meals?weekOf=${weekOf ?? ""}`),
+        async () => {
+          const entries = await api.get<MealPlanEntry[]>(
+            `/v1/meal-plan?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+          );
+          return entriesToMealPlan(entries, from);
+        },
         () => fallback.mealPlan()
       ),
+  });
+}
+
+export function useUpsertMealPlanEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      date,
+      slot,
+      recipeId,
+    }: {
+      date: string;
+      slot: string;
+      recipeId?: string | null;
+    }) =>
+      api.post<MealPlanEntry>("/v1/meal-plan", {
+        date,
+        slot,
+        ...(recipeId ? { recipe_id: recipeId } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mealPlan"] });
+    },
   });
 }
 
