@@ -29,7 +29,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const [sel, setSel] = useState<string | null>(null);
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
-  const { lockKiosk, status } = useAuth();
+  const { lockKiosk, status, activeMember, setActiveMember } = useAuth();
   const router = useRouter();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
@@ -152,35 +152,44 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             background: dark ? TB.dBg : TB.bg,
           }}
         >
-          {members.map((m) => (
-            <div
-              key={m.id}
-              data-testid={`dashboard-member-${m.id}`}
-              onClick={() => {
-                setSel(m.id);
-                // Trigger PIN login for the selected member
-                router.push(`/kiosk?member=${m.id}`);
-              }}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                cursor: "pointer",
-              }}
-            >
-              <Avatar member={m} size={62} selected={sel === m.id} />
+          {members.map((m) => {
+            const isSelected = sel === m.id;
+            return (
               <div
+                key={m.id}
+                data-testid={`dashboard-member-${m.id}`}
+                onClick={() => {
+                  if (isSelected) {
+                    setSel(null);
+                    setActiveMember(null);
+                  } else {
+                    setSel(m.id);
+                    setActiveMember({ id: m.id, name: m.name, role: m.role === "child" ? "child" : "adult" });
+                    // Trigger PIN login for the selected member
+                    router.push(`/kiosk?member=${m.id}`);
+                  }
+                }}
                 style={{
-                  fontSize: 12,
-                  fontWeight: sel === m.id ? 600 : 450,
-                  color: sel === m.id ? tc : tc2,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  cursor: "pointer",
                 }}
               >
-                {m.name}
+                <Avatar member={m} size={62} selected={isSelected} />
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: isSelected ? 600 : 450,
+                    color: isSelected ? tc : tc2,
+                  }}
+                >
+                  {m.name}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ flex: 1 }} />
           {selMember && (
             <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>

@@ -9,6 +9,17 @@ vi.mock("@/lib/api/hooks", () => ({
   useEvents: () => ({ data: TBD.events }),
 }));
 
+const mockSetActiveMember = vi.fn();
+vi.mock("@/lib/auth/auth-store", () => ({
+  useAuth: () => ({
+    activeMember: null,
+    setActiveMember: mockSetActiveMember,
+    lockKiosk: vi.fn(),
+    status: "authenticated",
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) => (
@@ -61,6 +72,16 @@ describe("DashKiosk", () => {
     // After click, dad's stats should show (stars = 0)
     // Just confirm no crash and still renders
     expect(screen.getByText(/Today's schedule/i)).toBeTruthy();
+  });
+
+  it("clicking a member tile calls setActiveMember with that member", () => {
+    mockSetActiveMember.mockClear();
+    renderWithQuery(<DashKiosk />);
+    const dadTile = screen.getByTestId("dashboard-member-dad");
+    fireEvent.click(dadTile);
+    expect(mockSetActiveMember).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dad" })
+    );
   });
 
   it("renders in dark mode without crashing", () => {

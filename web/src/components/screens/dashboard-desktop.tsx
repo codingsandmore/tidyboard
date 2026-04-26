@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
@@ -10,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
 export function DashDesktop() {
@@ -18,8 +20,18 @@ export function DashDesktop() {
   const router = useRouter();
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
+  const { activeMember, setActiveMember } = useAuth();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
+
+  /** Toggle: clicking the already-active member clears the filter. */
+  function handleMemberClick(m: (typeof members)[0]) {
+    if (activeMember?.id === m.id) {
+      setActiveMember(null);
+    } else {
+      setActiveMember({ id: m.id, name: m.name, role: m.role === "child" ? "child" : "adult" });
+    }
+  }
 
   const NAV: { i: IconName; l: string; href: string; active?: boolean }[] = [
     { i: "calendar", l: tNav("calendar"), href: "/calendar", active: true },
@@ -75,40 +87,48 @@ export function DashDesktop() {
             The Smith Family
           </div>
         </div>
-        {members.map((m) => (
-          <div
-            key={m.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px",
-              borderRadius: 8,
-              cursor: "pointer",
-              background: m.id === "mom" ? TB.bg2 : "transparent",
-            }}
-          >
-            <Avatar member={m} size={30} ring={false} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 550,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {m.name}
-              </div>
-              <div style={{ fontSize: 10, color: TB.text2 }}>
-                {m.role === "child"
-                  ? `⭐ ${m.stars} · 🔥 ${t("streak", { n: m.streak })}`
-                  : t("eventsShort", { count: events.filter((e) => e.members.includes(m.id)).length })}
+        {members.map((m) => {
+          const isActive = activeMember?.id === m.id;
+          return (
+            <div
+              key={m.id}
+              data-testid={`member-tile-${m.id}`}
+              onClick={() => handleMemberClick(m)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px",
+                borderRadius: 8,
+                cursor: "pointer",
+                background: isActive ? `${TB.primary}18` : "transparent",
+                border: isActive ? `1.5px solid ${TB.primary}` : "1.5px solid transparent",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+            >
+              <Avatar member={m} size={30} ring={false} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: isActive ? 650 : 550,
+                    color: isActive ? TB.primary : TB.text,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m.name}
+                </div>
+                <div style={{ fontSize: 10, color: TB.text2 }}>
+                  {m.role === "child"
+                    ? `⭐ ${m.stars} · 🔥 ${t("streak", { n: m.streak })}`
+                    : t("eventsShort", { count: events.filter((e) => e.members.includes(m.id)).length })}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div style={{ flex: 1 }} />
         <div style={{ padding: "8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {NAV.map((n) => (
@@ -159,7 +179,7 @@ export function DashDesktop() {
             <Btn kind="secondary" size="sm" icon="search" onClick={() => router.push("/calendar?view=Agenda")}>
               {t("search")}
             </Btn>
-            <Btn kind="primary" size="sm" icon="plus" onClick={() => router.push("/calendar/event?new=1")}>
+            <Btn kind="primary" size="sm" icon="plus" onClick={() => router.push("/calendar?new=event")}>
               {t("newEvent")}
             </Btn>
           </div>

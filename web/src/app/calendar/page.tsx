@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { CalAgenda, CalDay, CalMonth, CalWeek, EventModal } from "@/components/screens/calendar";
 import type { EventFormData } from "@/components/screens/calendar";
@@ -10,12 +11,24 @@ import { useTranslations } from "next-intl";
 type View = "Day" | "Week" | "Month" | "Agenda";
 
 export default function CalendarPage() {
-  const [view, setView] = useState<View>("Day");
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<View>(() => {
+    const v = searchParams.get("view");
+    if (v === "Day" || v === "Week" || v === "Month" || v === "Agenda") return v;
+    return "Day";
+  });
   const [modalEvent, setModalEvent] = useState<EventFormData | null>(null);
   const { theme } = useTheme();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const dark = theme === "dark";
+
+  // Open new-event modal when navigated here with ?new=event
+  useEffect(() => {
+    if (searchParams.get("new") === "event") {
+      setModalEvent({});
+    }
+  }, [searchParams]);
 
   return (
     <div

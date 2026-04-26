@@ -16,6 +16,18 @@ vi.mock("@/lib/api/hooks", () => ({
   useEvents: () => ({ data: TBD.events }),
 }));
 
+const mockSetActiveMember = vi.fn();
+let mockActiveMemberId: string | null = null;
+
+vi.mock("@/lib/auth/auth-store", () => ({
+  useAuth: () => ({
+    activeMember: mockActiveMemberId ? { id: mockActiveMemberId, name: "Test", role: "adult" } : null,
+    setActiveMember: mockSetActiveMember,
+    status: "authenticated",
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) => (
@@ -66,10 +78,30 @@ describe("DashDesktop", () => {
     expect(mockPush).toHaveBeenCalledWith("/calendar?view=Agenda");
   });
 
-  it("New event button navigates to calendar event page", () => {
+  it("New event button navigates to /calendar?new=event (not /calendar/event)", () => {
     mockPush.mockClear();
     renderWithQuery(<DashDesktop />);
     fireEvent.click(screen.getByText("New event"));
-    expect(mockPush).toHaveBeenCalledWith("/calendar/event?new=1");
+    expect(mockPush).toHaveBeenCalledWith("/calendar?new=event");
+  });
+
+  it("clicking a member tile calls setActiveMember with that member", () => {
+    mockSetActiveMember.mockClear();
+    mockActiveMemberId = null;
+    renderWithQuery(<DashDesktop />);
+    const dadTile = screen.getByTestId("member-tile-dad");
+    fireEvent.click(dadTile);
+    expect(mockSetActiveMember).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dad" })
+    );
+  });
+
+  it("clicking the active member tile deselects (calls setActiveMember(null))", () => {
+    mockSetActiveMember.mockClear();
+    mockActiveMemberId = "mom";
+    renderWithQuery(<DashDesktop />);
+    const momTile = screen.getByTestId("member-tile-mom");
+    fireEvent.click(momTile);
+    expect(mockSetActiveMember).toHaveBeenCalledWith(null);
   });
 });
