@@ -7,13 +7,15 @@ import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
 export function DashPhone() {
   const tNav = useTranslations("nav");
   const tDash = useTranslations("dashboard");
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
+  const { activeMember } = useAuth();
+  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
   return (

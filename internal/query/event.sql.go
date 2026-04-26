@@ -295,6 +295,7 @@ SELECT id, household_id, calendar_id, external_id, title, description, start_tim
 WHERE household_id = $1
   AND ($2::timestamptz IS NULL OR end_time   >= $2)
   AND ($3::timestamptz   IS NULL OR start_time <= $3)
+  AND ($4::uuid         IS NULL OR $4::uuid = ANY(assigned_members))
 ORDER BY start_time ASC
 `
 
@@ -302,10 +303,16 @@ type ListEventsInRangeParams struct {
 	HouseholdID uuid.UUID          `json:"household_id"`
 	StartTime   pgtype.Timestamptz `json:"start_time"`
 	EndTime     pgtype.Timestamptz `json:"end_time"`
+	MemberID    *uuid.NullUUID     `json:"member_id"`
 }
 
 func (q *Queries) ListEventsInRange(ctx context.Context, arg ListEventsInRangeParams) ([]Event, error) {
-	rows, err := q.db.Query(ctx, listEventsInRange, arg.HouseholdID, arg.StartTime, arg.EndTime)
+	rows, err := q.db.Query(ctx, listEventsInRange,
+		arg.HouseholdID,
+		arg.StartTime,
+		arg.EndTime,
+		arg.MemberID,
+	)
 	if err != nil {
 		return nil, err
 	}

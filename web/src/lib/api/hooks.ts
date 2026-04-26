@@ -54,8 +54,8 @@ import type {
 // ── Query key factory ──────────────────────────────────────────────────────
 
 export const qk = {
-  events: (range?: { start: string; end: string }) =>
-    ["events", range] as const,
+  events: (opts?: { start?: string; end?: string; memberId?: string }) =>
+    ["events", opts] as const,
   members: () => ["members"] as const,
   recipes: () => ["recipes"] as const,
   recipe: (id: string) => ["recipes", id] as const,
@@ -104,16 +104,18 @@ async function withFallback<T>(
 
 // ── Read hooks ─────────────────────────────────────────────────────────────
 
-export function useEvents(range?: { start: string; end: string }) {
+export function useEvents(opts?: { start?: string; end?: string; memberId?: string }) {
   return useQuery<TBDEvent[]>({
-    queryKey: qk.events(range),
+    queryKey: qk.events(opts),
     queryFn: () =>
       withFallback(
         () => {
-          const params = range
-            ? `?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`
-            : "";
-          return api.get<TBDEvent[]>(`/v1/events${params}`);
+          const qs = new URLSearchParams();
+          if (opts?.start) qs.set("start", opts.start);
+          if (opts?.end) qs.set("end", opts.end);
+          if (opts?.memberId) qs.set("member_id", opts.memberId);
+          const suffix = qs.toString() ? `?${qs.toString()}` : "";
+          return api.get<TBDEvent[]>(`/v1/events${suffix}`);
         },
         () => fallback.events()
       ),
@@ -831,6 +833,23 @@ export interface HouseholdResponse {
   invite_code: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface HouseholdSummary {
+  id: string;
+  name: string;
+}
+
+/** Returns all households the authenticated account is a member of. */
+export function useMyHouseholds() {
+  return useQuery<HouseholdSummary[]>({
+    queryKey: ["me", "households"],
+    queryFn: () =>
+      withFallback(
+        () => api.get<HouseholdSummary[]>("/v1/me/households"),
+        () => []
+      ),
+  });
 }
 
 export function useHousehold(householdId: string | undefined) {

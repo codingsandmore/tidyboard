@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	rrule "github.com/teambition/rrule-go"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -55,8 +56,11 @@ func (s *EventService) publish(ctx context.Context, householdID uuid.UUID, event
 }
 
 // ListInRange returns events for a household within [start, end].
-// If start/end are zero, returns all events.
-func (s *EventService) ListInRange(ctx context.Context, householdID uuid.UUID, start, end time.Time) ([]*model.Event, error) {
+// If start/end are zero, returns all events. If memberID is non-nil, only
+// events where assigned_members contains that member are returned.
+// Events with a recurrence_rule are expanded to all occurrences within
+// [start, end]; each synthetic occurrence has ID "<base>:<date>".
+func (s *EventService) ListInRange(ctx context.Context, householdID uuid.UUID, start, end time.Time, memberID *uuid.UUID) ([]*model.Event, error) {
 	arg := query.ListEventsInRangeParams{
 		HouseholdID: householdID,
 	}
@@ -66,14 +70,69 @@ func (s *EventService) ListInRange(ctx context.Context, householdID uuid.UUID, s
 	if !end.IsZero() {
 		arg.EndTime = pgtype.Timestamptz{Time: end, Valid: true}
 	}
+	if memberID != nil {
+		arg.MemberID = &uuid.NullUUID{UUID: *memberID, Valid: true}
+	}
 
 	rows, err := s.q.ListEventsInRange(ctx, arg)
 	if err != nil {
 		return nil, fmt.Errorf("listing events: %w", err)
 	}
-	out := make([]*model.Event, len(rows))
-	for i, r := range rows {
-		out[i] = eventToModel(r)
+
+	var out []*model.Event
+	for _, r := range rows {
+		base := eventToModel(r)
+		if base.RecurrenceRule == "" || start.IsZero() || end.IsZero() {
+			out = append(out, base)
+			continue
+		}
+		// Expand RRULE occurrences within [start, end].
+		occurrences, err := ExpandRRule(base, start, end)
+		if err != nil {
+			// If RRULE is unparseable, fall back to the base event.
+			out = append(out, base)
+			continue
+		}
+		out = append(out, occurrences...)
+	}
+	return out, nil
+}
+
+// ExpandRRule returns synthetic event instances for each RRULE occurrence of
+// base within [windowStart, windowEnd]. Each instance shares all base fields
+// but has a shifted start/end. The ExternalID is set to "<baseID>:<YYYY-MM-DD>"
+// and IsRecurrenceInstance is true.
+func ExpandRRule(base *model.Event, windowStart, windowEnd time.Time) ([]*model.Event, error) {
+	opt, err := rrule.StrToROption(base.RecurrenceRule)
+	if err != nil {
+		return nil, fmt.Errorf("parsing rrule: %w", err)
+	}
+	// DTSTART defaults to the base event's start_time if not set in the rule.
+	if opt.Dtstart.IsZero() {
+		opt.Dtstart = base.StartTime
+	}
+	rs, err := rrule.NewRRule(*opt)
+	if err != nil {
+		return nil, fmt.Errorf("building rrule: %w", err)
+	}
+	duration := base.EndTime.Sub(base.StartTime)
+	occurrences := rs.Between(windowStart, windowEnd, true)
+	out := make([]*model.Event, 0, len(occurrences))
+	for _, occ := range occurrences {
+		inst := *base // shallow copy
+		inst.StartTime = occ
+		inst.EndTime = occ.Add(duration)
+		dateStr := occ.UTC().Format("2006-01-02")
+		syntheticID := fmt.Sprintf("%s:%s", base.ID.String(), dateStr)
+		// Store synthetic ID as a string in a new field — we reuse ExternalID
+		// temporarily as the composite key for the frontend. The base ID is
+		// preserved in the ID field so single-event GET still works.
+		if inst.ExternalID == nil || *inst.ExternalID == "" {
+			inst.ExternalID = &syntheticID
+		}
+		// Tag this as a recurrence instance.
+		inst.IsRecurrenceInstance = true
+		out = append(out, &inst)
 	}
 	return out, nil
 }

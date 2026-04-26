@@ -19,8 +19,8 @@ export function DashDesktop() {
   const tNav = useTranslations("nav");
   const router = useRouter();
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
   const { activeMember, setActiveMember } = useAuth();
+  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
 
