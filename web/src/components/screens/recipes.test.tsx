@@ -4,7 +4,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBD } from "@/lib/data";
 import { RecipeImport, RecipeDetail, RecipePreview, MealPlan, ShoppingList } from "./recipes";
 
+const mockPush = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => ({ get: () => null }),
+  usePathname: () => "/",
+}));
+
 const importMutateMock = vi.fn();
+const upsertMutateAsyncMock = vi.fn().mockResolvedValue({});
 
 vi.mock("@/lib/api/hooks", () => ({
   useRecipe: (_id: string) => ({ data: TBD.recipes[0] }),
@@ -13,7 +21,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useShopping: () => ({ data: TBD.shopping }),
   useToggleShoppingItem: () => ({ mutate: vi.fn() }),
   useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
-  useUpsertMealPlanEntry: () => ({ mutate: vi.fn() }),
+  useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
   useGenerateShoppingList: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
@@ -329,5 +337,63 @@ describe("ShoppingList", () => {
     expect(item.style.textDecoration).not.toBe("line-through");
     fireEvent.click(item.closest("div[style*='cursor: pointer']")!);
     expect(item.style.textDecoration).toBe("line-through");
+  });
+});
+
+// ── Wired button tests ────────────────────────────────────────────────────────
+
+describe("RecipeImport — wired buttons", () => {
+  beforeEach(() => mockPush.mockClear());
+
+  it("Enter Manually button navigates to /recipes/import?manual=1", () => {
+    renderWithQuery(<RecipeImport />);
+    fireEvent.click(screen.getByText("Enter manually"));
+    expect(mockPush).toHaveBeenCalledWith("/recipes/import?manual=1");
+  });
+
+  it("Import from File button shows coming-soon alert", () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    renderWithQuery(<RecipeImport />);
+    fireEvent.click(screen.getByText("Import from file"));
+    expect(alertSpy).toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+});
+
+describe("RecipeDetail — Start Cooking button", () => {
+  beforeEach(() => mockPush.mockClear());
+
+  it("Start Cooking navigates to cook route for current recipe", () => {
+    renderWithQuery(<RecipeDetail id={TBD.recipes[0].id} />);
+    fireEvent.click(screen.getByText("Start cooking"));
+    expect(mockPush).toHaveBeenCalledWith(`/recipes/${TBD.recipes[0].id}/cook`);
+  });
+});
+
+describe("RecipePreview — Discard and Save buttons", () => {
+  beforeEach(() => mockPush.mockClear());
+
+  it("Save to Collection navigates to /recipes", () => {
+    renderWithQuery(<RecipePreview />);
+    fireEvent.click(screen.getByText("Save to collection"));
+    expect(mockPush).toHaveBeenCalledWith("/recipes");
+  });
+
+  it("Discard shows confirm dialog and navigates on confirm", () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithQuery(<RecipePreview />);
+    fireEvent.click(screen.getByText("Discard"));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith("/recipes");
+    confirmSpy.mockRestore();
+  });
+
+  it("Discard does not navigate when confirm is cancelled", () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderWithQuery(<RecipePreview />);
+    fireEvent.click(screen.getByText("Discard"));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

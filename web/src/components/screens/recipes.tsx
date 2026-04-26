@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, Fragment } from "react";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { TBD } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -44,6 +45,7 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => (
 export function RecipeImport() {
   const t = useTranslations("recipe");
   const tCommon = useTranslations("common");
+  const router = useRouter();
   const [url, setUrl] = useState("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
@@ -164,10 +166,10 @@ export function RecipeImport() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <Btn kind="secondary" size="lg" full icon="pencil">
+          <Btn kind="secondary" size="lg" full icon="pencil" onClick={() => router.push("/recipes/import?manual=1")}>
             {t("enterManually")}
           </Btn>
-          <Btn kind="ghost" size="lg" full icon="list">
+          <Btn kind="ghost" size="lg" full icon="list" onClick={() => alert("File import coming soon — use URL import or manual entry for now.")}>
             {t("importFromFile")}
           </Btn>
         </div>
@@ -220,6 +222,7 @@ export function RecipeImport() {
 // ═══════ Recipe Detail ═══════
 export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean }) {
   const t = useTranslations("recipe");
+  const router = useRouter();
   const { data: apiRecipe } = useRecipe(id ?? "");
   const r = apiRecipe;
   const bg = dark ? TB.dBg : TB.bg;
@@ -547,7 +550,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <Btn kind="primary" size="xl" full icon="play">
+          <Btn kind="primary" size="xl" full icon="play" onClick={() => r?.id && router.push(`/recipes/${r.id}/cook`)}>
             {t("startCooking")}
           </Btn>
         </div>
@@ -559,6 +562,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
 // ═══════ Recipe Preview (after import, before save) ═══════
 export function RecipePreview() {
   const t = useTranslations("recipe");
+  const router = useRouter();
   const r = TBD.recipes[0];
   return (
     <div
@@ -700,11 +704,11 @@ export function RecipePreview() {
           gap: 10,
         }}
       >
-        <Btn kind="ghost" size="md">
+        <Btn kind="ghost" size="md" onClick={() => { if (window.confirm("Discard this recipe?")) router.push("/recipes"); }}>
           {t("discard")}
         </Btn>
         <div style={{ flex: 1 }} />
-        <Btn kind="primary" size="md">
+        <Btn kind="primary" size="md" onClick={() => router.push("/recipes")}>
           {t("saveToCollection")}
         </Btn>
       </div>
@@ -725,6 +729,36 @@ export function MealPlan() {
   const mealPlan = apiMealPlan;
   const recipes = apiRecipes ?? [];
   const [generateStatus, setGenerateStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  // Fetch last week's meal plan so we can copy it
+  const lastWeekOf = mealPlan?.weekOf
+    ? (() => { const d = new Date(mealPlan.weekOf); d.setUTCDate(d.getUTCDate() - 7); return d.toISOString().slice(0, 10); })()
+    : undefined;
+  const { data: lastWeekPlan } = useMealPlan(lastWeekOf);
+
+  async function handleCopyLastWeek() {
+    if (!mealPlan?.weekOf || !lastWeekPlan?.grid) return;
+    setCopyStatus("loading");
+    const ROW_SLOTS_COPY = ["breakfast", "lunch", "dinner", "snack"] as const;
+    try {
+      for (let ri = 0; ri < lastWeekPlan.grid.length; ri++) {
+        const row = lastWeekPlan.grid[ri];
+        for (let ci = 0; ci < row.length; ci++) {
+          const recipeId = row[ci];
+          if (!recipeId) continue;
+          const d = new Date(mealPlan.weekOf);
+          d.setUTCDate(d.getUTCDate() + ci);
+          await upsertMealPlan.mutateAsync({ date: d.toISOString().slice(0, 10), slot: ROW_SLOTS_COPY[ri] ?? "dinner", recipeId });
+        }
+      }
+      setCopyStatus("ok");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch {
+      setCopyStatus("error");
+      setTimeout(() => setCopyStatus("idle"), 3000);
+    }
+  }
 
   function handleGenerateShopping() {
     if (!mealPlan?.weekOf) return;
@@ -936,8 +970,8 @@ export function MealPlan() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn kind="ghost" size="sm">
-            {t("copyLastWeek")}
+          <Btn kind="ghost" size="sm" onClick={handleCopyLastWeek} disabled={copyStatus === "loading"}>
+            {copyStatus === "loading" ? "Copying…" : copyStatus === "ok" ? "Copied!" : copyStatus === "error" ? "Error — retry" : t("copyLastWeek")}
           </Btn>
           <div data-testid="ai-suggest-btn">
             <Btn
