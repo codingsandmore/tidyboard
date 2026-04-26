@@ -25,7 +25,7 @@ import CalDayDarkPage from "./calendar/day-dark/page";
 import CalWeekPage from "./calendar/week/page";
 import CalMonthPage from "./calendar/month/page";
 import CalAgendaPage from "./calendar/agenda/page";
-import CalEventPage from "./calendar/event/page";
+// Note: /calendar/event was a design-scene preview page; it has been removed.
 
 import RoutinesPage from "./routines/page";
 import RoutinesKidPage from "./routines/kid/page";
@@ -129,7 +129,6 @@ describe("App page smoke tests — static pages", () => {
   smoke("/calendar/week", CalWeekPage);
   smoke("/calendar/month", CalMonthPage);
   smokeWithQuery("/calendar/agenda", CalAgendaPage);
-  smokeWithQuery("/calendar/event", CalEventPage);
 
   smokeWithQuery("/routines", RoutinesPage);
   smokeWithQuery("/routines/kid", RoutinesKidPage);

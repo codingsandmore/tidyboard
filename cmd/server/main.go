@@ -124,6 +124,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	auditSvc := service.NewAuditService(q)
 	authSvc := service.NewAuthService(cfg.Auth, q)
 	householdSvc := service.NewHouseholdService(q)
+	inviteSvc := service.NewInviteService(q)
 	memberSvc := service.NewMemberService(q, authSvc)
 	notifySvc := service.NewNotifyService(cfg.Notify, q)
 	eventSvc := service.NewEventService(q, bc, auditSvc).WithNotify(notifySvc)
@@ -164,6 +165,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	householdHandler := handler.NewHouseholdHandler(householdSvc)
+	inviteHandler := handler.NewInviteHandler(inviteSvc)
 	memberHandler := handler.NewMemberHandler(memberSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
@@ -297,6 +299,14 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/households/{id}", householdHandler.Get)
 		r.Patch("/v1/households/{id}", householdHandler.Update)
 		r.Delete("/v1/households/{id}", householdHandler.Delete)
+
+		// Invite-by-code.
+		r.Post("/v1/households/{id}/invite/regenerate", inviteHandler.RegenerateInviteCode)
+		r.Get("/v1/households/by-code/{code}", inviteHandler.GetByCode)
+		r.Post("/v1/households/by-code/{code}/join", inviteHandler.RequestJoin)
+		r.Get("/v1/households/{id}/join-requests", inviteHandler.ListJoinRequests)
+		r.Post("/v1/join-requests/{id}/approve", inviteHandler.ApproveJoinRequest)
+		r.Post("/v1/join-requests/{id}/reject", inviteHandler.RejectJoinRequest)
 
 		// Members (nested under household).
 		r.Get("/v1/households/{id}/members", memberHandler.List)

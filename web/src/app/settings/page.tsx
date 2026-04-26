@@ -13,6 +13,7 @@ import { useWS } from "@/lib/ws/ws-provider";
 import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 import { AISettingsCard } from "./ai-section";
+import { InviteModal } from "./invite-modal";
 import {
   useCalendars,
   useAddICalCalendar,
@@ -412,6 +413,7 @@ function FamilyCard() {
   const deleteMember = useDeleteMember();
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MemberFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
@@ -513,8 +515,28 @@ function FamilyCard() {
         fontSize: 13,
       }}
     >
+      {showInvite && household?.id && (
+        <InviteModal householdId={household.id} onClose={() => setShowInvite(false)} />
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8 }}>
         <span style={{ color: TB.text2, fontWeight: 500, flex: 1 }}>Family Members</span>
+        <button
+          data-testid="invite-partner-btn"
+          onClick={() => setShowInvite(true)}
+          style={{
+            padding: "5px 12px",
+            borderRadius: TB.r.md,
+            border: `1px solid ${TB.border}`,
+            background: TB.surface,
+            color: TB.text2,
+            cursor: "pointer",
+            fontFamily: TB.fontBody,
+            fontSize: 12,
+            fontWeight: 500,
+          }}
+        >
+          Invite a partner
+        </button>
         <button
           data-testid="add-member-btn"
           onClick={openAdd}

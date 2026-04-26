@@ -333,3 +333,15 @@ notifications:
 |---|---|---|---|
 | `PATCH` | `/v1/members/:id/notify` | JWT | Save ntfy_topic + preference flags for a member |
 | `POST` | `/v1/notify/test` | JWT | Send a test push to a member's configured topic |
+
+## Follow-ups / Known gaps
+
+### Dashboard member-filter (visual only — 2026-04-24)
+
+Clicking a member tile in the dashboard sidebar sets `activeMember` in the auth-store and highlights the selected tile.
+Full per-member event/task filtering at the API level is **not yet wired** because `GET /v1/events` does not accept a `?member_id=` query param and `useEvents()` does not forward one.
+
+To complete this:
+1. Add `?member_id=` filter to `GET /v1/events` in the Go backend (`internal/handler/events.go`).
+2. Extend `useEvents(opts?: { memberId?: string })` in `web/src/lib/api/hooks.ts` to forward the param.
+3. Pass `activeMember?.id` from auth-store into `useEvents` in `DashDesktop`, `DashKiosk`, and `DashPhone`.

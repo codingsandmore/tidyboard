@@ -213,6 +213,31 @@ export default function OnboardingPage() {
           setSelfColor={setSelfColor}
         />
 
+        {/* Step 2: "Join instead" alternative path */}
+        {step === 2 && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 84,
+              left: 16,
+              right: 16,
+              textAlign: "center",
+              fontFamily: TB.fontBody,
+              fontSize: 13,
+              color: TB.text2,
+              zIndex: 5,
+            }}
+          >
+            Already have a code?{" "}
+            <a
+              href="/join"
+              style={{ color: TB.primary, textDecoration: "underline", fontWeight: 600 }}
+            >
+              Join an existing household
+            </a>
+          </div>
+        )}
+
         {/* Error overlay — shown above the visual step */}
         {error && (
           <div

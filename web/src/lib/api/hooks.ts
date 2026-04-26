@@ -47,6 +47,8 @@ import type {
   AddStepRequest,
   UpdateStepRequest,
   MarkCompleteRequest,
+  JoinRequest,
+  HouseholdPreview,
 } from "./types";
 
 // ── Query key factory ──────────────────────────────────────────────────────
@@ -81,6 +83,8 @@ export const qk = {
   ) => ["audit", limit, offset, filters] as const,
   collections: () => ["collections"] as const,
   collectionRecipes: (id: string) => ["collections", id, "recipes"] as const,
+  householdByCode: (code: string) => ["householdByCode", code] as const,
+  joinRequests: (householdId: string) => ["joinRequests", householdId] as const,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1024,6 +1028,66 @@ export function useRemoveRecipeFromCollection() {
     onSuccess: (_data, { collectionId }) => {
       qc.invalidateQueries({ queryKey: qk.collectionRecipes(collectionId) });
       qc.invalidateQueries({ queryKey: qk.collections() });
+    },
+  });
+}
+
+// ── Invite / join-request hooks ────────────────────────────────────────────
+
+export function useRegenerateInviteCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (householdId: string) =>
+      api.post<{ invite_code: string }>(`/v1/households/${householdId}/invite/regenerate`, {}),
+    onSuccess: (_data, householdId) => {
+      qc.invalidateQueries({ queryKey: ["household", householdId] });
+    },
+  });
+}
+
+export function useHouseholdByCode(code: string) {
+  return useQuery<HouseholdPreview>({
+    queryKey: qk.householdByCode(code),
+    queryFn: () => api.get<HouseholdPreview>(`/v1/households/by-code/${encodeURIComponent(code)}`),
+    enabled: code.length === 8,
+    retry: false,
+  });
+}
+
+export function useRequestJoin() {
+  return useMutation({
+    mutationFn: (code: string) =>
+      api.post<JoinRequest>(`/v1/households/by-code/${encodeURIComponent(code)}/join`, {}),
+  });
+}
+
+export function useJoinRequests(householdId: string | undefined) {
+  return useQuery<JoinRequest[]>({
+    queryKey: qk.joinRequests(householdId ?? ""),
+    queryFn: () => api.get<JoinRequest[]>(`/v1/households/${householdId}/join-requests`),
+    enabled: Boolean(householdId),
+  });
+}
+
+export function useApproveJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId }: { requestId: string; householdId: string }) =>
+      api.post<JoinRequest>(`/v1/join-requests/${requestId}/approve`, {}),
+    onSuccess: (_data, { householdId }) => {
+      qc.invalidateQueries({ queryKey: qk.joinRequests(householdId) });
+      qc.invalidateQueries({ queryKey: qk.members() });
+    },
+  });
+}
+
+export function useRejectJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId }: { requestId: string; householdId: string }) =>
+      api.post<JoinRequest>(`/v1/join-requests/${requestId}/reject`, {}),
+    onSuccess: (_data, { householdId }) => {
+      qc.invalidateQueries({ queryKey: qk.joinRequests(householdId) });
     },
   });
 }

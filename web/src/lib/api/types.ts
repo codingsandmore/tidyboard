@@ -265,6 +265,24 @@ export interface MarkCompleteRequest {
   member_id: string;
 }
 
+// ── Invite / Join-request types ────────────────────────────────────────────
+
+export interface JoinRequest {
+  id: string;
+  household_id: string;
+  account_id: string;
+  requested_at: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  status: "pending" | "approved" | "rejected";
+}
+
+export interface HouseholdPreview {
+  household_id: string;
+  name: string;
+  invite_code: string;
+}
+
 // ── Recipe Collection types ─────────────────────────────────────────────────
 
 export interface RecipeCollection {

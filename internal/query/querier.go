@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	AddRecipeToCollection(ctx context.Context, arg AddRecipeToCollectionParams) error
 	AddStep(ctx context.Context, arg AddStepParams) (RoutineStep, error)
+	ApproveJoinRequest(ctx context.Context, arg ApproveJoinRequestParams) (JoinRequest, error)
 	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
 	CountCompletionsForDay(ctx context.Context, arg CountCompletionsForDayParams) (int64, error)
@@ -30,6 +31,9 @@ type Querier interface {
 	// sql/queries/household.sql
 	// Household queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateHousehold(ctx context.Context, arg CreateHouseholdParams) (Household, error)
+	// sql/queries/join_request.sql
+	// Join request queries. Run `sqlc generate` to produce Go code in internal/query/.
+	CreateJoinRequest(ctx context.Context, arg CreateJoinRequestParams) (JoinRequest, error)
 	// sql/queries/list.sql
 	// List and ListItem queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateList(ctx context.Context, arg CreateListParams) (List, error)
@@ -79,6 +83,7 @@ type Querier interface {
 	GetEventByExternalID(ctx context.Context, arg GetEventByExternalIDParams) (Event, error)
 	GetHousehold(ctx context.Context, id uuid.UUID) (Household, error)
 	GetHouseholdByInviteCode(ctx context.Context, inviteCode string) (Household, error)
+	GetJoinRequest(ctx context.Context, id uuid.UUID) (JoinRequest, error)
 	GetList(ctx context.Context, arg GetListParams) (List, error)
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
 	GetMember(ctx context.Context, arg GetMemberParams) (Member, error)
@@ -121,6 +126,7 @@ type Querier interface {
 	// within the given date range for the household.
 	ListIngredientsForMealPlanRange(ctx context.Context, arg ListIngredientsForMealPlanRangeParams) ([]ListIngredientsForMealPlanRangeRow, error)
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItem, error)
+	ListJoinRequestsForHousehold(ctx context.Context, householdID uuid.UUID) ([]JoinRequest, error)
 	ListLists(ctx context.Context, householdID uuid.UUID) ([]List, error)
 	ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntriesParams) ([]MealPlanEntry, error)
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
@@ -139,6 +145,7 @@ type Querier interface {
 	MarkRoutineComplete(ctx context.Context, arg MarkRoutineCompleteParams) (RoutineCompletion, error)
 	MarkStepComplete(ctx context.Context, arg MarkStepCompleteParams) (RoutineCompletion, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
+	RejectJoinRequest(ctx context.Context, arg RejectJoinRequestParams) (JoinRequest, error)
 	RemoveRecipeFromCollection(ctx context.Context, arg RemoveRecipeFromCollectionParams) error
 	// Canonical ingredient search
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
