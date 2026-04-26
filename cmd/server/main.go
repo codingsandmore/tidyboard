@@ -135,6 +135,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
+	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -179,6 +180,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	resetHandler := handler.NewResetHandler(pool)
 	equityHandler := handler.NewEquityHandler(equitySvc)
 	notifyHandler := handler.NewNotifyHandler(notifySvc)
+	routineHandler := handler.NewRoutineHandler(routineSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -356,6 +358,19 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// Notifications.
 		r.Post("/v1/notify/test", notifyHandler.TestNotification)
 		r.Patch("/v1/members/{id}/notify", notifyHandler.UpdateMemberNotify)
+
+		// Routines.
+		r.Get("/v1/routines", routineHandler.List)
+		r.Post("/v1/routines", routineHandler.Create)
+		r.Patch("/v1/routines/{id}", routineHandler.Update)
+		r.Delete("/v1/routines/{id}", routineHandler.Delete)
+		r.Post("/v1/routines/{id}/steps", routineHandler.AddStep)
+		r.Patch("/v1/routines/{id}/steps/{stepID}", routineHandler.UpdateStep)
+		r.Delete("/v1/routines/{id}/steps/{stepID}", routineHandler.DeleteStep)
+		r.Post("/v1/routines/{id}/complete", routineHandler.MarkComplete)
+		r.Delete("/v1/routines/{id}/complete/{completionID}", routineHandler.UnmarkCompletion)
+		r.Get("/v1/routines/{id}/streak", routineHandler.GetStreak)
+		r.Get("/v1/routines/completions", routineHandler.ListCompletionsForDay)
 
 		// Equity engine.
 		r.Get("/v1/equity", equityHandler.GetDashboard)

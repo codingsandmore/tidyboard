@@ -199,9 +199,9 @@ type Member struct {
 	PinHash                 *string            `json:"pin_hash"`
 	EmergencyInfo           []byte             `json:"emergency_info"`
 	NotificationPreferences []byte             `json:"notification_preferences"`
-	NtfyTopic               *string            `json:"ntfy_topic,omitempty"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	NtfyTopic               *string            `json:"ntfy_topic"`
 }
 
 type PantryStaple struct {
@@ -281,6 +281,38 @@ type RecipeStep struct {
 	Text         string    `json:"text"`
 	TimerSeconds *int32    `json:"timer_seconds"`
 	ImageUrl     string    `json:"image_url"`
+}
+
+type Routine struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	MemberID    *uuid.NullUUID     `json:"member_id"`
+	DaysOfWeek  []string           `json:"days_of_week"`
+	TimeSlot    string             `json:"time_slot"`
+	Archived    bool               `json:"archived"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RoutineCompletion struct {
+	ID          uuid.UUID          `json:"id"`
+	RoutineID   uuid.UUID          `json:"routine_id"`
+	StepID      *uuid.NullUUID     `json:"step_id"`
+	MemberID    uuid.UUID          `json:"member_id"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+}
+
+type RoutineStep struct {
+	ID         uuid.UUID          `json:"id"`
+	RoutineID  uuid.UUID          `json:"routine_id"`
+	Name       string             `json:"name"`
+	EstMinutes *int32             `json:"est_minutes"`
+	SortOrder  int32              `json:"sort_order"`
+	Icon       *string            `json:"icon"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ShoppingList struct {
