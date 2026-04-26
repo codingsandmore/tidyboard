@@ -34,21 +34,21 @@ CREATE TABLE routine_completions (
 );
 
 -- Unique completion per (routine, step, member, calendar-date).
--- step_id is nullable so we use a partial approach: one index for step-level,
--- one for whole-routine (step_id IS NULL).
+-- completed_at::DATE is not immutable (timezone-dependent), so we use
+-- (completed_at AT TIME ZONE 'UTC')::DATE which Postgres marks immutable.
 CREATE UNIQUE INDEX uq_routine_completion_step
-    ON routine_completions (routine_id, step_id, member_id, (completed_at::DATE))
+    ON routine_completions (routine_id, step_id, member_id, (completed_at AT TIME ZONE 'UTC')::DATE)
     WHERE step_id IS NOT NULL;
 
 CREATE UNIQUE INDEX uq_routine_completion_whole
-    ON routine_completions (routine_id, member_id, (completed_at::DATE))
+    ON routine_completions (routine_id, member_id, (completed_at AT TIME ZONE 'UTC')::DATE)
     WHERE step_id IS NULL;
 
 CREATE INDEX idx_routines_household ON routines(household_id);
 CREATE INDEX idx_routines_member    ON routines(member_id);
 CREATE INDEX idx_routine_steps_routine ON routine_steps(routine_id);
 CREATE INDEX idx_routine_completions_routine_member ON routine_completions(routine_id, member_id);
-CREATE INDEX idx_routine_completions_date ON routine_completions((completed_at::DATE));
+CREATE INDEX idx_routine_completions_date ON routine_completions(((completed_at AT TIME ZONE 'UTC')::DATE));
 
 -- +goose StatementEnd
 
