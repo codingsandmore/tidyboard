@@ -37,7 +37,7 @@ All authenticated endpoints are now fully implemented against Postgres via sqlc-
 | Members | `GET /v1/households/:id/members/:memberID` | ✅ Working |
 | Members | `PATCH /v1/households/:id/members/:memberID` | ✅ Working |
 | Members | `DELETE /v1/households/:id/members/:memberID` | ✅ Working |
-| Events | `GET /v1/events` (with optional `?start=&end=` range filter) | ✅ Working — publishes `event.created/updated/deleted` to broadcaster |
+| Events | `GET /v1/events` (with optional `?start=&end=&member_id=` filter) | ✅ Working — `?member_id=<uuid>` filters to events where assigned_members contains that UUID; publishes `event.created/updated/deleted` to broadcaster |
 | Events | `POST /v1/events` | ✅ Working |
 | Events | `GET /v1/events/:id` | ✅ Working |
 | Events | `PATCH /v1/events/:id` | ✅ Working |
@@ -250,6 +250,22 @@ New migration `20260425000020_shopping.sql` adds three tables:
 
 **Frontend**: `useEquityDashboard()`, `useEquityTasks()`, `useEquityDomains()`, `useRebalanceSuggestions()`, `useCreateEquityTask()`, `useUpdateEquityTask()`, `useDeleteEquityTask()`, `useLogTaskTime()` hooks added to `web/src/lib/api/hooks.ts`. `equity.tsx` wires live data with graceful fallback to stub data.
 
+## Per-member event filter + RRULE expansion (2026-04-24)
+
+- `GET /v1/events?member_id=<uuid>` — filters to events where `assigned_members` contains the given UUID
+- RRULE server-side expansion: events with `recurrence_rule` are expanded to all occurrences within the requested `[start, end]` window using `github.com/teambition/rrule-go`
+  - Each occurrence is a synthetic `model.Event` with `is_recurrence_instance: true`
+  - `external_id` is set to `"<base-uuid>:<YYYY-MM-DD>"` for client de-duplication
+  - Editing a synthetic occurrence targets the base event ID (per-occurrence edit is v2)
+- Frontend: `useEvents(opts?)` accepts `{ memberId?, start?, end? }`, passes `?member_id=` through; DashKiosk/DashDesktop/DashPhone wire `activeMember.id`
+
+## Multi-household (2026-04-24)
+
+- **New endpoint**: `GET /v1/me/households` — returns all `[{id, name}]` households the authenticated account is a member of
+- **Frontend**: `auth-store.tsx` tracks `availableHouseholds[]`; fetched non-fatally after `/v1/auth/me`
+- **Settings UI**: `HouseholdSwitcherCard` shows a `<select>` dropdown when `availableHouseholds.length > 1`
+- **V2 gap**: selecting a different household currently shows an informational alert. Full switching requires the backend to accept an `X-Household-ID` header and the auth middleware to override the household context from the token — this is sealed (Cognito/middleware/OIDC zone). Tracked for v2.
+
 ## To do (next iteration)
 
 1. **PIN lockout counter** — store failed attempts in Redis or Postgres, enforce `cfg.Auth.PINMaxAttempts`
@@ -336,12 +352,6 @@ notifications:
 
 ## Follow-ups / Known gaps
 
-### Dashboard member-filter (visual only — 2026-04-24)
+### Dashboard member-filter (shipped 2026-04-24)
 
-Clicking a member tile in the dashboard sidebar sets `activeMember` in the auth-store and highlights the selected tile.
-Full per-member event/task filtering at the API level is **not yet wired** because `GET /v1/events` does not accept a `?member_id=` query param and `useEvents()` does not forward one.
-
-To complete this:
-1. Add `?member_id=` filter to `GET /v1/events` in the Go backend (`internal/handler/events.go`).
-2. Extend `useEvents(opts?: { memberId?: string })` in `web/src/lib/api/hooks.ts` to forward the param.
-3. Pass `activeMember?.id` from auth-store into `useEvents` in `DashDesktop`, `DashKiosk`, and `DashPhone`.
+`GET /v1/events?member_id=<uuid>` is now live. `useEvents({ memberId })` forwards it. All three dashboard variants (`DashDesktop`, `DashKiosk`, `DashPhone`) pass `activeMember?.id` from the auth-store.
