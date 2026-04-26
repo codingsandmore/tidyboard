@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -10,6 +11,7 @@ import { useTranslations } from "next-intl";
 
 export function DashKioskAmbient() {
   const t = useTranslations("dashboard");
+  const router = useRouter();
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
   const members = apiMembers ?? [];
@@ -248,7 +250,7 @@ export function DashKioskAmbient() {
             Spaghetti Carbonara
           </div>
         </div>
-        <Btn kind="ghost" size="sm" iconRight="chevronR">
+        <Btn kind="ghost" size="sm" iconRight="chevronR" onClick={() => router.push("/recipes")}>
           {t("recipe")}
         </Btn>
       </div>

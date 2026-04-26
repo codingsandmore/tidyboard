@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { fmtTime, getMembers } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -14,6 +15,7 @@ import { useTranslations } from "next-intl";
 export function DashDesktop() {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
+  const router = useRouter();
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
   const members = apiMembers ?? [];
@@ -154,10 +156,10 @@ export function DashDesktop() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn kind="secondary" size="sm" icon="search">
+            <Btn kind="secondary" size="sm" icon="search" onClick={() => router.push("/calendar?view=Agenda")}>
               {t("search")}
             </Btn>
-            <Btn kind="primary" size="sm" icon="plus">
+            <Btn kind="primary" size="sm" icon="plus" onClick={() => router.push("/calendar/event?new=1")}>
               {t("newEvent")}
             </Btn>
           </div>

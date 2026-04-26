@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { fmtTime } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -12,6 +13,7 @@ import { useTranslations } from "next-intl";
 export function DashKioskColumns() {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
+  const router = useRouter();
   const { data: apiMembers } = useMembers();
   const { data: apiEvents } = useEvents();
   const members = apiMembers ?? [];
@@ -59,7 +61,7 @@ export function DashKioskColumns() {
             April 22 · 10:34 AM · 72° partly sunny
           </div>
         </div>
-        <Btn kind="secondary" size="sm" icon="plus">
+        <Btn kind="secondary" size="sm" icon="plus" onClick={() => router.push("/calendar/event?new=1")}>
           {t("event")}
         </Btn>
       </div>
