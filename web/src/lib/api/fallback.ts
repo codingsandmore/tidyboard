@@ -209,8 +209,34 @@ export const fallback = {
     return TBD.shopping;
   },
   routines(): Routine[] {
-    // data.ts stores a single routine; wrap in array for API shape
-    return [TBD.routine];
+    // data.ts stores a single legacy-shape routine; remap into the ApiRoutine
+    // shape the screens consume (member_id, est_minutes, icon, etc.). Without
+    // this remap, RoutineKid calls getMember("") which returns undefined and
+    // throws when reading .color, blanking the page.
+    const r = TBD.routine;
+    const apiShape = {
+      id: "stub-routine-1",
+      household_id: "stub-household",
+      name: r.name,
+      member_id: "jackson",
+      days_of_week: ["mon", "tue", "wed", "thu", "fri"],
+      time_slot: "morning",
+      archived: false,
+      sort_order: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      steps: r.steps.map((s, i) => ({
+        id: s.id,
+        routine_id: "stub-routine-1",
+        name: s.name,
+        est_minutes: s.min,
+        sort_order: i,
+        icon: s.emoji,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })),
+    };
+    return [apiShape as unknown as Routine];
   },
   equity(): Equity {
     return TBD.equity;

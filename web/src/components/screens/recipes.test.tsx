@@ -351,11 +351,16 @@ describe("RecipeImport — wired buttons", () => {
     expect(mockPush).toHaveBeenCalledWith("/recipes/import?manual=1");
   });
 
-  it("Import from File button shows coming-soon alert", () => {
+  it("Import from File button is rendered as disabled (no alert)", () => {
+    // File-format import isn't shipped yet. The button is rendered as a
+    // visibly-disabled control instead of an alert("coming soon") trap.
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
     renderWithQuery(<RecipeImport />);
-    fireEvent.click(screen.getByText("Import from file"));
-    expect(alertSpy).toHaveBeenCalled();
+    const btn = screen.getByText("Import from file").closest("button");
+    expect(btn).not.toBeNull();
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn!);
+    expect(alertSpy).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 });

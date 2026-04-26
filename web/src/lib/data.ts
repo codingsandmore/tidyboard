@@ -22,6 +22,12 @@ export type TBDEvent = {
   members: string[];
   location?: string;
   type?: string;
+  // Optional ISO timestamps + RRULE used by the API; backwards compatible
+  // with the legacy `start`/`end` HH:mm strings used by sample fixtures.
+  start_time?: string;
+  end_time?: string;
+  description?: string;
+  recurrence_rule?: string;
 };
 
 export type WeekItem = { m: string; t: string; h: number };

@@ -445,12 +445,10 @@ export function Settings() {
     router.push("/login");
   }
 
-  function handleDeleteHousehold() {
-    if (window.confirm("Delete your household? This cannot be undone.")) {
-      // Backend endpoint not yet implemented — documented in BACKEND_STATUS.md
-      alert("Household deletion is not yet available. Please contact support.");
-    }
-  }
+  // Household deletion endpoint isn't shipped yet (tracked in
+  // BACKEND_STATUS.md). The button is rendered as visibly disabled so users
+  // aren't tempted to click an action that wouldn't take effect.
+  const deleteEnabled = false;
   const groups: { name: string; icon: IconName; desc: string }[] = [
     { name: t("groups.household"), icon: "home", desc: t("groups.householdDesc") },
     { name: t("groups.members"), icon: "users", desc: t("groups.membersDesc") },
@@ -482,10 +480,9 @@ export function Settings() {
 
         <Card pad={0}>
           {groups.map((g, i) => (
-            <div
+            <a
               key={g.name}
-              role="button"
-              onClick={() => router.push("/settings")}
+              href={`/settings#${g.name.toLowerCase().replace(/\s+/g, "-")}`}
               style={{
                 padding: 14,
                 display: "flex",
@@ -493,6 +490,8 @@ export function Settings() {
                 gap: 14,
                 borderBottom: i < groups.length - 1 ? `1px solid ${TB.borderSoft}` : "none",
                 cursor: "pointer",
+                textDecoration: "none",
+                color: "inherit",
               }}
             >
               <Icon name={g.icon} size={18} color={TB.text2} />
@@ -501,19 +500,32 @@ export function Settings() {
                 <div style={{ fontSize: 12, color: TB.text2 }}>{g.desc}</div>
               </div>
               <Icon name="chevronR" size={16} color={TB.muted} />
-            </div>
+            </a>
           ))}
         </Card>
 
         <div style={{ marginTop: 18 }}>
           <Btn kind="secondary" full onClick={handleSignOut}>{t("signOut")}</Btn>
-          <div
-            role="button"
-            onClick={handleDeleteHousehold}
-            style={{ marginTop: 10, padding: "10px 14px", color: TB.destructive, textAlign: "center", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+          <button
+            type="button"
+            disabled={!deleteEnabled}
+            title="Household deletion is planned for v0.2"
+            style={{
+              marginTop: 10,
+              padding: "10px 14px",
+              color: TB.destructive,
+              textAlign: "center",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: deleteEnabled ? "pointer" : "not-allowed",
+              opacity: deleteEnabled ? 1 : 0.45,
+              background: "transparent",
+              border: "none",
+              width: "100%",
+            }}
           >
             {t("deleteHousehold")}
-          </div>
+          </button>
         </div>
       </div>
     </div>

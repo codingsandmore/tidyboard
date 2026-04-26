@@ -28,5 +28,14 @@ export default getRequestConfig(async () => {
     await import(`./messages/${locale}.json`)
   ).default;
 
-  return { locale, messages };
+  // Default the formatter timezone to UTC on the server so SSR + client
+  // agree. The client switches to its real local zone after hydration.
+  // Without this, next-intl's <Date /> formatter logs ENVIRONMENT_FALLBACK
+  // and can produce hydration mismatches around midnight.
+  return {
+    locale,
+    messages,
+    timeZone: "UTC",
+    now: new Date(),
+  };
 });

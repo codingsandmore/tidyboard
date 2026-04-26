@@ -468,7 +468,7 @@ export function useDeleteListItem() {
 export function useCreateEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: { title: string; start_time: string; end_time: string; location?: string; description?: string; all_day?: boolean }) =>
+    mutationFn: (req: { title: string; start_time: string; end_time: string; location?: string; description?: string; all_day?: boolean; recurrence_rule?: string }) =>
       api.post<TBDEvent>("/v1/events", req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
@@ -479,7 +479,7 @@ export function useCreateEvent() {
 export function useUpdateEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...req }: { id: string; title?: string; start_time?: string; end_time?: string; location?: string; description?: string }) =>
+    mutationFn: ({ id, ...req }: { id: string; title?: string; start_time?: string; end_time?: string; location?: string; description?: string; recurrence_rule?: string }) =>
       api.patch<TBDEvent>(`/v1/events/${id}`, req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });

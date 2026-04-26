@@ -65,8 +65,34 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
   const border = dark ? TB.dBorder : TB.border;
   const bsoft = dark ? TB.dBorderSoft : TB.borderSoft;
 
+  const [date, setDate] = useState<Date>(() => new Date());
+  const today = new Date();
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const headerLabel = date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const subLabel = isSameDay(date, today) ? t("today") : date.toLocaleDateString();
+  const shiftDay = (delta: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + delta);
+    setDate(next);
+  };
+
+  const dateRange = (() => {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+    return { start: start.toISOString(), end: end.toISOString() };
+  })();
+
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
+  const { data: apiEvents } = useEvents(dateRange);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
 
@@ -100,6 +126,10 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-day-prev"
+            onClick={() => shiftDay(-1)}
             style={{
               background: "transparent",
               border: "none",
@@ -111,12 +141,20 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
             <Icon name="chevronL" size={20} />
           </button>
           <div>
-            <H as="h2" style={{ fontSize: 20, color: tc }}>
-              Thursday, April 22
-            </H>
-            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>{t("today")} · {t("eventsCount", { count: 7 })}</div>
+            <div data-testid="calendar-day-heading">
+              <H as="h2" style={{ fontSize: 20, color: tc }}>
+                {headerLabel}
+              </H>
+            </div>
+            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>
+              {subLabel} · {t("eventsCount", { count: events.length })}
+            </div>
           </div>
           <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-day-next"
+            onClick={() => shiftDay(1)}
             style={{
               background: "transparent",
               border: "none",
@@ -275,6 +313,23 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
 
 export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay()); // back up to Sunday
+    return d;
+  });
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+  const headerLabel = sameMonth
+    ? `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.getDate()}, ${weekEnd.getFullYear()}`
+    : `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${weekEnd.getFullYear()}`;
+  const shiftWeek = (delta: number) => {
+    const next = new Date(weekStart);
+    next.setDate(next.getDate() + delta * 7);
+    setWeekStart(next);
+  };
   return (
     <div
       style={{
@@ -298,9 +353,31 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
           background: TB.surface,
         }}
       >
-        <H as="h2" style={{ fontSize: 20 }}>
-          Apr 19 – 25, 2026
-        </H>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-week-prev"
+            onClick={() => shiftWeek(-1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronL" size={20} />
+          </button>
+          <div data-testid="calendar-week-heading">
+            <H as="h2" style={{ fontSize: 20 }}>
+              {headerLabel}
+            </H>
+          </div>
+          <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-week-next"
+            onClick={() => shiftWeek(1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronR" size={20} />
+          </button>
+        </div>
         <ViewTabs value="Week" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
@@ -411,13 +488,31 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
 
 export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
-  const month = "April 2026";
-  const offset = 3;
-  const days: { d: number; cur: boolean }[] = [];
+  const [anchor, setAnchor] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const today = new Date();
+  const month = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const firstWeekday = anchor.getDay();
+  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const days: { d: number; cur: boolean; date: Date }[] = [];
   for (let i = 0; i < 35; i++) {
-    const d = i - offset + 1;
-    days.push({ d, cur: d >= 1 && d <= 30 });
+    const dayNum = i - firstWeekday + 1;
+    const cur = dayNum >= 1 && dayNum <= daysInMonth;
+    const date = new Date(anchor);
+    date.setDate(dayNum);
+    days.push({ d: dayNum, cur, date });
   }
+  const shiftMonth = (delta: number) => {
+    const next = new Date(anchor);
+    next.setMonth(next.getMonth() + delta);
+    setAnchor(next);
+  };
+  const isTodayMonth =
+    today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth();
   const evMap: Record<number, { c: string }[]> = {
     19: [{ c: "#3B82F6" }, { c: "#F59E0B" }],
     20: [{ c: "#EF4444" }, { c: "#22C55E" }],
@@ -459,9 +554,31 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
           background: TB.surface,
         }}
       >
-        <H as="h2" style={{ fontSize: 20 }}>
-          {month}
-        </H>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-month-prev"
+            onClick={() => shiftMonth(-1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronL" size={20} />
+          </button>
+          <div data-testid="calendar-month-heading">
+            <H as="h2" style={{ fontSize: 20 }}>
+              {month}
+            </H>
+          </div>
+          <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-month-next"
+            onClick={() => shiftMonth(1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronR" size={20} />
+          </button>
+        </div>
         <ViewTabs value="Month" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
@@ -496,14 +613,22 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
         }}
       >
         {days.map((day, i) => {
-          const isToday = day.cur && day.d === 22;
+          const isToday =
+            day.cur &&
+            isTodayMonth &&
+            day.d === today.getDate();
           const evs = day.cur ? evMap[day.d] ?? [] : [];
-          const dispNum =
-            day.d > 0 && day.d <= 31
-              ? day.d > 30 && !day.cur
-                ? day.d - 30
-                : day.d
-              : 31 + day.d;
+          // Spillover days at the start/end of the visible 5-week grid show
+          // the right-edge day-of-month from the adjacent month.
+          let dispNum: number;
+          if (day.cur) {
+            dispNum = day.d;
+          } else if (day.d <= 0) {
+            const prev = new Date(anchor.getFullYear(), anchor.getMonth(), 0);
+            dispNum = prev.getDate() + day.d;
+          } else {
+            dispNum = day.d - daysInMonth;
+          }
           return (
             <div
               key={i}
@@ -561,11 +686,12 @@ export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void }
   endDate.setDate(endDate.getDate() + 7);
   const end = endDate.toISOString().slice(0, 10);
 
+  const [query, setQuery] = useState("");
   const { data: apiEvents } = useEvents({ start, end });
 
   const todayEvents: TBDEvent[] = apiEvents ?? [];
 
-  const groups: { label: string; items: TBDEvent[] }[] = [
+  const allGroups: { label: string; items: TBDEvent[] }[] = [
     { label: `${t("today").toUpperCase()} · THURSDAY, APR 22`, items: todayEvents },
     {
       label: "TOMORROW · FRIDAY, APR 23",
@@ -611,6 +737,19 @@ export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void }
     },
   ];
 
+  const q = query.trim().toLowerCase();
+  const groups = q
+    ? allGroups
+        .map((g) => ({
+          label: g.label,
+          items: g.items.filter(
+            (e) =>
+              e.title.toLowerCase().includes(q) ||
+              (e.location ?? "").toLowerCase().includes(q)
+          ),
+        }))
+        .filter((g) => g.items.length > 0)
+    : allGroups;
 
   return (
     <div
@@ -648,8 +787,8 @@ export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void }
         }}
       >
         <Input
-          value=""
-          onChange={() => {}}
+          value={query}
+          onChange={setQuery}
           placeholder={t("searchPlaceholder")}
           icon="search"
         />
@@ -739,6 +878,7 @@ export type EventFormData = {
   location?: string;
   description?: string;
   members?: string[];
+  recurrence_rule?: string;
 };
 
 export type EventModalProps = {
@@ -750,6 +890,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const { data: apiMembers } = useMembers();
+  const { data: allEvents } = useEvents();
   const members = apiMembers ?? [];
 
   const now = new Date();
@@ -772,6 +913,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
   const [endTime, setEndTime] = useState(resolveEnd);
   const [location, setLocation] = useState(event?.location ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
+  const [recurrence, setRecurrence] = useState<string>(event?.recurrence_rule ?? "");
   const [error, setError] = useState("");
 
   const createEvent = useCreateEvent();
@@ -780,6 +922,30 @@ export function EventModal({ event, onClose }: EventModalProps) {
 
   const isEdit = Boolean(event?.id);
   const busy = createEvent.isPending || updateEvent.isPending || deleteEvent.isPending;
+
+  // Real conflict detection: any other event whose [start, end) overlaps the
+  // event being edited. The current event itself is excluded by id. Returns
+  // up to 3 conflicts so the warning stays compact.
+  const conflicts = (() => {
+    if (!startTime || !endTime || !allEvents) return [];
+    const draftStart = new Date(startTime).getTime();
+    const draftEnd = new Date(endTime).getTime();
+    if (!Number.isFinite(draftStart) || !Number.isFinite(draftEnd) || draftEnd <= draftStart) {
+      return [];
+    }
+    return allEvents
+      .filter((e) => {
+        if (event?.id && e.id === event.id) return false;
+        const startStr = e.start_time ?? (e.start && e.start.includes("T") ? e.start : null);
+        const endStr = e.end_time ?? (e.end && e.end.includes("T") ? e.end : null);
+        if (!startStr || !endStr) return false;
+        const s = new Date(startStr).getTime();
+        const en = new Date(endStr).getTime();
+        if (!Number.isFinite(s) || !Number.isFinite(en)) return false;
+        return s < draftEnd && en > draftStart;
+      })
+      .slice(0, 3);
+  })();
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -792,12 +958,27 @@ export function EventModal({ event, onClose }: EventModalProps) {
 
     if (isEdit && event?.id) {
       updateEvent.mutate(
-        { id: event.id, title: title.trim(), start_time, end_time, location, description },
+        {
+          id: event.id,
+          title: title.trim(),
+          start_time,
+          end_time,
+          location,
+          description,
+          recurrence_rule: recurrence,
+        },
         { onSuccess: onClose }
       );
     } else {
       createEvent.mutate(
-        { title: title.trim(), start_time, end_time, location, description },
+        {
+          title: title.trim(),
+          start_time,
+          end_time,
+          location,
+          description,
+          ...(recurrence ? { recurrence_rule: recurrence } : {}),
+        },
         { onSuccess: onClose }
       );
     }
@@ -863,6 +1044,31 @@ export function EventModal({ event, onClose }: EventModalProps) {
         </div>
 
         <div style={{ padding: 20 }}>
+          {/* Conflict warning — real time-overlap detection */}
+          {conflicts.length > 0 && (
+            <div
+              data-testid="event-conflict-warning"
+              role="alert"
+              style={{
+                marginBottom: 12,
+                padding: "10px 12px",
+                background: TB.warning + "18",
+                border: `1px solid ${TB.warning}`,
+                borderRadius: 8,
+                fontSize: 12,
+                color: TB.text,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, color: TB.warning }}>
+                {conflicts.length === 1
+                  ? `Conflicts with "${conflicts[0].title}"`
+                  : `Conflicts with ${conflicts.length} other events`}
+              </div>
+              <div style={{ color: TB.text2 }}>
+                {conflicts.map((c) => c.title).join(" · ")}
+              </div>
+            </div>
+          )}
           {/* Title */}
           <Input
             value={title}
@@ -908,6 +1114,25 @@ export function EventModal({ event, onClose }: EventModalProps) {
                 onChange={(e) => setEndTime(e.target.value)}
                 style={inputStyle}
               />
+            </Row>
+          </div>
+
+          {/* Repeat — sets recurrence_rule. Yearly is intended for birthdays
+              and anniversaries; backend already accepts the field. */}
+          <div style={{ marginTop: 14 }}>
+            <Row icon="clock" label={t("repeat")}>
+              <select
+                data-testid="event-recurrence"
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value)}
+                style={{ ...inputStyle, padding: "6px 0", appearance: "auto" }}
+              >
+                <option value="">{t("doesNotRepeat")}</option>
+                <option value="FREQ=DAILY">Daily</option>
+                <option value="FREQ=WEEKLY">Weekly</option>
+                <option value="FREQ=MONTHLY">Monthly</option>
+                <option value="FREQ=YEARLY">Yearly (birthday / anniversary)</option>
+              </select>
             </Row>
           </div>
 

@@ -201,7 +201,12 @@ const ObCreate = () => {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label={t("email")}>
-          <Input value="sarah@smithfamily.net" onChange={() => {}} placeholder="you@example.com" />
+          <Input
+            value="sarah@smithfamily.net"
+            onChange={() => {}}
+            placeholder="you@example.com"
+            readOnly
+          />
         </Field>
         <Field label={t("password")}>
           <div style={{ position: "relative" }}>
@@ -210,8 +215,11 @@ const ObCreate = () => {
               onChange={() => {}}
               type="text"
               placeholder={t("passwordHint")}
+              readOnly
             />
             <button
+              type="button"
+              aria-label={show ? "Hide password" : "Show password"}
               onClick={() => setShow(!show)}
               style={{
                 position: "absolute",
@@ -246,14 +254,19 @@ const ObCreate = () => {
           </div>
         </Field>
         <Field label={t("confirmPassword")}>
-          <Input value="••••••••••••••••" onChange={() => {}} placeholder={t("reEnterPassword")} />
+          <Input
+            value="••••••••••••••••"
+            onChange={() => {}}
+            placeholder={t("reEnterPassword")}
+            readOnly
+          />
         </Field>
         <Divider>{t("orContinueWith")}</Divider>
         <div style={{ display: "flex", gap: 10 }}>
-          <Btn kind="secondary" size="lg" full icon="google">
+          <Btn kind="secondary" size="lg" full icon="google" disabled>
             Google
           </Btn>
-          <Btn kind="secondary" size="lg" full icon="apple">
+          <Btn kind="secondary" size="lg" full icon="apple" disabled>
             Apple
           </Btn>
         </div>

@@ -149,11 +149,19 @@ describe("Settings — wired buttons", () => {
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
-  it("Delete Household shows confirm dialog", () => {
+  it("Delete Household button is rendered as a disabled control (no confirm/alert flow)", () => {
+    // The endpoint isn't implemented yet, so the button is intentionally
+    // disabled — clicking it must NOT pop a confirm or alert dialog.
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
     renderWithQuery(<Settings />);
-    fireEvent.click(screen.getByText("Delete household…"));
-    expect(confirmSpy).toHaveBeenCalled();
+    const btn = screen.getByText("Delete household…").closest("button");
+    expect(btn).not.toBeNull();
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn!);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+    alertSpy.mockRestore();
   });
 });
