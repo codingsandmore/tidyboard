@@ -258,3 +258,33 @@ New migration `20260425000020_shopping.sql` adds three tables:
 4. **Expand integration tests** — members, lists, WS client connect test with MemoryBroadcaster, admin audit endpoint
 5. **S3 backup upload** — implement real AWS S3 upload in `BackupService`
 6. **Audit for member/household mutations** — extend `MemberService` and `HouseholdService` to call `AuditService.Log`
+
+## Frontend Button Status (Phase F audit — 2026-04-24)
+
+All buttons audited across `web/src/components/screens/**` and `web/src/app/**`.
+
+### Wired in this phase
+
+| Button | Screen | Action |
+|---|---|---|
+| Search | `dashboard-desktop.tsx` | Navigates to `/calendar?view=Agenda` |
+| New Event | `dashboard-desktop.tsx` | Navigates to `/calendar/event?new=1` |
+| + Event | `dashboard-kiosk-columns.tsx` | Navigates to `/calendar/event?new=1` |
+| Recipe (chevron) | `dashboard-kiosk-ambient.tsx` | Navigates to `/recipes` |
+| Enter Manually | `recipes.tsx` RecipeImport | Navigates to `/recipes/import?manual=1` |
+| Start Cooking | `recipes.tsx` RecipeDetail | Navigates to `/recipes/${id}/cook` |
+| Discard | `recipes.tsx` RecipePreview | `window.confirm` then navigates to `/recipes` |
+| Save to Collection | `recipes.tsx` RecipePreview | Navigates to `/recipes` |
+| Copy Last Week | `recipes.tsx` MealPlan | Fetches last week's plan, upserts entries to current week |
+| Sign Out | `equity.tsx` Settings | Calls `logout()`, navigates to `/login` |
+| Delete Household | `equity.tsx` Settings | `window.confirm` then alert (backend endpoint missing — see below) |
+| Settings group rows | `equity.tsx` Settings | Navigates to `/settings` |
+| View tabs (Day/Week/Month/Agenda) | `calendar.tsx` CalDay/CalWeek/CalMonth/CalAgenda | Propagates `onViewChange` prop; calendar page wires to `setView` |
+
+### Disabled / coming soon (no backend)
+
+| Button | Screen | Reason | Behavior |
+|---|---|---|---|
+| Import from File | `recipes.tsx` RecipeImport | No file-upload endpoint in backend | `alert("File import coming soon…")` |
+| Delete Household | `equity.tsx` Settings | `DELETE /v1/households/:id` exists but no self-service UI flow | `window.confirm` → alert explaining to contact support |
+| Recipe "Enter Manually" destination | `/recipes/import?manual=1` | Route handles URL import only; `?manual=1` param not yet differentiated server-side | Navigates to import page (URL input shown) |
