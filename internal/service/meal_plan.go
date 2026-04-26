@@ -2,23 +2,46 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/query"
 )
 
 // MealPlanService handles meal plan business logic.
 type MealPlanService struct {
-	q *query.Queries
+	q  *query.Queries
+	bc broadcast.Broadcaster
 }
 
 // NewMealPlanService constructs a MealPlanService.
-func NewMealPlanService(q *query.Queries) *MealPlanService {
-	return &MealPlanService{q: q}
+func NewMealPlanService(q *query.Queries, bc broadcast.Broadcaster) *MealPlanService {
+	return &MealPlanService{q: q, bc: bc}
+}
+
+// publish emits a broadcast event for the household channel (non-blocking).
+func (s *MealPlanService) publish(ctx context.Context, householdID uuid.UUID, eventType string, payload any) {
+	if s.bc == nil {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	ev := broadcast.Event{
+		Type:        eventType,
+		HouseholdID: householdID.String(),
+		Payload:     data,
+		Timestamp:   time.Now().UTC(),
+	}
+	go func() {
+		_ = s.bc.Publish(context.Background(), "household:"+householdID.String(), ev)
+	}()
 }
 
 // Upsert inserts or replaces one meal plan slot.
@@ -42,7 +65,9 @@ func (s *MealPlanService) Upsert(ctx context.Context, householdID uuid.UUID, req
 	if err != nil {
 		return nil, fmt.Errorf("upserting meal plan entry: %w", err)
 	}
-	return entryToModel(row), nil
+	out := entryToModel(row)
+	s.publish(ctx, householdID, "meal_plan.upserted", out)
+	return out, nil
 }
 
 // List returns all meal plan entries for a household within a date range.
@@ -79,6 +104,7 @@ func (s *MealPlanService) Delete(ctx context.Context, householdID, id uuid.UUID)
 	}); err != nil {
 		return fmt.Errorf("deleting meal plan entry: %w", err)
 	}
+	s.publish(ctx, householdID, "meal_plan.deleted", map[string]string{"id": id.String()})
 	return nil
 }
 

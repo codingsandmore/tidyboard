@@ -2,24 +2,47 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/query"
 )
 
 // EquityService computes household equity metrics and manages equity tasks.
 type EquityService struct {
-	q *query.Queries
+	q  *query.Queries
+	bc broadcast.Broadcaster
 }
 
 // NewEquityService constructs an EquityService.
-func NewEquityService(q *query.Queries) *EquityService {
-	return &EquityService{q: q}
+func NewEquityService(q *query.Queries, bc broadcast.Broadcaster) *EquityService {
+	return &EquityService{q: q, bc: bc}
+}
+
+// publish emits a broadcast event for the household channel (non-blocking).
+func (s *EquityService) publish(ctx context.Context, householdID uuid.UUID, eventType string, payload any) {
+	if s.bc == nil {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	ev := broadcast.Event{
+		Type:        eventType,
+		HouseholdID: householdID.String(),
+		Payload:     data,
+		Timestamp:   time.Now().UTC(),
+	}
+	go func() {
+		_ = s.bc.Publish(context.Background(), "household:"+householdID.String(), ev)
+	}()
 }
 
 // ── Default domains ───────────────────────────────────────────────────────────
@@ -139,6 +162,7 @@ func (s *EquityService) CreateTask(ctx context.Context, householdID uuid.UUID, r
 		return nil, fmt.Errorf("creating task: %w", err)
 	}
 	t := taskToModel(row)
+	s.publish(ctx, householdID, "equity.task.created", &t)
 	return &t, nil
 }
 
@@ -196,12 +220,17 @@ func (s *EquityService) UpdateTask(ctx context.Context, householdID, taskID uuid
 		return nil, fmt.Errorf("updating task: %w", err)
 	}
 	t := taskToModel(row)
+	s.publish(ctx, householdID, "equity.task.updated", &t)
 	return &t, nil
 }
 
 // DeleteTask archives a task (soft delete).
 func (s *EquityService) DeleteTask(ctx context.Context, householdID, taskID uuid.UUID) error {
-	return s.q.ArchiveEquityTask(ctx, query.ArchiveEquityTaskParams{ID: taskID, HouseholdID: householdID})
+	if err := s.q.ArchiveEquityTask(ctx, query.ArchiveEquityTaskParams{ID: taskID, HouseholdID: householdID}); err != nil {
+		return err
+	}
+	s.publish(ctx, householdID, "equity.task.deleted", map[string]string{"id": taskID.String()})
+	return nil
 }
 
 // ── Task Logs ─────────────────────────────────────────────────────────────────
@@ -230,6 +259,7 @@ func (s *EquityService) LogTaskTime(ctx context.Context, householdID, taskID uui
 		return nil, fmt.Errorf("creating task log: %w", err)
 	}
 	tl := taskLogToModel(row)
+	s.publish(ctx, householdID, "equity.task.logged", &tl)
 	return &tl, nil
 }
 

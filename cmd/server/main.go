@@ -128,12 +128,12 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	eventSvc := service.NewEventService(q, bc, auditSvc)
 	listSvc := service.NewListService(q, bc, auditSvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
-	recipeCollectionSvc := service.NewRecipeCollectionService(q)
-	mealPlanSvc := service.NewMealPlanService(q)
+	recipeCollectionSvc := service.NewRecipeCollectionService(q, bc)
+	mealPlanSvc := service.NewMealPlanService(q, bc)
 	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
-	equitySvc := service.NewEquityService(q)
+	equitySvc := service.NewEquityService(q, bc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService

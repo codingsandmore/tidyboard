@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -10,18 +11,40 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/query"
 )
 
 // RecipeCollectionService handles recipe collection business logic.
 type RecipeCollectionService struct {
-	q *query.Queries
+	q  *query.Queries
+	bc broadcast.Broadcaster
 }
 
 // NewRecipeCollectionService constructs a RecipeCollectionService.
-func NewRecipeCollectionService(q *query.Queries) *RecipeCollectionService {
-	return &RecipeCollectionService{q: q}
+func NewRecipeCollectionService(q *query.Queries, bc broadcast.Broadcaster) *RecipeCollectionService {
+	return &RecipeCollectionService{q: q, bc: bc}
+}
+
+// publish emits a broadcast event for the household channel (non-blocking).
+func (s *RecipeCollectionService) publish(ctx context.Context, householdID uuid.UUID, eventType string, payload any) {
+	if s.bc == nil {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	ev := broadcast.Event{
+		Type:        eventType,
+		HouseholdID: householdID.String(),
+		Payload:     data,
+		Timestamp:   time.Now().UTC(),
+	}
+	go func() {
+		_ = s.bc.Publish(context.Background(), "household:"+householdID.String(), ev)
+	}()
 }
 
 // slugify converts a name to a URL-safe slug.
@@ -62,7 +85,9 @@ func (s *RecipeCollectionService) Create(ctx context.Context, householdID uuid.U
 	if err != nil {
 		return nil, fmt.Errorf("creating recipe collection: %w", err)
 	}
-	return collectionToModel(col), nil
+	out := collectionToModel(col)
+	s.publish(ctx, householdID, "recipe_collection.created", out)
+	return out, nil
 }
 
 // Update patches collection fields.
@@ -91,7 +116,9 @@ func (s *RecipeCollectionService) Update(ctx context.Context, householdID, colle
 		}
 		return nil, fmt.Errorf("updating recipe collection: %w", err)
 	}
-	return collectionToModel(col), nil
+	out := collectionToModel(col)
+	s.publish(ctx, householdID, "recipe_collection.updated", out)
+	return out, nil
 }
 
 // Delete removes a collection.
@@ -111,6 +138,7 @@ func (s *RecipeCollectionService) Delete(ctx context.Context, householdID, colle
 	}); err != nil {
 		return fmt.Errorf("deleting recipe collection: %w", err)
 	}
+	s.publish(ctx, householdID, "recipe_collection.deleted", map[string]string{"id": collectionID.String()})
 	return nil
 }
 
@@ -133,6 +161,10 @@ func (s *RecipeCollectionService) AddRecipe(ctx context.Context, householdID, co
 	}); err != nil {
 		return fmt.Errorf("adding recipe to collection: %w", err)
 	}
+	s.publish(ctx, householdID, "recipe_collection.recipe.added", map[string]string{
+		"collection_id": collectionID.String(),
+		"recipe_id":     req.RecipeID.String(),
+	})
 	return nil
 }
 
@@ -153,6 +185,10 @@ func (s *RecipeCollectionService) RemoveRecipe(ctx context.Context, householdID,
 	}); err != nil {
 		return fmt.Errorf("removing recipe from collection: %w", err)
 	}
+	s.publish(ctx, householdID, "recipe_collection.recipe.removed", map[string]string{
+		"collection_id": collectionID.String(),
+		"recipe_id":     recipeID.String(),
+	})
 	return nil
 }
 

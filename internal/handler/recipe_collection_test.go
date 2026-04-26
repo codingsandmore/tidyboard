@@ -39,7 +39,7 @@ func buildCollectionRouter(h *handler.RecipeCollectionHandler) http.Handler {
 // TestRecipeCollectionHandler_NoHousehold verifies that requests without a
 // household context return 401.
 func TestRecipeCollectionHandler_NoHousehold(t *testing.T) {
-	svc := service.NewRecipeCollectionService(nil)
+	svc := service.NewRecipeCollectionService(nil, nil)
 	h := handler.NewRecipeCollectionHandler(svc)
 
 	// Register without the household-injecting middleware.
@@ -58,7 +58,7 @@ func TestRecipeCollectionHandler_NoHousehold(t *testing.T) {
 // TestRecipeCollectionHandler_CreateValidation verifies that POST without a
 // name returns 400.
 func TestRecipeCollectionHandler_CreateValidation(t *testing.T) {
-	svc := service.NewRecipeCollectionService(nil)
+	svc := service.NewRecipeCollectionService(nil, nil)
 	h := handler.NewRecipeCollectionHandler(svc)
 	router := buildCollectionRouter(h)
 
@@ -76,7 +76,7 @@ func TestRecipeCollectionHandler_CreateValidation(t *testing.T) {
 // TestRecipeCollectionHandler_AddRecipeValidation verifies that POST without
 // recipe_id returns 400.
 func TestRecipeCollectionHandler_AddRecipeValidation(t *testing.T) {
-	svc := service.NewRecipeCollectionService(nil)
+	svc := service.NewRecipeCollectionService(nil, nil)
 	h := handler.NewRecipeCollectionHandler(svc)
 	router := buildCollectionRouter(h)
 
@@ -94,7 +94,7 @@ func TestRecipeCollectionHandler_AddRecipeValidation(t *testing.T) {
 
 // TestRecipeCollectionHandler_InvalidUUID checks that non-UUID path params return 400.
 func TestRecipeCollectionHandler_InvalidUUID(t *testing.T) {
-	svc := service.NewRecipeCollectionService(nil)
+	svc := service.NewRecipeCollectionService(nil, nil)
 	h := handler.NewRecipeCollectionHandler(svc)
 	router := buildCollectionRouter(h)
 
