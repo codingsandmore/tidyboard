@@ -188,6 +188,83 @@ export interface LogTaskTimeRequest {
   source?: "timer" | "manual" | "auto_estimate";
 }
 
+// ── Routine backend types ───────────────────────────────────────────────────
+
+export interface ApiRoutineStep {
+  id: string;
+  routine_id: string;
+  name: string;
+  est_minutes?: number | null;
+  sort_order: number;
+  icon?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiRoutine {
+  id: string;
+  household_id: string;
+  name: string;
+  member_id?: string | null;
+  days_of_week: string[];
+  time_slot: "morning" | "evening" | "anytime";
+  archived: boolean;
+  sort_order: number;
+  steps: ApiRoutineStep[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiCompletion {
+  id: string;
+  routine_id: string;
+  step_id?: string | null;
+  member_id: string;
+  completed_at: string;
+}
+
+export interface ApiStreakResponse {
+  routine_id: string;
+  member_id: string;
+  streak: number;
+}
+
+export interface CreateRoutineRequest {
+  name: string;
+  member_id?: string | null;
+  days_of_week?: string[];
+  time_slot?: "morning" | "evening" | "anytime";
+  sort_order?: number;
+}
+
+export interface UpdateRoutineRequest {
+  name?: string;
+  member_id?: string | null;
+  days_of_week?: string[];
+  time_slot?: "morning" | "evening" | "anytime";
+  archived?: boolean;
+  sort_order?: number;
+}
+
+export interface AddStepRequest {
+  name: string;
+  est_minutes?: number | null;
+  sort_order?: number;
+  icon?: string | null;
+}
+
+export interface UpdateStepRequest {
+  name?: string;
+  est_minutes?: number | null;
+  sort_order?: number;
+  icon?: string | null;
+}
+
+export interface MarkCompleteRequest {
+  step_id?: string | null;
+  member_id: string;
+}
+
 // ── Recipe Collection types ─────────────────────────────────────────────────
 
 export interface RecipeCollection {

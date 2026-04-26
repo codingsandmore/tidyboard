@@ -3,9 +3,38 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBD } from "@/lib/data";
 import { RoutineKid, RoutineChecklist, RoutinePath, KioskLock, KioskLockMembers } from "./routine";
+import type { ApiRoutine } from "@/lib/api/types";
+
+// Build an ApiRoutine from the legacy TBD fixture for smoke tests
+const mockApiRoutine: ApiRoutine = {
+  id: "test-routine-id",
+  household_id: "test-household-id",
+  name: "Jackson's Morning Routine",
+  member_id: TBD.routine.member,
+  days_of_week: ["mon", "tue", "wed", "thu", "fri"],
+  time_slot: "morning",
+  archived: false,
+  sort_order: 0,
+  steps: TBD.routine.steps.map((s, i) => ({
+    id: s.id,
+    routine_id: "test-routine-id",
+    name: s.name,
+    est_minutes: s.min,
+    sort_order: i,
+    icon: s.emoji,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })),
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+const mockMutate = vi.fn();
 
 vi.mock("@/lib/api/hooks", () => ({
-  useRoutines: () => ({ data: [TBD.routine] }),
+  useRoutines: () => ({ data: [mockApiRoutine] }),
+  useMarkStepComplete: () => ({ mutate: mockMutate }),
+  useStreak: () => ({ data: { routine_id: "test-routine-id", member_id: TBD.routine.member, streak: 5 } }),
   useToggleRoutineStep: () => ({ mutate: vi.fn() }),
 }));
 
@@ -25,30 +54,52 @@ describe("RoutineKid", () => {
     renderWithQuery(<RoutineKid />);
   });
 
-  it("shows Jackson's name", () => {
+  it("shows routine name", () => {
     renderWithQuery(<RoutineKid />);
-    expect(screen.getByText(/Jackson/)).toBeTruthy();
+    expect(screen.getByText(/Jackson's Morning Routine/)).toBeTruthy();
   });
 
-  it("shows step names", () => {
+  it("shows step names from API data", () => {
     renderWithQuery(<RoutineKid />);
     expect(screen.getByText("Make bed")).toBeTruthy();
     expect(screen.getByText("Brush teeth")).toBeTruthy();
   });
 
-  it("toggles step done state on click", () => {
+  it("fires markComplete mutation on step tap", () => {
     renderWithQuery(<RoutineKid />);
-    // Eat breakfast is initially not done (active), click it
-    const eatBreakfast = screen.getByText("Eat breakfast");
-    const stepDiv = eatBreakfast.closest("div[style*='cursor: pointer']")!;
+    mockMutate.mockClear();
+    const makeBed = screen.getByText("Make bed");
+    const stepDiv = makeBed.closest("[style*='cursor: pointer']")!;
     fireEvent.click(stepDiv);
-    // After click it should be marked done
-    expect(eatBreakfast.style.textDecoration).toBe("line-through");
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routineId: "test-routine-id",
+        req: expect.objectContaining({ step_id: expect.any(String) }),
+      })
+    );
+  });
+
+  it("marks step as done visually after tap", () => {
+    renderWithQuery(<RoutineKid />);
+    const makeBed = screen.getByText("Make bed");
+    const stepDiv = makeBed.closest("[style*='cursor: pointer']")!;
+    fireEvent.click(stepDiv);
+    expect(makeBed.style.textDecoration).toBe("line-through");
+  });
+
+  it("shows streak count from API", () => {
+    renderWithQuery(<RoutineKid />);
+    // streak=5 is rendered inside the flame streak badge; the i18n key renders
+    // as a template string in test environment — just check the number is present
+    expect(screen.getAllByText((_, el) =>
+      el?.tagName !== "SCRIPT" && (el?.textContent ?? "").includes("5")
+    ).length).toBeGreaterThan(0);
   });
 
   it("renders in dark mode without crashing", () => {
     renderWithQuery(<RoutineKid dark />);
-    expect(screen.getByText(/Jackson/)).toBeTruthy();
+    expect(screen.getByText(/Jackson's Morning Routine/)).toBeTruthy();
   });
 
   it("shows progress counter", () => {

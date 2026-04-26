@@ -38,6 +38,15 @@ import type {
   RecipeCollection,
   CreateCollectionRequest,
   UpdateCollectionRequest,
+  ApiRoutine,
+  ApiRoutineStep,
+  ApiCompletion,
+  ApiStreakResponse,
+  CreateRoutineRequest,
+  UpdateRoutineRequest,
+  AddStepRequest,
+  UpdateStepRequest,
+  MarkCompleteRequest,
 } from "./types";
 
 // ── Query key factory ──────────────────────────────────────────────────────
@@ -51,7 +60,13 @@ export const qk = {
   lists: () => ["lists"] as const,
   list: (id: string) => ["lists", id] as const,
   shopping: () => ["shopping"] as const,
-  routines: () => ["routines"] as const,
+  routines: (params?: { member_id?: string; time_slot?: string }) =>
+    ["routines", params] as const,
+  routine: (id: string) => ["routines", id] as const,
+  routineStreak: (routineId: string, memberId: string) =>
+    ["routines", routineId, "streak", memberId] as const,
+  routineCompletions: (date?: string, memberId?: string) =>
+    ["routines", "completions", date, memberId] as const,
   equity: (period?: string) => ["equity", period] as const,
   equityDashboard: (from?: string, to?: string) => ["equity", "dashboard", from, to] as const,
   equityTasks: () => ["equity", "tasks"] as const,
@@ -169,14 +184,127 @@ export function useShopping() {
   });
 }
 
-export function useRoutines() {
-  return useQuery<Routine[]>({
-    queryKey: qk.routines(),
+export function useRoutines(params?: { member_id?: string; time_slot?: string }) {
+  return useQuery<ApiRoutine[]>({
+    queryKey: qk.routines(params),
     queryFn: () =>
       withFallback(
-        () => api.get<Routine[]>("/v1/routines"),
-        () => fallback.routines()
+        () => {
+          const qs = new URLSearchParams();
+          if (params?.member_id) qs.set("member_id", params.member_id);
+          if (params?.time_slot) qs.set("time_slot", params.time_slot);
+          const suffix = qs.toString() ? `?${qs.toString()}` : "";
+          return api.get<ApiRoutine[]>(`/v1/routines${suffix}`);
+        },
+        () => fallback.routines() as unknown as ApiRoutine[]
       ),
+  });
+}
+
+export function useCreateRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: CreateRoutineRequest) =>
+      api.post<ApiRoutine>("/v1/routines", req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useUpdateRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...req }: { id: string } & UpdateRoutineRequest) =>
+      api.patch<ApiRoutine>(`/v1/routines/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useDeleteRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/v1/routines/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useAddStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routineId, ...req }: { routineId: string } & AddStepRequest) =>
+      api.post<ApiRoutineStep>(`/v1/routines/${routineId}/steps`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useUpdateStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      routineId,
+      stepId,
+      ...req
+    }: { routineId: string; stepId: string } & UpdateStepRequest) =>
+      api.patch<ApiRoutineStep>(`/v1/routines/${routineId}/steps/${stepId}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useDeleteStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routineId, stepId }: { routineId: string; stepId: string }) =>
+      api.delete<void>(`/v1/routines/${routineId}/steps/${stepId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useMarkStepComplete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ routineId, req }: { routineId: string; req: MarkCompleteRequest }) =>
+      api.post<ApiCompletion>(`/v1/routines/${routineId}/complete`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useUnmarkStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      routineId,
+      completionId,
+    }: {
+      routineId: string;
+      completionId: string;
+    }) => api.delete<void>(`/v1/routines/${routineId}/complete/${completionId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routines"] });
+    },
+  });
+}
+
+export function useStreak(routineId: string, memberId: string) {
+  return useQuery<ApiStreakResponse>({
+    queryKey: qk.routineStreak(routineId, memberId),
+    queryFn: () =>
+      api.get<ApiStreakResponse>(
+        `/v1/routines/${routineId}/streak?member_id=${encodeURIComponent(memberId)}`
+      ),
+    enabled: Boolean(routineId) && Boolean(memberId),
   });
 }
 
@@ -353,13 +481,22 @@ export function useUpdateEvent() {
   });
 }
 
+/** @deprecated use useMarkStepComplete / useUnmarkStep instead */
 export function useToggleRoutineStep() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ routineId, stepId, done }: { routineId: string; stepId: string; done: boolean }) =>
-      api.put<unknown>(`/v1/routines/${routineId}/steps/${stepId}`, { done }),
+    mutationFn: ({ routineId, stepId, memberId, done }: { routineId: string; stepId: string; memberId: string; done: boolean }) => {
+      if (done) {
+        return api.post<ApiCompletion>(`/v1/routines/${routineId}/complete`, {
+          step_id: stepId,
+          member_id: memberId,
+        });
+      }
+      // unmark: no completionId available in legacy callers — best effort no-op
+      return Promise.resolve(null);
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.routines() });
+      qc.invalidateQueries({ queryKey: ["routines"] });
     },
   });
 }

@@ -10,7 +10,7 @@ import { useRoutines } from "@/lib/api/hooks";
 
 export default function RoutinesPage() {
   const { data: routines } = useRoutines();
-  const memberId = routines?.[0]?.member ?? "jackson";
+  const memberId = routines?.[0]?.member_id ?? "jackson";
   const member = getMember(memberId);
   const { theme } = useTheme();
   const dark = theme === "dark";

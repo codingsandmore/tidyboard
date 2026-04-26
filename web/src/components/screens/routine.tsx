@@ -2,28 +2,35 @@
 
 import { useState } from "react";
 import { TB } from "@/lib/tokens";
-import { TBD, getMember, type RoutineStep } from "@/lib/data";
+import { TBD, getMember } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { H } from "@/components/ui/heading";
-import { useRoutines, useToggleRoutineStep } from "@/lib/api/hooks";
+import { useRoutines, useMarkStepComplete, useStreak } from "@/lib/api/hooks";
+import type { ApiRoutineStep } from "@/lib/api/types";
 import { useTranslations } from "next-intl";
 
 // ═══════ Routine — kid hero (primary variation) ═══════
 export function RoutineKid({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("routine");
   const { data: routines } = useRoutines();
-  const toggleMutation = useToggleRoutineStep();
+  const markComplete = useMarkStepComplete();
 
   const apiRoutine = routines?.[0];
+  const activeMemberId = apiRoutine?.member_id ?? "";
 
-  const [steps, setSteps] = useState<RoutineStep[]>(() => apiRoutine?.steps.map((s) => ({ ...s })) ?? []);
+  // streak from backend
+  const { data: streakData } = useStreak(apiRoutine?.id ?? "", activeMemberId);
+  const streakCount = streakData?.streak ?? 0;
 
-  // Re-seed steps when API data changes
-  const [lastRoutineId, setLastRoutineId] = useState<string | null>(apiRoutine?.member ?? null);
-  if (apiRoutine && apiRoutine.member !== lastRoutineId) {
-    setSteps(apiRoutine.steps.map((s) => ({ ...s })));
-    setLastRoutineId(apiRoutine.member);
+  // Local optimistic step state
+  const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
+
+  // Re-seed when routine changes
+  const [lastRoutineId, setLastRoutineId] = useState<string | null>(null);
+  if (apiRoutine && apiRoutine.id !== lastRoutineId) {
+    setDoneSteps(new Set());
+    setLastRoutineId(apiRoutine.id);
   }
 
   const bg = dark ? TB.dBg : "#F7F9F3";
@@ -40,16 +47,30 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
     );
   }
 
-  const member = getMember(apiRoutine.member);
-  const progress = steps.filter((s) => s.done).length;
+  const member = getMember(apiRoutine.member_id ?? "");
+  const steps: ApiRoutineStep[] = apiRoutine.steps ?? [];
+  const progress = doneSteps.size;
   const total = steps.length;
   const pct = total > 0 ? progress / total : 0;
+  // est minutes left
+  const minutesLeft = steps
+    .filter((s) => !doneSteps.has(s.id))
+    .reduce((sum, s) => sum + (s.est_minutes ?? 0), 0);
 
-  function toggleStep(id: string) {
-    setSteps((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, done: !s.done } : s))
-    );
-    toggleMutation.mutate({ routineId: apiRoutine!.member, stepId: id, done: !steps.find((s) => s.id === id)?.done });
+  function handleTapStep(step: ApiRoutineStep) {
+    const wasDone = doneSteps.has(step.id);
+    setDoneSteps((prev) => {
+      const next = new Set(prev);
+      if (wasDone) next.delete(step.id);
+      else next.add(step.id);
+      return next;
+    });
+    if (!wasDone && activeMemberId) {
+      markComplete.mutate({
+        routineId: apiRoutine!.id,
+        req: { step_id: step.id, member_id: activeMemberId },
+      });
+    }
   }
 
   return (
@@ -58,7 +79,7 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
         <Avatar member={member} size={64} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, color: tc2, fontWeight: 600, letterSpacing: "0.04em" }}>{t("goodMorning")}</div>
-          <H as="h1" style={{ color: member.color, fontSize: 34, marginTop: 2, fontFamily: TB.fontDisplay }}>Jackson&apos;s Morning</H>
+          <H as="h1" style={{ color: member.color, fontSize: 34, marginTop: 2, fontFamily: TB.fontDisplay }}>{apiRoutine.name}</H>
         </div>
         <div style={{ background: member.color + "18", color: member.color, padding: "10px 14px", borderRadius: 14, textAlign: "center" }}>
           <div style={{ fontFamily: TB.fontDisplay, fontSize: 28, fontWeight: 600, lineHeight: 1 }}>{progress}<span style={{ fontSize: 18, opacity: 0.6 }}>/{total}</span></div>
@@ -73,19 +94,20 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12, color: tc2 }}>
           <span>{t("keepGoing", { pct: Math.round(pct * 100) })}</span>
-          <span style={{ color: TB.warning, fontWeight: 600 }}>⏱ {t("minLeft", { n: apiRoutine.minutesLeft })}</span>
+          <span style={{ color: TB.warning, fontWeight: 600 }}>⏱ {t("minLeft", { n: minutesLeft })}</span>
         </div>
       </div>
 
       {/* Steps */}
       <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-        {steps.map((s) => {
-          const active = s.active;
-          const done = s.done;
+        {steps.map((s, idx) => {
+          const done = doneSteps.has(s.id);
+          // "active" = first undone step
+          const active = !done && steps.findIndex((x) => !doneSteps.has(x.id)) === idx;
           return (
             <div
               key={s.id}
-              onClick={() => toggleStep(s.id)}
+              onClick={() => handleTapStep(s)}
               style={{
                 background: done ? (dark ? TB.dBg2 : "#EEF1EB") : surf,
                 border: active ? `3px solid ${member.color}` : `1px solid ${border}`,
@@ -105,7 +127,7 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
                 background: done ? TB.success : (active ? member.color : (dark ? TB.dBg2 : TB.bg2)),
                 fontSize: 24,
               }}>
-                {done ? <Icon name="check" size={22} color="#fff" stroke={3} /> : s.emoji}
+                {done ? <Icon name="check" size={22} color="#fff" stroke={3} /> : (s.icon ?? "✅")}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{
@@ -114,15 +136,17 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
                 }}>{s.name}</div>
                 {active && <div style={{ fontSize: 12, color: member.color, fontWeight: 600, marginTop: 2 }}>👆 You&apos;re on this one</div>}
               </div>
-              <div style={{ fontFamily: TB.fontMono, fontSize: 13, color: tc2, padding: "4px 10px", background: done ? "transparent" : (dark ? TB.dBg : TB.bg2), borderRadius: 6 }}>
-                {s.min} min
-              </div>
+              {s.est_minutes != null && (
+                <div style={{ fontFamily: TB.fontMono, fontSize: 13, color: tc2, padding: "4px 10px", background: done ? "transparent" : (dark ? TB.dBg : TB.bg2), borderRadius: 6 }}>
+                  {s.est_minutes} min
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Star counter footer */}
+      {/* Streak footer */}
       <div style={{ background: surf, borderRadius: 16, padding: 16, display: "flex", alignItems: "center", gap: 12, border: `1px solid ${border}` }}>
         <div style={{ width: 44, height: 44, borderRadius: "50%", background: TB.warning + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="star" size={24} color={TB.warning} />
@@ -133,7 +157,7 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#F97316", color: "#fff", padding: "6px 10px", borderRadius: 9999 }}>
           <Icon name="flame" size={14} />
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{t("streakDays", { n: member.streak })}</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{t("streakDays", { n: streakCount })}</div>
         </div>
       </div>
     </div>
