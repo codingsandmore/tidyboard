@@ -294,19 +294,21 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// WebSocket.
 		r.Get("/v1/ws", wsHandler.ServeWS)
 
+		// Invite-by-code MUST be registered before /v1/households/{id} so chi's
+		// trie resolves the "by-code" literal segment instead of treating it as
+		// the {id} parameter.
+		r.Get("/v1/households/by-code/{code}", inviteHandler.GetByCode)
+		r.Post("/v1/households/by-code/{code}/join", inviteHandler.RequestJoin)
+		r.Post("/v1/join-requests/{id}/approve", inviteHandler.ApproveJoinRequest)
+		r.Post("/v1/join-requests/{id}/reject", inviteHandler.RejectJoinRequest)
+
 		// Households.
 		r.Post("/v1/households", householdHandler.Create)
 		r.Get("/v1/households/{id}", householdHandler.Get)
 		r.Patch("/v1/households/{id}", householdHandler.Update)
 		r.Delete("/v1/households/{id}", householdHandler.Delete)
-
-		// Invite-by-code.
 		r.Post("/v1/households/{id}/invite/regenerate", inviteHandler.RegenerateInviteCode)
-		r.Get("/v1/households/by-code/{code}", inviteHandler.GetByCode)
-		r.Post("/v1/households/by-code/{code}/join", inviteHandler.RequestJoin)
 		r.Get("/v1/households/{id}/join-requests", inviteHandler.ListJoinRequests)
-		r.Post("/v1/join-requests/{id}/approve", inviteHandler.ApproveJoinRequest)
-		r.Post("/v1/join-requests/{id}/reject", inviteHandler.RejectJoinRequest)
 
 		// Members (nested under household).
 		r.Get("/v1/households/{id}/members", memberHandler.List)
