@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { TB } from "@/lib/tokens";
-import { Settings } from "@/components/screens/equity";
 import { useTheme, type Theme } from "@/components/theme-provider";
 import { LocaleSwitcher } from "@/i18n/provider";
 import { useAuth } from "@/lib/auth/auth-store";
@@ -98,11 +97,23 @@ function AppearanceCard() {
  * middleware support — tracked in BACKEND_STATUS.md as a v2 enhancement.
  */
 function HouseholdSwitcherCard() {
-  const { household } = useAuth();
+  const { household, logout } = useAuth();
+  const router = useRouter();
   const { data: households } = useMyHouseholds();
 
-  // Only render if there are multiple households.
   if (!households || households.length <= 1) return null;
+
+  const activeName =
+    households.find((h) => h.id === household?.id)?.name ?? household?.name ?? "—";
+
+  // Multi-household switching needs server-side X-Household-ID support, which
+  // is not yet shipped. Until then the only safe way to switch is to sign out
+  // and re-authenticate with the desired household selected at login. We
+  // expose that explicitly rather than silently no-op'ing the dropdown.
+  function handleSwitch() {
+    logout();
+    router.push("/login?switch=1");
+  }
 
   return (
     <div
@@ -111,42 +122,47 @@ function HouseholdSwitcherCard() {
         background: TB.surface,
         borderBottom: `1px solid ${TB.border}`,
         display: "flex",
-        alignItems: "center",
-        gap: 16,
+        flexDirection: "column",
+        gap: 6,
         fontFamily: TB.fontBody,
         fontSize: 13,
       }}
     >
-      <span style={{ color: TB.text2, fontWeight: 500, flex: 1 }}>Household</span>
-      <select
-        value={household?.id ?? ""}
-        onChange={(e) => {
-          const selected = households.find((h) => h.id === e.target.value);
-          if (selected && selected.id !== household?.id) {
-            // V1: alert explaining limitation; v2 will switch via X-Household-ID.
-            alert(
-              `Switching to "${selected.name}" requires re-logging in. ` +
-              "Full household switching will be available in a future update."
-            );
-          }
-        }}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <span style={{ color: TB.text2, fontWeight: 500, flex: 1 }}>Active household</span>
+        <span style={{ fontWeight: 600 }} data-testid="active-household-name">
+          {activeName}
+        </span>
+      </div>
+      <div
         style={{
-          padding: "5px 10px",
-          borderRadius: TB.r.md,
-          border: `1px solid ${TB.border}`,
-          background: TB.surface,
-          color: TB.text,
-          fontFamily: TB.fontBody,
-          fontSize: 13,
-          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          color: TB.text2,
+          fontSize: 12,
         }}
       >
-        {households.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.name}
-          </option>
-        ))}
-      </select>
+        <span>You belong to {households.length} households.</span>
+        <button
+          type="button"
+          data-testid="switch-household-btn"
+          onClick={handleSwitch}
+          style={{
+            padding: "4px 12px",
+            border: `1px solid ${TB.border}`,
+            borderRadius: TB.r.md,
+            background: TB.surface,
+            color: TB.text,
+            fontFamily: TB.fontBody,
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Switch household…
+        </button>
+      </div>
     </div>
   );
 }
@@ -1365,10 +1381,6 @@ export default function SettingsPage() {
       <AuditLogCard />
       <HouseholdSwitcherCard />
       <SignOutCard />
-
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        <Settings />
-      </div>
     </div>
   );
 }

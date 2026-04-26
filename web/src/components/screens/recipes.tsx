@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { TBD } from "@/lib/data";
@@ -169,7 +169,14 @@ export function RecipeImport() {
           <Btn kind="secondary" size="lg" full icon="pencil" onClick={() => router.push("/recipes/import?manual=1")}>
             {t("enterManually")}
           </Btn>
-          <Btn kind="ghost" size="lg" full icon="list" onClick={() => alert("File import coming soon — use URL import or manual entry for now.")}>
+          <Btn
+            kind="ghost"
+            size="lg"
+            full
+            icon="list"
+            disabled
+            title="File import (Paprika, JSON) — planned for v0.2"
+          >
             {t("importFromFile")}
           </Btn>
         </div>
@@ -219,6 +226,33 @@ export function RecipeImport() {
   );
 }
 
+// Parse a leading numeric token from an ingredient amount and rebuild it
+// scaled by `factor`. Handles: integers, decimals, fractions ("1/2"), and
+// mixed numbers ("2 1/4"). Anything we can't parse is returned untouched
+// so we never mangle a non-numeric amount string.
+export function scaleAmount(amt: string | undefined, factor: number): string {
+  if (!amt) return "";
+  if (factor === 1) return amt;
+  const m = amt.match(/^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)(.*)$/);
+  if (!m) return amt;
+  const [, numToken, rest] = m;
+  let value: number;
+  if (numToken.includes(" ")) {
+    const [whole, frac] = numToken.split(/\s+/);
+    const [n, d] = frac.split("/").map(Number);
+    value = Number(whole) + n / d;
+  } else if (numToken.includes("/")) {
+    const [n, d] = numToken.split("/").map(Number);
+    value = n / d;
+  } else {
+    value = Number(numToken);
+  }
+  const scaled = value * factor;
+  const rounded = Math.round(scaled * 100) / 100;
+  const display = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return `${display}${rest}`;
+}
+
 // ═══════ Recipe Detail ═══════
 export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean }) {
   const t = useTranslations("recipe");
@@ -231,6 +265,12 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
   const [tab, setTab] = useState("ing");
+  const baseServes = r?.serves ?? 1;
+  const [servings, setServings] = useState<number>(baseServes);
+  useEffect(() => {
+    if (r?.serves) setServings(r.serves);
+  }, [r?.id, r?.serves]);
+  const scaleFactor = baseServes > 0 ? servings / baseServes : 1;
 
   if (!r) {
     return (
@@ -395,19 +435,26 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
         >
           <div style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{t("servings")}</div>
           <button
+            type="button"
+            data-testid="serving-decrement"
+            aria-label="Decrease servings"
+            disabled={servings <= 1}
+            onClick={() => setServings((s) => Math.max(1, s - 1))}
             style={{
               width: 32,
               height: 32,
               borderRadius: 8,
               border: `1px solid ${border}`,
               background: dark ? TB.dBg : TB.surface,
-              cursor: "pointer",
+              cursor: servings <= 1 ? "not-allowed" : "pointer",
+              opacity: servings <= 1 ? 0.4 : 1,
               color: tc,
             }}
           >
             −
           </button>
           <div
+            data-testid="serving-count"
             style={{
               fontFamily: TB.fontDisplay,
               fontSize: 22,
@@ -416,9 +463,13 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
               textAlign: "center",
             }}
           >
-            {r.serves}
+            {servings}
           </div>
           <button
+            type="button"
+            data-testid="serving-increment"
+            aria-label="Increase servings"
+            onClick={() => setServings((s) => s + 1)}
             style={{
               width: 32,
               height: 32,
@@ -501,7 +552,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
                           marginRight: 8,
                         }}
                       >
-                        {ing.amt}
+                        {scaleAmount(ing.amt, scaleFactor)}
                       </span>
                     )}
                     <span style={{ fontSize: 14 }}>{ing.name}</span>

@@ -8,6 +8,7 @@
     "calendar": "Calendar",
     "routines": "Routines",
     "lists": "Lists",
+    "notes": "Notes",
     "meals": "Meals",
     "shopping": "Shopping",
     "equity": "Household balance",
@@ -110,6 +111,8 @@
     "doesNotRepeat": "Does not repeat",
     "reminderBefore": "15 min before",
     "eventsCount": "{count, plural, one {# event} other {# events}}",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
     "views": {
       "day": "Day",
       "week": "Week",

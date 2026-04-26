@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { H } from "@/components/ui/heading";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useWeather } from "@/lib/weather/use-weather";
 import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
@@ -30,6 +31,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const { data: apiMembers } = useMembers();
   const { lockKiosk, status, activeMember, setActiveMember } = useAuth();
   const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const { data: weather } = useWeather();
   const router = useRouter();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
@@ -98,9 +100,11 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                 color: tc,
               }}
             >
-              72°
+              {weather ? `${weather.tempNow}°` : "—"}
             </div>
-            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>{t("partlySunny")}</div>
+            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>
+              {weather ? weather.label : t("partlySunny")}
+            </div>
           </div>
           <div
             style={{

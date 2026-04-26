@@ -79,12 +79,20 @@ describe("fallback.shopping", () => {
 });
 
 describe("fallback.routines", () => {
-  it("returns array with at least one routine", () => {
+  it("returns array with at least one routine in ApiRoutine shape", () => {
     const routines = fallback.routines();
     expect(Array.isArray(routines)).toBe(true);
     expect(routines.length).toBeGreaterThan(0);
-    expect(routines[0]).toHaveProperty("member");
-    expect(routines[0]).toHaveProperty("steps");
+    const r = routines[0] as unknown as Record<string, unknown>;
+    // Must use the ApiRoutine shape (member_id, steps with est_minutes/icon).
+    // The legacy `member` object on data.ts/Routine does not exist anymore —
+    // the screens consume the API shape and would crash otherwise.
+    expect(r).toHaveProperty("member_id");
+    expect(r).toHaveProperty("steps");
+    const steps = r.steps as Array<Record<string, unknown>>;
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps[0]).toHaveProperty("est_minutes");
+    expect(steps[0]).toHaveProperty("icon");
   });
 });
 

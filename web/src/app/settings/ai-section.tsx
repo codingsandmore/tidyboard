@@ -8,7 +8,7 @@
  * is testing.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
 import { useAIKeys, setAIEnabled, isAIEnabled } from "@/lib/ai/ai-keys";
 import { callOpenAI, callAnthropic, callGoogle, AIError } from "@/lib/ai/client";
@@ -181,7 +181,13 @@ function ProviderRow({ label, provider, value, onSet, onClear }: ProviderRowProp
 
 export function AISettingsCard() {
   const { keys, setKey, clearKey } = useAIKeys();
-  const [enabled, setEnabled] = useState(() => isAIEnabled());
+  // Start `enabled` as false on both server and client so the first paint
+  // matches. Sync from localStorage after mount — avoids a hydration mismatch
+  // when the user has already turned AI on.
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    setEnabled(isAIEnabled());
+  }, []);
 
   function toggleEnabled() {
     const next = !enabled;

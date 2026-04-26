@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useWeather } from "@/lib/weather/use-weather";
 import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
@@ -21,6 +22,7 @@ export function DashDesktop() {
   const { data: apiMembers } = useMembers();
   const { activeMember, setActiveMember } = useAuth();
   const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const { data: weather } = useWeather();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
 
@@ -37,6 +39,7 @@ export function DashDesktop() {
     { i: "calendar", l: tNav("calendar"), href: "/calendar", active: true },
     { i: "checkCircle", l: tNav("routines"), href: "/routines" },
     { i: "list", l: tNav("lists"), href: "/lists" },
+    { i: "pencil", l: tNav("notes"), href: "/notes" },
     { i: "chef", l: tNav("meals"), href: "/meals" },
     { i: "star", l: tNav("equity"), href: "/equity" },
     { i: "settings", l: tNav("settings"), href: "/settings" },
@@ -319,7 +322,7 @@ export function DashDesktop() {
             {t("weather")}
           </H>
           <Card pad={14} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <Icon name="sun" size={40} color={TB.warning} />
+            <Icon name={weather?.icon ?? "sun"} size={40} color={TB.warning} />
             <div>
               <div
                 style={{
@@ -328,14 +331,18 @@ export function DashDesktop() {
                   fontWeight: 500,
                 }}
               >
-                72°
+                {weather ? `${weather.tempNow}°` : "—"}
               </div>
               <div style={{ fontSize: 12, color: TB.text2 }}>
-                Partly sunny · H 78 · L 58
+                {weather
+                  ? `${weather.label} · H ${weather.high} · L ${weather.low}`
+                  : "Loading…"}
               </div>
             </div>
           </Card>
         </div>
+
+        <CelebrationsCard events={events} />
 
         <div>
           <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
@@ -392,6 +399,79 @@ export function DashDesktop() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Upcoming birthdays + anniversaries — shows yearly-recurring events whose
+ * next occurrence falls in the next 60 days. Pulled from the same /v1/events
+ * stream the rest of the dashboard uses; tagged via `recurrence_rule` set
+ * from the EventModal "Repeat" dropdown.
+ */
+function CelebrationsCard({
+  events,
+}: {
+  events: ReadonlyArray<{
+    id: string;
+    title: string;
+    start_time?: string;
+    start?: string;
+    recurrence_rule?: string;
+  }>;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + 60);
+
+  const upcoming = events
+    .filter((e) => (e.recurrence_rule ?? "").toUpperCase().includes("FREQ=YEARLY"))
+    .map((e) => {
+      const startStr = e.start_time ?? (e.start && e.start.includes("T") ? e.start : null);
+      if (!startStr) return null;
+      const orig = new Date(startStr);
+      // Compute next anniversary occurrence on or after today.
+      const next = new Date(today.getFullYear(), orig.getMonth(), orig.getDate());
+      if (next < today) next.setFullYear(next.getFullYear() + 1);
+      return next <= horizon ? { id: e.id, title: e.title, when: next } : null;
+    })
+    .filter((x): x is { id: string; title: string; when: Date } => x !== null)
+    .sort((a, b) => a.when.getTime() - b.when.getTime())
+    .slice(0, 4);
+
+  if (upcoming.length === 0) return null;
+
+  return (
+    <div data-testid="celebrations-card">
+      <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
+        Celebrations
+      </H>
+      <Card pad={0}>
+        {upcoming.map((c, i) => {
+          const days = Math.round(
+            (c.when.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          return (
+            <div
+              key={c.id}
+              style={{
+                padding: 12,
+                borderBottom: i < upcoming.length - 1 ? `1px solid ${TB.borderSoft}` : "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Icon name="star" size={18} color={TB.warning} />
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 550 }}>{c.title}</div>
+              <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>
+                {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `IN ${days}d`}
+              </div>
+            </div>
+          );
+        })}
+      </Card>
     </div>
   );
 }

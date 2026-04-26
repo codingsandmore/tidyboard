@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, getMember } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -9,6 +9,7 @@ import { H } from "@/components/ui/heading";
 import { useRoutines, useMarkStepComplete, useStreak } from "@/lib/api/hooks";
 import type { ApiRoutineStep } from "@/lib/api/types";
 import { useTranslations } from "next-intl";
+import { PhotoSlideshow } from "@/components/photo-slideshow";
 
 // ═══════ Routine — kid hero (primary variation) ═══════
 export function RoutineKid({ dark = false }: { dark?: boolean }) {
@@ -272,23 +273,31 @@ export function RoutinePath() {
 // ═══════ Kiosk Lock Screen (photo slideshow + clock) ═══════
 export function KioskLock() {
   const t = useTranslations("lock");
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const timeStr = now.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const dateStr = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
   return (
     <div style={{ width: "100%", height: "100%", background: "#1C1917", color: "#fff", fontFamily: TB.fontBody, position: "relative", overflow: "hidden" }}>
-      {/* "Photo" — abstract gradient */}
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #4F7942 0%, #7FB5B0 50%, #D4A574 100%)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(1200px 600px at 20% 20%, rgba(255,255,255,0.15), transparent 60%)" }} />
-      {/* Film grain overlay */}
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", mixBlendMode: "overlay", opacity: 0.15 }}>
-        <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} /></filter>
-        <rect width="100%" height="100%" filter="url(#n)" />
-      </svg>
+      <PhotoSlideshow />
       {/* Clock */}
-      <div style={{ position: "absolute", top: 80, left: 0, right: 0, textAlign: "center" }}>
-        <div style={{ fontFamily: TB.fontDisplay, fontSize: 120, fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>10:34</div>
-        <div style={{ marginTop: 8, fontSize: 20, fontWeight: 500, opacity: 0.95 }}>Thursday, April 22</div>
+      <div style={{ position: "absolute", top: 80, left: 0, right: 0, textAlign: "center", zIndex: 1 }}>
+        <div style={{ fontFamily: TB.fontDisplay, fontSize: 120, fontWeight: 500, letterSpacing: "-0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>{timeStr}</div>
+        <div style={{ marginTop: 8, fontSize: 20, fontWeight: 500, opacity: 0.95 }}>{dateStr}</div>
       </div>
       {/* Bottom hint */}
-      <div style={{ position: "absolute", bottom: 60, left: 0, right: 0, textAlign: "center" }}>
+      <div style={{ position: "absolute", bottom: 60, left: 0, right: 0, textAlign: "center", zIndex: 1 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "rgba(0,0,0,0.3)", backdropFilter: "blur(20px)", borderRadius: 9999, fontSize: 14, fontWeight: 500 }}>
           <Icon name="lock" size={14} color="#fff" /> {t("tapToUnlock")}
         </div>

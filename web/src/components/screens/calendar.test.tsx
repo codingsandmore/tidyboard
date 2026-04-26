@@ -41,9 +41,15 @@ describe("CalDay", () => {
     renderWithQuery(<CalDay />);
   });
 
-  it("shows Thursday April 22", () => {
+  it("shows the current weekday in the heading", () => {
     renderWithQuery(<CalDay />);
-    expect(screen.getByText("Thursday, April 22")).toBeTruthy();
+    // CalDay's heading is rendered from the current Date and is wrapped in
+    // a <div data-testid="calendar-day-heading">. We assert on a weekday
+    // pattern instead of a hardcoded string so the test stays stable.
+    const heading = screen.getByTestId("calendar-day-heading");
+    expect(heading.textContent ?? "").toMatch(
+      /(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)/
+    );
   });
 
   it("shows member columns", () => {
@@ -54,7 +60,17 @@ describe("CalDay", () => {
 
   it("renders dark mode without crashing", () => {
     renderWithQuery(<CalDay dark />);
-    expect(screen.getByText("Thursday, April 22")).toBeTruthy();
+    expect(screen.getByTestId("calendar-day-heading")).toBeTruthy();
+  });
+
+  it("Next/Previous day chevrons advance the heading", () => {
+    renderWithQuery(<CalDay />);
+    const heading = screen.getByTestId("calendar-day-heading");
+    const initial = heading.textContent ?? "";
+    fireEvent.click(screen.getByTestId("calendar-day-next"));
+    expect(heading.textContent).not.toEqual(initial);
+    fireEvent.click(screen.getByTestId("calendar-day-prev"));
+    expect(heading.textContent).toEqual(initial);
   });
 });
 
@@ -63,7 +79,7 @@ describe("CalDay (tab interaction)", () => {
     renderWithQuery(<CalDay />);
     const weekBtn = screen.getByText("Week");
     fireEvent.click(weekBtn);
-    expect(screen.getByText("Thursday, April 22")).toBeTruthy();
+    expect(screen.getByTestId("calendar-day-heading")).toBeTruthy();
   });
 });
 
@@ -74,9 +90,22 @@ describe("CalWeek", () => {
     render(<CalWeek />);
   });
 
-  it("shows week date range", () => {
+  it("shows a week date range with month abbreviation and year", () => {
     render(<CalWeek />);
-    expect(screen.getByText(/Apr 19/)).toBeTruthy();
+    const heading = screen.getByTestId("calendar-week-heading");
+    expect(heading.textContent ?? "").toMatch(
+      /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec).*\d{4}/
+    );
+  });
+
+  it("Next/Previous week chevrons advance the heading", () => {
+    render(<CalWeek />);
+    const heading = screen.getByTestId("calendar-week-heading");
+    const initial = heading.textContent ?? "";
+    fireEvent.click(screen.getByTestId("calendar-week-next"));
+    expect(heading.textContent).not.toEqual(initial);
+    fireEvent.click(screen.getByTestId("calendar-week-prev"));
+    expect(heading.textContent).toEqual(initial);
   });
 
   it("shows day names", () => {
@@ -93,9 +122,22 @@ describe("CalMonth", () => {
     render(<CalMonth />);
   });
 
-  it("shows April 2026 heading", () => {
+  it("shows the current month heading dynamically", () => {
     render(<CalMonth />);
-    expect(screen.getByText("April 2026")).toBeTruthy();
+    const heading = screen.getByTestId("calendar-month-heading");
+    expect(heading.textContent ?? "").toMatch(
+      /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/
+    );
+  });
+
+  it("Next/Previous month chevrons advance the heading", () => {
+    render(<CalMonth />);
+    const heading = screen.getByTestId("calendar-month-heading");
+    const initial = heading.textContent ?? "";
+    fireEvent.click(screen.getByTestId("calendar-month-next"));
+    expect(heading.textContent).not.toEqual(initial);
+    fireEvent.click(screen.getByTestId("calendar-month-prev"));
+    expect(heading.textContent).toEqual(initial);
   });
 
   it("shows day-of-week headers", () => {

@@ -39,6 +39,8 @@ export function Btn({
   full,
   onClick,
   disabled,
+  title,
+  type = "button",
   style,
 }: {
   children?: ReactNode;
@@ -49,14 +51,18 @@ export function Btn({
   full?: boolean;
   onClick?: () => void;
   disabled?: boolean;
+  title?: string;
+  type?: "button" | "submit" | "reset";
   style?: CSSProperties;
 }) {
   const s = SIZES[size];
   const k = KINDS[kind];
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       data-kind={kind}
       className="tb-btn"
       style={{
