@@ -48,6 +48,9 @@ vi.mock("@/lib/api/hooks", () => ({
     mutateAsync: updateSettingsMock,
     isPending: false,
   }),
+  useUpdateMemberNotify: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+  useTestNotification: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+  useMyHouseholds: () => ({ data: [], isLoading: false }),
 }));
 
 // ── Other mocks ────────────────────────────────────────────────────────────

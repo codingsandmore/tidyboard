@@ -291,6 +291,9 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// Auth (requires JWT).
 		r.Get("/v1/auth/me", authHandler.Me)
 
+		// My households — lists all households the account is a member of.
+		r.Get("/v1/me/households", householdHandler.ListMine)
+
 		// WebSocket.
 		r.Get("/v1/ws", wsHandler.ServeWS)
 

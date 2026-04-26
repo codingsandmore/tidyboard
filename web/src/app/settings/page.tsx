@@ -25,6 +25,7 @@ import {
   useUpdateHouseholdSettings,
   useUpdateMemberNotify,
   useTestNotification,
+  useMyHouseholds,
   type NotifyPreferences,
 } from "@/lib/api/hooks";
 
@@ -82,6 +83,70 @@ function AppearanceCard() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * HouseholdSwitcherCard — shows a household picker when the account is a
+ * member of more than one household. Selecting a different household reloads
+ * the page so all React Query caches clear.
+ *
+ * NOTE (v1 limitation): switching here updates the UI context only. The
+ * backend middleware always uses the household embedded in the JWT. Full
+ * server-side household switching requires passing X-Household-ID and
+ * middleware support — tracked in BACKEND_STATUS.md as a v2 enhancement.
+ */
+function HouseholdSwitcherCard() {
+  const { household } = useAuth();
+  const { data: households } = useMyHouseholds();
+
+  // Only render if there are multiple households.
+  if (!households || households.length <= 1) return null;
+
+  return (
+    <div
+      style={{
+        padding: "12px 16px",
+        background: TB.surface,
+        borderBottom: `1px solid ${TB.border}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        fontFamily: TB.fontBody,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ color: TB.text2, fontWeight: 500, flex: 1 }}>Household</span>
+      <select
+        value={household?.id ?? ""}
+        onChange={(e) => {
+          const selected = households.find((h) => h.id === e.target.value);
+          if (selected && selected.id !== household?.id) {
+            // V1: alert explaining limitation; v2 will switch via X-Household-ID.
+            alert(
+              `Switching to "${selected.name}" requires re-logging in. ` +
+              "Full household switching will be available in a future update."
+            );
+          }
+        }}
+        style={{
+          padding: "5px 10px",
+          borderRadius: TB.r.md,
+          border: `1px solid ${TB.border}`,
+          background: TB.surface,
+          color: TB.text,
+          fontFamily: TB.fontBody,
+          fontSize: 13,
+          cursor: "pointer",
+        }}
+      >
+        {households.map((h) => (
+          <option key={h.id} value={h.id}>
+            {h.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -1298,6 +1363,7 @@ export default function SettingsPage() {
       <BillingCard />
       <AISettingsCard />
       <AuditLogCard />
+      <HouseholdSwitcherCard />
       <SignOutCard />
 
       <div style={{ flex: 1, overflow: "hidden" }}>

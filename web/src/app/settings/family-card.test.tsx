@@ -69,6 +69,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useUpdateHouseholdSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateMemberNotify: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
   useTestNotification: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+  useMyHouseholds: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock("@/lib/auth/auth-store", async (importOriginal) => {

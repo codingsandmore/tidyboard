@@ -73,6 +73,11 @@ export interface AuthState {
   pinLogin(memberId: string, pin: string): Promise<void>;
   /** Clear local state + redirect to Cognito /logout. */
   logout(): void;
+  /**
+   * All households this account is a member of (fetched from GET /v1/me/households).
+   * Empty until hydration completes. Populated even in single-household accounts.
+   */
+  availableHouseholds: AuthHousehold[];
 }
 
 // ── Backend response types ─────────────────────────────────────────────────
@@ -95,13 +100,14 @@ const TOKEN_KEY = "tb-auth-token";
 
 // ── Fallback mock auth ─────────────────────────────────────────────────────
 
-const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token" | "activeMember"> = {
+const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token" | "activeMember" | "availableHouseholds"> = {
   status: "authenticated",
   account: { id: "demo-account", email: "demo@smithfamily.net" },
   household: { id: "demo-household", name: "Smith Family" },
   member: { id: "demo-member", name: "Sarah Smith", role: "adult" },
   token: "demo-token",
   activeMember: { id: "demo-member", name: "Sarah Smith", role: "adult" },
+  availableHouseholds: [{ id: "demo-household", name: "Smith Family" }],
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -113,6 +119,7 @@ const AuthContext = createContext<AuthState>({
   member: null,
   token: null,
   activeMember: null,
+  availableHouseholds: [],
   setActiveMember: () => {},
   lockKiosk: () => {},
   signIn: async () => {},
@@ -157,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [member, setMember] = useState<AuthMember | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [activeMember, setActiveMemberState] = useState<AuthMember | null>(null);
+  const [availableHouseholds, setAvailableHouseholds] = useState<AuthHousehold[]>([]);
 
   const hydrate = useCallback(async (): Promise<boolean> => {
     try {
@@ -177,6 +185,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMember(null);
       }
       setStatus("authenticated");
+      // Fetch available households in the background — non-fatal if it fails.
+      api.get<{ id: string; name: string }[]>("/v1/me/households")
+        .then((hhs) => setAvailableHouseholds(hhs.map((h) => ({ id: h.id, name: h.name }))))
+        .catch(() => {/* leave empty — single-household fallback */});
       return true;
     } catch {
       return false;
@@ -191,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMember(FALLBACK_AUTH.member);
       setToken(FALLBACK_AUTH.token);
       setActiveMemberState(FALLBACK_AUTH.activeMember);
+      setAvailableHouseholds(FALLBACK_AUTH.availableHouseholds);
       return;
     }
 
@@ -267,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         status, account, household, member, token,
         activeMember: activeMember ?? member,
+        availableHouseholds,
         setActiveMember,
         lockKiosk,
         signIn, acceptToken, pinLogin, logout,
