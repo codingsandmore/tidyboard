@@ -42,6 +42,9 @@ services:
     environment:
       TIDYBOARD_DOMAIN: ${TIDYBOARD_DOMAIN:-tidyboard.org}
     depends_on: [tidyboard, web]
+    # Caddy is small but TLS handshakes can spike. 200M is plenty.
+    mem_limit: 200m
+    memswap_limit: 400m
 
   # ── Next.js web app (built from ./web) ──────────────────────────────────────
   # Compose auto-loads .env (in the same dir) for ${VAR} interpolation, so the
@@ -64,6 +67,10 @@ services:
     env_file: [.env]
     environment:
       NODE_ENV: production
+    # Next.js runtime — server components + image opt. 600M handles dev-style
+    # bursts; runtime steady-state is ~200M.
+    mem_limit: 600m
+    memswap_limit: 1g
 
   # ── App services — no host-port exposure in production ──────────────────────
   # `environment: !reset null` is critical: base docker-compose.yml sets dev
@@ -80,6 +87,9 @@ services:
     depends_on: !reset
       redis:
         condition: service_healthy
+    # Go binary — small steady-state, but jobs / WS broadcasts can spike.
+    mem_limit: 400m
+    memswap_limit: 800m
 
   sync-worker:
     ports: []
@@ -88,12 +98,18 @@ services:
     depends_on: !reset
       redis:
         condition: service_healthy
+    mem_limit: 200m
+    memswap_limit: 400m
 
   recipe-scraper:
     ports: []
     environment: !reset null
     env_file: [.env]
     depends_on: !reset []
+    mem_limit: 200m
+    memswap_limit: 400m
 
   redis:
     ports: []
+    mem_limit: 200m
+    memswap_limit: 400m
