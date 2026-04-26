@@ -113,10 +113,10 @@ export default function CalendarPage() {
       </div>
 
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {view === "Day" && <CalDay dark={dark} />}
-        {view === "Week" && <CalWeek />}
-        {view === "Month" && <CalMonth />}
-        {view === "Agenda" && <CalAgenda />}
+        {view === "Day" && <CalDay dark={dark} onViewChange={setView} />}
+        {view === "Week" && <CalWeek onViewChange={setView} />}
+        {view === "Month" && <CalMonth onViewChange={setView} />}
+        {view === "Agenda" && <CalAgenda onViewChange={setView} />}
         {modalEvent !== null && (
           <div
             onClick={(e) => {

@@ -56,7 +56,7 @@ const ViewTabs = ({ value, onChange }: { value: View; onChange: (v: View) => voi
   );
 };
 
-export function CalDay({ dark = false }: { dark?: boolean }) {
+export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewChange?: (v: View) => void }) {
   const t = useTranslations("calendar");
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
@@ -128,7 +128,7 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
             <Icon name="chevronR" size={20} />
           </button>
         </div>
-        <ViewTabs value="Day" onChange={() => {}} />
+        <ViewTabs value="Day" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
         <div
@@ -273,7 +273,7 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
   );
 }
 
-export function CalWeek() {
+export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
   return (
     <div
@@ -301,7 +301,7 @@ export function CalWeek() {
         <H as="h2" style={{ fontSize: 20 }}>
           Apr 19 – 25, 2026
         </H>
-        <ViewTabs value="Week" onChange={() => {}} />
+        <ViewTabs value="Week" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
@@ -409,7 +409,7 @@ export function CalWeek() {
   );
 }
 
-export function CalMonth() {
+export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
   const month = "April 2026";
   const offset = 3;
@@ -462,7 +462,7 @@ export function CalMonth() {
         <H as="h2" style={{ fontSize: 20 }}>
           {month}
         </H>
-        <ViewTabs value="Month" onChange={() => {}} />
+        <ViewTabs value="Month" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
@@ -553,7 +553,7 @@ export function CalMonth() {
   );
 }
 
-export function CalAgenda() {
+export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
   const today = new Date();
   const start = today.toISOString().slice(0, 10);
@@ -638,7 +638,7 @@ export function CalAgenda() {
         <H as="h2" style={{ fontSize: 20 }}>
           {t("agenda")}
         </H>
-        <ViewTabs value="Agenda" onChange={() => {}} />
+        <ViewTabs value="Agenda" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
