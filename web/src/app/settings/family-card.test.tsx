@@ -67,6 +67,8 @@ vi.mock("@/lib/api/hooks", () => ({
     isLoading: false,
   }),
   useUpdateHouseholdSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateMemberNotify: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
+  useTestNotification: () => ({ mutateAsync: vi.fn(), mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/lib/auth/auth-store", async (importOriginal) => {
@@ -135,8 +137,9 @@ describe("FamilyCard", () => {
 
   it("lists existing members by display name", () => {
     renderSettings();
-    expect(screen.getByText("Sarah")).toBeTruthy();
-    expect(screen.getByText("Jackson")).toBeTruthy();
+    // Members may appear in multiple cards (e.g. FamilyCard + NotificationsCard)
+    expect(screen.getAllByText("Sarah").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Jackson").length).toBeGreaterThan(0);
   });
 
   it("shows role badges for each member", () => {

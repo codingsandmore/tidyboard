@@ -20,6 +20,7 @@ type Member struct {
 	AgeGroup                string          `json:"age_group"` // toddler | child | tween | teen | adult
 	PINHash                 string          `json:"-"`      // never serialized
 	EmergencyInfo           json.RawMessage `json:"emergency_info,omitempty"`
+	NtfyTopic               *string         `json:"ntfy_topic,omitempty"`
 	NotificationPreferences json.RawMessage `json:"notification_preferences,omitempty"`
 	CreatedAt               time.Time       `json:"created_at"`
 	UpdatedAt               time.Time       `json:"updated_at"`

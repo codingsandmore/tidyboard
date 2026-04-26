@@ -717,6 +717,39 @@ export function useUpdateHouseholdSettings() {
   });
 }
 
+// ── Notification hooks ─────────────────────────────────────────────────────
+
+export interface NotifyPreferences {
+  events_enabled: boolean;
+  lists_enabled: boolean;
+  tasks_enabled: boolean;
+}
+
+export function useUpdateMemberNotify(memberId: string) {
+  return useMutation({
+    mutationFn: ({
+      ntfyTopic,
+      preferences,
+    }: {
+      ntfyTopic?: string;
+      preferences: NotifyPreferences;
+    }) =>
+      api.patch<{ status: string }>(`/v1/members/${memberId}/notify`, {
+        ntfy_topic: ntfyTopic ?? null,
+        events_enabled: preferences.events_enabled,
+        lists_enabled: preferences.lists_enabled,
+        tasks_enabled: preferences.tasks_enabled,
+      }),
+  });
+}
+
+export function useTestNotification(memberId: string) {
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ status: string }>("/v1/notify/test", { member_id: memberId }),
+  });
+}
+
 export function useDeleteMember() {
   const qc = useQueryClient();
   return useMutation({

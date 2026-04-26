@@ -139,6 +139,7 @@ type Querier interface {
 	UpdateList(ctx context.Context, arg UpdateListParams) (List, error)
 	UpdateListItem(ctx context.Context, arg UpdateListItemParams) (ListItem, error)
 	UpdateMember(ctx context.Context, arg UpdateMemberParams) (Member, error)
+	UpdateMemberNotify(ctx context.Context, arg UpdateMemberNotifyParams) (Member, error)
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
 	UpdateRecipeCollection(ctx context.Context, arg UpdateRecipeCollectionParams) (RecipeCollection, error)
 	UpdateShoppingListItem(ctx context.Context, arg UpdateShoppingListItemParams) (ShoppingListItem, error)

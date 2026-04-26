@@ -16,13 +16,20 @@ import (
 
 // EquityService computes household equity metrics and manages equity tasks.
 type EquityService struct {
-	q  *query.Queries
-	bc broadcast.Broadcaster
+	q      *query.Queries
+	bc     broadcast.Broadcaster
+	notify *NotifyService
 }
 
 // NewEquityService constructs an EquityService.
 func NewEquityService(q *query.Queries, bc broadcast.Broadcaster) *EquityService {
 	return &EquityService{q: q, bc: bc}
+}
+
+// WithNotify attaches a NotifyService so task creates/logs trigger push notifications.
+func (s *EquityService) WithNotify(n *NotifyService) *EquityService {
+	s.notify = n
+	return s
 }
 
 // publish emits a broadcast event for the household channel (non-blocking).
@@ -163,6 +170,10 @@ func (s *EquityService) CreateTask(ctx context.Context, householdID uuid.UUID, r
 	}
 	t := taskToModel(row)
 	s.publish(ctx, householdID, "equity.task.created", &t)
+	if s.notify != nil {
+		go s.notify.Notify(context.Background(), householdID, "equity.task.created",
+			"New task: "+t.Name, "A new household task has been created.")
+	}
 	return &t, nil
 }
 
@@ -260,6 +271,10 @@ func (s *EquityService) LogTaskTime(ctx context.Context, householdID, taskID uui
 	}
 	tl := taskLogToModel(row)
 	s.publish(ctx, householdID, "equity.task.logged", &tl)
+	if s.notify != nil {
+		go s.notify.Notify(context.Background(), householdID, "equity.task.logged",
+			"Task time logged", fmt.Sprintf("Task completed: %d minutes recorded.", req.DurationMinutes))
+	}
 	return &tl, nil
 }
 

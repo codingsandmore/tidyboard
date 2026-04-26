@@ -56,6 +56,15 @@ SELECT * FROM members
 WHERE account_id = $1 AND household_id = $2
 LIMIT 1;
 
+-- name: UpdateMemberNotify :one
+UPDATE members
+SET
+    ntfy_topic               = COALESCE(sqlc.narg(ntfy_topic), ntfy_topic),
+    notification_preferences = COALESCE(sqlc.narg(notification_preferences), notification_preferences),
+    updated_at               = NOW()
+WHERE id = $1 AND household_id = $2
+RETURNING *;
+
 -- name: GetPrimaryMemberByAccount :one
 -- Returns the user's earliest-created membership; used by the auth middleware
 -- to populate household + role context for users that belong to one or more

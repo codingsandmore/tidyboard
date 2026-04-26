@@ -17,14 +17,21 @@ import (
 
 // ListService handles list and list-item business logic.
 type ListService struct {
-	q     *query.Queries
-	bc    broadcast.Broadcaster
-	audit *AuditService
+	q      *query.Queries
+	bc     broadcast.Broadcaster
+	audit  *AuditService
+	notify *NotifyService
 }
 
 // NewListService constructs a ListService.
 func NewListService(q *query.Queries, bc broadcast.Broadcaster, audit *AuditService) *ListService {
 	return &ListService{q: q, bc: bc, audit: audit}
+}
+
+// WithNotify attaches a NotifyService so list item creates trigger push notifications.
+func (s *ListService) WithNotify(n *NotifyService) *ListService {
+	s.notify = n
+	return s
 }
 
 // publish emits a broadcast event for the household channel (non-blocking).
@@ -201,6 +208,10 @@ func (s *ListService) CreateItem(ctx context.Context, householdID, listID uuid.U
 	s.publish(ctx, householdID, "list.item.created", out)
 	if s.audit != nil {
 		s.audit.Log(ctx, "list.item.create", "list_item", out.ID, out)
+	}
+	if s.notify != nil {
+		go s.notify.Notify(context.Background(), householdID, "list.item.created",
+			"List updated", "A new item was added: "+out.Text)
 	}
 	return out, nil
 }

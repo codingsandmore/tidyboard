@@ -288,3 +288,48 @@ All buttons audited across `web/src/components/screens/**` and `web/src/app/**`.
 | Import from File | `recipes.tsx` RecipeImport | No file-upload endpoint in backend | `alert("File import coming soon…")` |
 | Delete Household | `equity.tsx` Settings | `DELETE /v1/households/:id` exists but no self-service UI flow | `window.confirm` → alert explaining to contact support |
 | Recipe "Enter Manually" destination | `/recipes/import?manual=1` | Route handles URL import only; `?manual=1` param not yet differentiated server-side | Navigates to import page (URL input shown) |
+
+---
+
+## Push Notifications (ntfy.sh)
+
+Tidyboard v1 supports push notifications via [ntfy.sh](https://ntfy.sh). The notification flow is:
+
+1. Member installs the **ntfy** mobile app (iOS / Android) or uses the web UI at ntfy.sh.
+2. Member subscribes to their chosen topic (e.g. `tidyboard-smith-8x2k9`).
+3. Member enters that topic in **Settings → Notifications** and saves.
+4. Tidyboard POSTs JSON to `https://ntfy.sh/<topic>` when relevant events occur.
+
+### Security notice (IMPORTANT for users)
+
+**The ntfy topic IS the credential.** ntfy.sh is a public service with no authentication on the subscriber side — anyone who knows a topic name can subscribe and receive those notifications. This means:
+
+- **Choose a long, random, non-guessable topic name.** Example: `tidyboard-smithfamily-x9k2m7q`. Do NOT use your family name alone.
+- A topic like `tidyboard-smith` is trivially guessable and should not be used.
+- Notification content is intentionally minimal (event title, list item text) — no secrets, passwords, or PINs are ever sent.
+- For self-hosted setups, you can point `notify.ntfy_server_url` at your own ntfy server for full privacy.
+
+### v1 events that trigger notifications
+
+| Event | Preference gate |
+|---|---|
+| Calendar event created | `events_enabled` |
+| List item added | `lists_enabled` |
+| Equity task created | `tasks_enabled` |
+| Equity task time logged | `tasks_enabled` |
+
+### Configuration (config.yaml)
+
+```yaml
+notifications:
+  ntfy_enabled: true
+  ntfy_server_url: https://ntfy.sh   # or your self-hosted URL
+  ntfy_topic_prefix: tidyboard-      # informational only; not used server-side
+```
+
+### API endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `PATCH` | `/v1/members/:id/notify` | JWT | Save ntfy_topic + preference flags for a member |
+| `POST` | `/v1/notify/test` | JWT | Send a test push to a member's configured topic |

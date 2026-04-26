@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
+	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -25,7 +27,7 @@ import (
 func TestMember_CreateWithAccountID_Integration(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
 	q := query.New(pool)
-	authSvc := service.NewAuthService(q, testutil.TestJWTSecret)
+	authSvc := service.NewAuthService(config.AuthConfig{JWTSecret: testutil.TestJWTSecret}, q)
 	memberSvc := service.NewMemberService(q, authSvc)
 	householdSvc := service.NewHouseholdService(q)
 	memberH := handler.NewMemberHandler(memberSvc)
@@ -44,7 +46,9 @@ func TestMember_CreateWithAccountID_Integration(t *testing.T) {
 	token := testutil.MakeJWT(acc.ID, uuid.Nil, uuid.Nil, "owner")
 
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(testutil.TestJWTSecret))
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
+	r.Use(middleware.Auth(verifier, q))
 	r.Post("/v1/households", householdH.Create)
 	r.Post("/v1/households/{id}/members", memberH.Create)
 

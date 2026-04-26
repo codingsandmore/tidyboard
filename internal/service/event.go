@@ -17,14 +17,21 @@ import (
 
 // EventService handles calendar event business logic.
 type EventService struct {
-	q     *query.Queries
-	bc    broadcast.Broadcaster
-	audit *AuditService
+	q      *query.Queries
+	bc     broadcast.Broadcaster
+	audit  *AuditService
+	notify *NotifyService
 }
 
 // NewEventService constructs an EventService.
 func NewEventService(q *query.Queries, bc broadcast.Broadcaster, audit *AuditService) *EventService {
 	return &EventService{q: q, bc: bc, audit: audit}
+}
+
+// WithNotify attaches a NotifyService so event creates trigger push notifications.
+func (s *EventService) WithNotify(n *NotifyService) *EventService {
+	s.notify = n
+	return s
 }
 
 // publish emits a broadcast event for the household channel (non-blocking).
@@ -99,6 +106,10 @@ func (s *EventService) Create(ctx context.Context, householdID uuid.UUID, req mo
 	s.publish(ctx, householdID, "event.created", out)
 	if s.audit != nil {
 		s.audit.Log(ctx, "event.create", "event", out.ID, out)
+	}
+	if s.notify != nil {
+		go s.notify.Notify(context.Background(), householdID, "event.created",
+			"New event: "+out.Title, "A new event has been added to your household calendar.")
 	}
 	return out, nil
 }

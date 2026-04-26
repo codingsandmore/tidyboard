@@ -125,15 +125,16 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	authSvc := service.NewAuthService(cfg.Auth, q)
 	householdSvc := service.NewHouseholdService(q)
 	memberSvc := service.NewMemberService(q, authSvc)
-	eventSvc := service.NewEventService(q, bc, auditSvc)
-	listSvc := service.NewListService(q, bc, auditSvc)
+	notifySvc := service.NewNotifyService(cfg.Notify, q)
+	eventSvc := service.NewEventService(q, bc, auditSvc).WithNotify(notifySvc)
+	listSvc := service.NewListService(q, bc, auditSvc).WithNotify(notifySvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
 	recipeCollectionSvc := service.NewRecipeCollectionService(q, bc)
 	mealPlanSvc := service.NewMealPlanService(q, bc)
 	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
-	equitySvc := service.NewEquityService(q, bc)
+	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -177,6 +178,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
 	equityHandler := handler.NewEquityHandler(equitySvc)
+	notifyHandler := handler.NewNotifyHandler(notifySvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -350,6 +352,10 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 
 		// Ingredients search.
 		r.Get("/v1/ingredients/search", shoppingHandler.SearchIngredients)
+
+		// Notifications.
+		r.Post("/v1/notify/test", notifyHandler.TestNotification)
+		r.Patch("/v1/members/{id}/notify", notifyHandler.UpdateMemberNotify)
 
 		// Equity engine.
 		r.Get("/v1/equity", equityHandler.GetDashboard)

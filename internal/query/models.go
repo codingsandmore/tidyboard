@@ -199,6 +199,7 @@ type Member struct {
 	PinHash                 *string            `json:"pin_hash"`
 	EmergencyInfo           []byte             `json:"emergency_info"`
 	NotificationPreferences []byte             `json:"notification_preferences"`
+	NtfyTopic               *string            `json:"ntfy_topic,omitempty"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
 }

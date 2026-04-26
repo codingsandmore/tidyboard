@@ -22,6 +22,9 @@ import {
   useDeleteMember,
   useHousehold,
   useUpdateHouseholdSettings,
+  useUpdateMemberNotify,
+  useTestNotification,
+  type NotifyPreferences,
 } from "@/lib/api/hooks";
 
 function AppearanceCard() {
@@ -1013,6 +1016,218 @@ function KioskModeCard() {
   );
 }
 
+// ── NotificationsCard ──────────────────────────────────────────────────────
+
+interface NotificationMemberRowProps {
+  member: { id: string; name: string; display_name?: string; color: string; ntfy_topic?: string | null; notification_preferences?: NotifyPreferences | null };
+}
+
+function NotificationMemberRow({ member }: NotificationMemberRowProps) {
+  const defaultPrefs: NotifyPreferences = {
+    events_enabled: member.notification_preferences?.events_enabled ?? false,
+    lists_enabled: member.notification_preferences?.lists_enabled ?? false,
+    tasks_enabled: member.notification_preferences?.tasks_enabled ?? false,
+  };
+
+  const [topic, setTopic] = useState(member.ntfy_topic ?? "");
+  const [prefs, setPrefs] = useState<NotifyPreferences>(defaultPrefs);
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+
+  const updateNotify = useUpdateMemberNotify(member.id);
+  const testNotify = useTestNotification(member.id);
+
+  const inputStyle = {
+    padding: "5px 8px",
+    borderRadius: TB.r.md,
+    border: `1px solid ${TB.border}`,
+    fontFamily: TB.fontBody,
+    fontSize: 12,
+    background: TB.bg,
+    color: TB.text,
+    width: "100%",
+    boxSizing: "border-box" as const,
+  };
+
+  async function handleSave() {
+    await updateNotify.mutateAsync({
+      ntfyTopic: topic.trim() || undefined,
+      preferences: prefs,
+    });
+  }
+
+  async function handleTest() {
+    setTestStatus(null);
+    try {
+      await testNotify.mutateAsync();
+      setTestStatus("Sent!");
+    } catch {
+      setTestStatus("Failed — check topic.");
+    }
+  }
+
+  const displayName = member.display_name ?? member.name;
+
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        background: TB.bg2,
+        borderRadius: TB.r.md,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            background: member.color,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 11,
+          }}
+        >
+          {displayName.charAt(0).toUpperCase()}
+        </div>
+        <span style={{ fontWeight: 500, fontSize: 12 }}>{displayName}</span>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 11, color: TB.text2, marginBottom: 3 }}>ntfy topic</div>
+        <input
+          data-testid={`ntfy-topic-${member.id}`}
+          type="text"
+          placeholder="e.g. tidyboard-smith-family-8x2k"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          style={inputStyle}
+        />
+        <div style={{ fontSize: 10, color: TB.muted, marginTop: 2 }}>
+          Choose a hard-to-guess topic name — anyone with it can read your notifications.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 16 }}>
+        {(
+          [
+            { key: "events_enabled", label: "Events" },
+            { key: "lists_enabled", label: "Lists" },
+            { key: "tasks_enabled", label: "Tasks" },
+          ] as { key: keyof NotifyPreferences; label: string }[]
+        ).map(({ key, label }) => (
+          <label
+            key={key}
+            style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12 }}
+          >
+            <input
+              data-testid={`pref-${key}-${member.id}`}
+              type="checkbox"
+              checked={prefs[key]}
+              onChange={(e) => setPrefs((p) => ({ ...p, [key]: e.target.checked }))}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          data-testid={`save-notify-${member.id}`}
+          onClick={handleSave}
+          disabled={updateNotify.isPending}
+          style={{
+            padding: "5px 12px",
+            borderRadius: TB.r.md,
+            border: "none",
+            background: TB.primary,
+            color: TB.primaryFg,
+            cursor: updateNotify.isPending ? "wait" : "pointer",
+            fontFamily: TB.fontBody,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          {updateNotify.isPending ? "Saving…" : "Save"}
+        </button>
+        <button
+          data-testid={`test-notify-${member.id}`}
+          onClick={handleTest}
+          disabled={testNotify.isPending || !topic.trim()}
+          style={{
+            padding: "5px 12px",
+            borderRadius: TB.r.md,
+            border: `1px solid ${TB.border}`,
+            background: "transparent",
+            color: TB.text2,
+            cursor: testNotify.isPending || !topic.trim() ? "default" : "pointer",
+            fontFamily: TB.fontBody,
+            fontSize: 12,
+          }}
+        >
+          {testNotify.isPending ? "Sending…" : "Send test"}
+        </button>
+        {testStatus && (
+          <span style={{ fontSize: 11, color: testStatus === "Sent!" ? TB.success : TB.destructive }}>
+            {testStatus}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotificationsCard() {
+  const { data: members, isLoading } = useMembers();
+
+  return (
+    <div
+      style={{
+        padding: "12px 16px",
+        background: TB.surface,
+        borderBottom: `1px solid ${TB.border}`,
+        fontFamily: TB.fontBody,
+        fontSize: 13,
+      }}
+    >
+      <div style={{ color: TB.text2, fontWeight: 500, marginBottom: 8 }}>
+        Notifications (ntfy.sh)
+      </div>
+      <div style={{ fontSize: 11, color: TB.muted, marginBottom: 10 }}>
+        Install the <strong>ntfy</strong> app on your phone, subscribe to your topic, and enter it here.
+        Pick a non-obvious topic — it&apos;s your notification password.
+      </div>
+
+      {isLoading && <div style={{ color: TB.muted, fontSize: 12 }}>Loading…</div>}
+
+      {!isLoading && members && members.length === 0 && (
+        <div style={{ color: TB.muted, fontSize: 12 }}>No members yet.</div>
+      )}
+
+      {members && members.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {(members as Array<{
+            id: string;
+            name: string;
+            display_name?: string;
+            color: string;
+            ntfy_topic?: string | null;
+            notification_preferences?: NotifyPreferences | null;
+          }>).map((m) => (
+            <NotificationMemberRow key={m.id} member={m} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const tCommon = useTranslations("common");
   return (
@@ -1054,6 +1269,7 @@ export default function SettingsPage() {
       <AppearanceCard />
       <LanguageCard />
       <KioskModeCard />
+      <NotificationsCard />
       <FamilyCard />
       <ConnectionCard />
       <CalendarsCard />
