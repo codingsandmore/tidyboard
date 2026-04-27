@@ -4,6 +4,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/client"
+	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -61,9 +64,10 @@ func setupRecipeImportHandler(t *testing.T, scraperURL string) (*httptest.Server
 	recipeSvc := service.NewRecipeService(q, rc)
 	h := handler.NewRecipeHandler(recipeSvc)
 
-	jwtSecret := testutil.TestJWTSecret
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(jwtSecret))
+	r.Use(middleware.Auth(verifier, q))
 	r.Post("/v1/recipes/import", h.Import)
 
 	srv := httptest.NewServer(r)

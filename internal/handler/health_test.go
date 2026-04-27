@@ -43,7 +43,7 @@ func TestReadyHandler_NoPing(t *testing.T) {
 		t.Skip("TIDYBOARD_TEST_DSN not set; skipping integration test")
 	}
 
-	h := handler.Ready(nil)
+	h := handler.Ready(handler.ReadyConfig{})
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
 
