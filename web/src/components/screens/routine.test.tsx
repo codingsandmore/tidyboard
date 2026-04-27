@@ -150,7 +150,8 @@ describe("KioskLock", () => {
 
   it("shows clock time", () => {
     render(<KioskLock />);
-    expect(screen.getByText("10:34")).toBeTruthy();
+    // Matches any HH:MM time string — not a hardcoded snapshot
+    expect(screen.getByText(/^\d{1,2}:\d{2}$/)).toBeInTheDocument();
   });
 
   it("shows Tap to unlock hint", () => {

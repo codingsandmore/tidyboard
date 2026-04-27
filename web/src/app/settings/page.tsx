@@ -101,7 +101,7 @@ function HouseholdSwitcherCard() {
   const router = useRouter();
   const { data: households } = useMyHouseholds();
 
-  if (!households || households.length <= 1) return null;
+  if (!Array.isArray(households) || households.length <= 1) return null;
 
   const activeName =
     households.find((h) => h.id === household?.id)?.name ?? household?.name ?? "—";

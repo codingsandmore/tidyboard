@@ -12,6 +12,7 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       "**/e2e/**",
+      "**/e2e-prod/**",
       "**/e2e-real/**",
       "**/*.e2e.spec.*",
       "**/*.stories.tsx",
