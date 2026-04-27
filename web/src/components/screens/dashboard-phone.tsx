@@ -2,7 +2,7 @@
 
 import { TB } from "@/lib/tokens";
 import { fmtTime, getMembers } from "@/lib/data";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { BottomNav } from "./bottom-nav";
@@ -164,6 +164,12 @@ export function DashPhone() {
           { n: "star", l: tNav("wallet"), href: "/wallet" },
           { n: "list", l: tNav("chores"), href: "/chores" },
           { n: "star", l: tNav("equity"), href: "/equity" },
+          ...(activeMember?.role === "child"
+            ? [
+                { n: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
+                { n: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
+              ]
+            : []),
         ]}
       />
     </div>
