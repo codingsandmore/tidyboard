@@ -33,6 +33,7 @@ const mockMutate = vi.fn();
 
 vi.mock("@/lib/api/hooks", () => ({
   useRoutines: () => ({ data: [mockApiRoutine] }),
+  useMembers: () => ({ data: TBD.members }),
   useMarkStepComplete: () => ({ mutate: mockMutate }),
   useStreak: () => ({ data: { routine_id: "test-routine-id", member_id: TBD.routine.member, streak: 5 } }),
   useToggleRoutineStep: () => ({ mutate: vi.fn() }),
@@ -110,16 +111,16 @@ describe("RoutineKid", () => {
 
 describe("RoutineChecklist", () => {
   it("renders without crashing", () => {
-    render(<RoutineChecklist />);
+    renderWithQuery(<RoutineChecklist />);
   });
 
   it("shows Let's get ready text", () => {
-    render(<RoutineChecklist />);
+    renderWithQuery(<RoutineChecklist />);
     expect(screen.getByText(/Let's get ready/)).toBeTruthy();
   });
 
   it("shows all routine steps", () => {
-    render(<RoutineChecklist />);
+    renderWithQuery(<RoutineChecklist />);
     expect(screen.getByText("Make bed")).toBeTruthy();
     expect(screen.getByText("Pack school bag")).toBeTruthy();
   });
@@ -127,16 +128,17 @@ describe("RoutineChecklist", () => {
 
 describe("RoutinePath", () => {
   it("renders without crashing", () => {
-    render(<RoutinePath />);
+    renderWithQuery(<RoutinePath />);
   });
 
-  it("shows Jackson's Journey", () => {
-    render(<RoutinePath />);
-    expect(screen.getByText(/Jackson's Journey/)).toBeTruthy();
+  it("shows the active routine member's journey heading", () => {
+    renderWithQuery(<RoutinePath />);
+    // Heading is "{member.name}'s Journey" — member is Jackson from the mock routine
+    expect(screen.getByText(/Journey/)).toBeTruthy();
   });
 
   it("shows steps in path layout", () => {
-    render(<RoutinePath />);
+    renderWithQuery(<RoutinePath />);
     expect(screen.getByText("Make bed")).toBeTruthy();
   });
 });
@@ -159,16 +161,17 @@ describe("KioskLock", () => {
 
 describe("KioskLockMembers", () => {
   it("renders without crashing", () => {
-    render(<KioskLockMembers />);
+    renderWithQuery(<KioskLockMembers />);
   });
 
   it("shows Who's using Tidyboard question", () => {
-    render(<KioskLockMembers />);
+    renderWithQuery(<KioskLockMembers />);
     expect(screen.getByText(/Who's using Tidyboard/)).toBeTruthy();
   });
 
-  it("shows all family member names", () => {
-    render(<KioskLockMembers />);
+  it("shows all family member names from API data", () => {
+    renderWithQuery(<KioskLockMembers />);
+    // useMembers mock returns TBD.members which includes all 4 Smith family members
     expect(screen.getByText("Dad")).toBeTruthy();
     expect(screen.getByText("Mom")).toBeTruthy();
     expect(screen.getByText("Jackson")).toBeTruthy();
