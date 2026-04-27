@@ -141,6 +141,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
 	walletSvc := service.NewWalletService(q, bc, auditSvc)
 	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
+	pointsSvc := service.NewPointsService(q, bc, auditSvc)
+	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -203,6 +205,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	routineHandler := handler.NewRoutineHandler(routineSvc)
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
 	choreHandler := handler.NewChoreHandler(choreSvc, q)
+	pointsHandler := handler.NewPointsHandler(pointsSvc)
+	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -430,6 +434,35 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Post("/v1/ad-hoc-tasks/{id}/complete", walletHandler.CompleteAdHocTask)
 		r.Post("/v1/ad-hoc-tasks/{id}/approve", walletHandler.ApproveAdHocTask)
 		r.Post("/v1/ad-hoc-tasks/{id}/decline", walletHandler.DeclineAdHocTask)
+
+		// ── Points ──
+		r.Get("/v1/point-categories", pointsHandler.ListCategories)
+		r.Post("/v1/point-categories", pointsHandler.CreateCategory)
+		r.Patch("/v1/point-categories/{id}", pointsHandler.UpdateCategory)
+		r.Delete("/v1/point-categories/{id}", pointsHandler.ArchiveCategory)
+		r.Get("/v1/behaviors", pointsHandler.ListBehaviors)
+		r.Post("/v1/behaviors", pointsHandler.CreateBehavior)
+		r.Patch("/v1/behaviors/{id}", pointsHandler.UpdateBehavior)
+		r.Delete("/v1/behaviors/{id}", pointsHandler.ArchiveBehavior)
+		r.Post("/v1/points/{member_id}/grant", pointsHandler.Grant)
+		r.Post("/v1/points/{member_id}/adjust", pointsHandler.Adjust)
+		r.Get("/v1/points/scoreboard", pointsHandler.Scoreboard)
+		r.Get("/v1/points/{member_id}", pointsHandler.GetBalance)
+
+		// ── Rewards ──
+		r.Get("/v1/rewards", rewardHandler.List)
+		r.Post("/v1/rewards", rewardHandler.Create)
+		r.Patch("/v1/rewards/{id}", rewardHandler.Update)
+		r.Delete("/v1/rewards/{id}", rewardHandler.Archive)
+		r.Post("/v1/rewards/{id}/redeem", rewardHandler.Redeem)
+		r.Post("/v1/rewards/{id}/cost-adjust", rewardHandler.CostAdjust)
+		r.Delete("/v1/reward-adjustments/{id}", rewardHandler.DeleteCostAdjustment)
+		r.Get("/v1/redemptions", rewardHandler.ListRedemptions)
+		r.Post("/v1/redemptions/{id}/approve", rewardHandler.Approve)
+		r.Post("/v1/redemptions/{id}/decline", rewardHandler.Decline)
+		r.Post("/v1/redemptions/{id}/fulfill", rewardHandler.Fulfill)
+		r.Put("/v1/savings-goals/{member_id}", rewardHandler.SetSavingsGoal)
+		r.Get("/v1/timeline/{member_id}", rewardHandler.Timeline)
 
 		// Equity engine.
 		r.Get("/v1/equity", equityHandler.GetDashboard)
