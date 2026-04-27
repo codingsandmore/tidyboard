@@ -166,5 +166,203 @@ func (s *RewardService) DeleteCostAdjustment(ctx context.Context, householdID, i
 	return nil
 }
 
-// keep model imported for later tasks
-var _ = model.TimelineEvent{}
+// ── Redemptions ─────────────────────────────────────────────────────────────
+
+// Redeem handles both self-serve and needs-approval flows.
+//   - self_serve: writes a negative point_grant immediately, status=approved
+//   - needs_approval: writes redemption row only, status=pending, no debit yet
+func (s *RewardService) Redeem(ctx context.Context, householdID, memberID, rewardID uuid.UUID, byAccountID *uuid.UUID) (model.RedeemResponse, error) {
+	reward, err := s.GetReward(ctx, householdID, rewardID)
+	if err != nil {
+		return model.RedeemResponse{}, fmt.Errorf("Redeem: get reward: %w", err)
+	}
+	if !reward.Active {
+		return model.RedeemResponse{}, fmt.Errorf("Redeem: reward not active")
+	}
+
+	cost, err := s.EffectiveCostFor(ctx, memberID, rewardID, reward.CostPoints, time.Now())
+	if err != nil {
+		return model.RedeemResponse{}, err
+	}
+
+	bal, err := s.points.GetBalance(ctx, householdID, memberID)
+	if err != nil {
+		return model.RedeemResponse{}, err
+	}
+
+	if reward.FulfillmentKind == "self_serve" {
+		if int64(cost) > bal.Total {
+			return model.RedeemResponse{}, ErrInsufficientPoints
+		}
+		red, err := s.q.CreateRedemption(ctx, query.CreateRedemptionParams{
+			ID: uuid.New(), HouseholdID: householdID, RewardID: rewardID, MemberID: memberID,
+			PointsAtRedemption: int32(cost), Status: "approved",
+		})
+		if err != nil {
+			return model.RedeemResponse{}, fmt.Errorf("Redeem: create redemption: %w", err)
+		}
+
+		grant, err := s.points.Grant(ctx, householdID, memberID, nil, nil, -cost, "Redeemed: "+reward.Name, byAccountID)
+		if err != nil {
+			return model.RedeemResponse{}, fmt.Errorf("Redeem: debit grant: %w", err)
+		}
+
+		now := time.Now().UTC()
+		var by *uuid.NullUUID
+		if byAccountID != nil {
+			by = &uuid.NullUUID{UUID: *byAccountID, Valid: true}
+		}
+		_, err = s.q.SetRedemptionStatus(ctx, query.SetRedemptionStatusParams{
+			ID: red.ID, HouseholdID: householdID, Status: "approved",
+			DecidedAt:          pgtype.Timestamptz{Time: now, Valid: true},
+			DecidedByAccountID: by,
+			GrantID:            &uuid.NullUUID{UUID: grant.ID, Valid: true},
+		})
+		if err != nil {
+			return model.RedeemResponse{}, err
+		}
+
+		if s.bc != nil {
+			payload, _ := json.Marshal(map[string]any{"redemption_id": red.ID, "status": "approved", "member_id": memberID})
+			_ = s.bc.Publish(ctx, "household:"+householdID.String(), broadcast.Event{
+				Type: "redemption.decided", HouseholdID: householdID.String(), Payload: payload, Timestamp: now,
+			})
+		}
+		return model.RedeemResponse{
+			RedemptionID: red.ID, Status: "approved",
+			PointsCharged: cost, NewBalance: bal.Total - int64(cost), EffectiveCost: cost,
+		}, nil
+	}
+
+	// needs_approval: just record the request, no debit yet
+	red, err := s.q.CreateRedemption(ctx, query.CreateRedemptionParams{
+		ID: uuid.New(), HouseholdID: householdID, RewardID: rewardID, MemberID: memberID,
+		PointsAtRedemption: int32(cost), Status: "pending",
+	})
+	if err != nil {
+		return model.RedeemResponse{}, fmt.Errorf("Redeem: create pending redemption: %w", err)
+	}
+
+	if s.bc != nil {
+		payload, _ := json.Marshal(map[string]any{"redemption_id": red.ID, "member_id": memberID, "reward_id": rewardID, "cost": cost})
+		_ = s.bc.Publish(ctx, "household:"+householdID.String(), broadcast.Event{
+			Type: "redemption.requested", HouseholdID: householdID.String(), Payload: payload, Timestamp: time.Now().UTC(),
+		})
+	}
+	return model.RedeemResponse{
+		RedemptionID: red.ID, Status: "pending",
+		PointsCharged: 0, NewBalance: bal.Total, EffectiveCost: cost,
+	}, nil
+}
+
+func (s *RewardService) ApproveRedemption(ctx context.Context, householdID, redemptionID uuid.UUID, byAccountID *uuid.UUID) (query.Redemption, error) {
+	red, err := s.q.GetRedemption(ctx, query.GetRedemptionParams{ID: redemptionID, HouseholdID: householdID})
+	if err != nil {
+		return query.Redemption{}, fmt.Errorf("ApproveRedemption: get: %w", err)
+	}
+	if red.Status != "pending" {
+		return query.Redemption{}, ErrInvalidStateTransition
+	}
+
+	reward, err := s.GetReward(ctx, householdID, red.RewardID)
+	if err != nil {
+		return query.Redemption{}, err
+	}
+
+	grant, err := s.points.Grant(ctx, householdID, red.MemberID, nil, nil, -int(red.PointsAtRedemption), "Redeemed: "+reward.Name, byAccountID)
+	if err != nil {
+		return query.Redemption{}, fmt.Errorf("ApproveRedemption: debit: %w", err)
+	}
+
+	now := time.Now().UTC()
+	var by *uuid.NullUUID
+	if byAccountID != nil {
+		by = &uuid.NullUUID{UUID: *byAccountID, Valid: true}
+	}
+	updated, err := s.q.SetRedemptionStatus(ctx, query.SetRedemptionStatusParams{
+		ID: redemptionID, HouseholdID: householdID, Status: "approved",
+		DecidedAt:          pgtype.Timestamptz{Time: now, Valid: true},
+		DecidedByAccountID: by,
+		GrantID:            &uuid.NullUUID{UUID: grant.ID, Valid: true},
+	})
+	if err != nil {
+		return query.Redemption{}, err
+	}
+
+	if s.bc != nil {
+		payload, _ := json.Marshal(map[string]any{"redemption_id": updated.ID, "status": "approved"})
+		_ = s.bc.Publish(ctx, "household:"+householdID.String(), broadcast.Event{
+			Type: "redemption.decided", HouseholdID: householdID.String(), Payload: payload, Timestamp: now,
+		})
+	}
+	return updated, nil
+}
+
+func (s *RewardService) DeclineRedemption(ctx context.Context, householdID, redemptionID uuid.UUID, reason string, byAccountID *uuid.UUID) (query.Redemption, error) {
+	red, err := s.q.GetRedemption(ctx, query.GetRedemptionParams{ID: redemptionID, HouseholdID: householdID})
+	if err != nil {
+		return query.Redemption{}, err
+	}
+	if red.Status != "pending" {
+		return query.Redemption{}, ErrInvalidStateTransition
+	}
+
+	now := time.Now().UTC()
+	var by *uuid.NullUUID
+	if byAccountID != nil {
+		by = &uuid.NullUUID{UUID: *byAccountID, Valid: true}
+	}
+	updated, err := s.q.SetRedemptionStatus(ctx, query.SetRedemptionStatusParams{
+		ID: redemptionID, HouseholdID: householdID, Status: "declined",
+		DecidedAt:          pgtype.Timestamptz{Time: now, Valid: true},
+		DecidedByAccountID: by,
+		DeclineReason:      &reason,
+	})
+	if err != nil {
+		return query.Redemption{}, err
+	}
+	if s.bc != nil {
+		payload, _ := json.Marshal(map[string]any{"redemption_id": updated.ID, "status": "declined", "reason": reason})
+		_ = s.bc.Publish(ctx, "household:"+householdID.String(), broadcast.Event{
+			Type: "redemption.decided", HouseholdID: householdID.String(), Payload: payload, Timestamp: now,
+		})
+	}
+	return updated, nil
+}
+
+func (s *RewardService) FulfillRedemption(ctx context.Context, householdID, redemptionID uuid.UUID) (query.Redemption, error) {
+	red, err := s.q.GetRedemption(ctx, query.GetRedemptionParams{ID: redemptionID, HouseholdID: householdID})
+	if err != nil {
+		return query.Redemption{}, err
+	}
+	if red.Status != "approved" {
+		return query.Redemption{}, ErrInvalidStateTransition
+	}
+
+	now := time.Now().UTC()
+	updated, err := s.q.SetRedemptionStatus(ctx, query.SetRedemptionStatusParams{
+		ID: redemptionID, HouseholdID: householdID, Status: "fulfilled",
+		FulfilledAt: pgtype.Timestamptz{Time: now, Valid: true},
+	})
+	if err != nil {
+		return query.Redemption{}, err
+	}
+	if s.bc != nil {
+		payload, _ := json.Marshal(map[string]any{"redemption_id": updated.ID})
+		_ = s.bc.Publish(ctx, "household:"+householdID.String(), broadcast.Event{
+			Type: "redemption.fulfilled", HouseholdID: householdID.String(), Payload: payload, Timestamp: now,
+		})
+	}
+	return updated, nil
+}
+
+func (s *RewardService) ListRedemptions(ctx context.Context, householdID uuid.UUID, memberID *uuid.UUID, status *string, limit, offset int32) ([]query.Redemption, error) {
+	var mid *uuid.NullUUID
+	if memberID != nil {
+		mid = &uuid.NullUUID{UUID: *memberID, Valid: true}
+	}
+	return s.q.ListRedemptions(ctx, query.ListRedemptionsParams{
+		HouseholdID: householdID, MemberID: mid, Status: status,
+		Limit: limit, Offset: offset,
+	})
+}
