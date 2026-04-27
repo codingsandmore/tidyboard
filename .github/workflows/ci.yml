@@ -31,7 +31,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # storybook 8.x rejects next@16 peer; safe to ignore until storybook 9 ships next@16 support
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         run: npm run build
@@ -96,6 +97,13 @@ jobs:
       - name: Unit tests
         run: go test -tags=unit -p 1 -count=1 -race ./...
 
+      - name: Apply DB migrations to test postgres
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          goose -dir migrations postgres "${TIDYBOARD_TEST_DSN}" up
+        env:
+          TIDYBOARD_TEST_DSN: postgres://tidyboard:tidyboard_test@localhost:5432/tidyboard_test?sslmode=disable
+
       - name: Integration tests
         env:
           TIDYBOARD_TEST_DSN: >-
@@ -123,7 +131,9 @@ jobs:
           cache-dependency-path: services/${{ matrix.service }}/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r services/${{ matrix.service }}/requirements.txt
+        run: |
+          pip install -r services/${{ matrix.service }}/requirements.txt
+          pip install -e "services/${{ matrix.service }}[dev]"
 
       - name: Run tests
         run: |
@@ -148,7 +158,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # storybook 8.x rejects next@16 peer; safe to ignore until storybook 9 ships next@16 support
+        run: npm ci --legacy-peer-deps
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
