@@ -366,3 +366,58 @@ func (s *RewardService) ListRedemptions(ctx context.Context, householdID uuid.UU
 		Limit: limit, Offset: offset,
 	})
 }
+
+// ── Savings goals ──────────────────────────────────────────────────────────
+
+func (s *RewardService) GetSavingsGoal(ctx context.Context, memberID uuid.UUID) (query.SavingsGoal, error) {
+	return s.q.GetActiveSavingsGoal(ctx, memberID)
+}
+
+func (s *RewardService) SetSavingsGoal(ctx context.Context, memberID uuid.UUID, rewardID *uuid.UUID) (*query.SavingsGoal, error) {
+	if rewardID == nil {
+		if err := s.q.ClearSavingsGoal(ctx, memberID); err != nil {
+			return nil, fmt.Errorf("SetSavingsGoal: clear: %w", err)
+		}
+		return nil, nil
+	}
+	g, err := s.q.UpsertSavingsGoal(ctx, query.UpsertSavingsGoalParams{
+		ID: uuid.New(), MemberID: memberID, RewardID: *rewardID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("SetSavingsGoal: upsert: %w", err)
+	}
+	return &g, nil
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────────
+
+func (s *RewardService) Timeline(ctx context.Context, memberID uuid.UUID, limit, offset int) ([]model.TimelineEvent, error) {
+	rows, err := s.q.TimelineForMember(ctx, query.TimelineForMemberParams{
+		MemberID: memberID, Limit: int32(limit), Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Timeline: %w", err)
+	}
+	out := make([]model.TimelineEvent, 0, len(rows))
+	for _, r := range rows {
+		var refA, refB *string
+		if r.RefA != "" {
+			v := r.RefA
+			refA = &v
+		}
+		if r.RefB != "" {
+			v := r.RefB
+			refB = &v
+		}
+		out = append(out, model.TimelineEvent{
+			Kind:       r.Kind,
+			ID:         r.ID,
+			OccurredAt: r.OccurredAt.Time.Format(time.RFC3339),
+			Amount:     r.Amount,
+			Reason:     r.Reason,
+			RefA:       refA,
+			RefB:       refB,
+		})
+	}
+	return out, nil
+}
