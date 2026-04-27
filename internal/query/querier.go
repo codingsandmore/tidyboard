@@ -20,6 +20,8 @@ type Querier interface {
 	ArchiveChore(ctx context.Context, arg ArchiveChoreParams) error
 	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
 	ArchivePointCategory(ctx context.Context, arg ArchivePointCategoryParams) error
+	ArchiveReward(ctx context.Context, arg ArchiveRewardParams) error
+	ClearSavingsGoal(ctx context.Context, memberID uuid.UUID) error
 	CloseChoreCompletionsForWeek(ctx context.Context, arg CloseChoreCompletionsForWeekParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
 	CountCompletionsForDay(ctx context.Context, arg CountCompletionsForDayParams) (int64, error)
@@ -66,6 +68,13 @@ type Querier interface {
 	// sql/queries/recipe_collection.sql
 	// Recipe collection queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateRecipeCollection(ctx context.Context, arg CreateRecipeCollectionParams) (RecipeCollection, error)
+	// ── Redemptions ─────────────────────────────────────────────────────────────
+	CreateRedemption(ctx context.Context, arg CreateRedemptionParams) (Redemption, error)
+	// sql/queries/reward.sql
+	// ── Rewards catalog ─────────────────────────────────────────────────────────
+	CreateReward(ctx context.Context, arg CreateRewardParams) (Reward, error)
+	// ── Reward cost adjustments ─────────────────────────────────────────────────
+	CreateRewardCostAdjustment(ctx context.Context, arg CreateRewardCostAdjustmentParams) (RewardCostAdjustment, error)
 	// sql/queries/routine.sql
 	// Routine, RoutineStep, and RoutineCompletion queries.
 	CreateRoutine(ctx context.Context, arg CreateRoutineParams) (Routine, error)
@@ -90,6 +99,7 @@ type Querier interface {
 	DeletePantryStaple(ctx context.Context, arg DeletePantryStapleParams) error
 	DeleteRecipe(ctx context.Context, arg DeleteRecipeParams) error
 	DeleteRecipeCollection(ctx context.Context, arg DeleteRecipeCollectionParams) error
+	DeleteRewardCostAdjustment(ctx context.Context, arg DeleteRewardCostAdjustmentParams) error
 	DeleteRoutine(ctx context.Context, arg DeleteRoutineParams) error
 	DeleteShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) error
 	DeleteStep(ctx context.Context, id uuid.UUID) error
@@ -99,6 +109,8 @@ type Querier interface {
 	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)
 	// ── Allowance ────────────────────────────────────────────────────────────────
 	GetActiveAllowance(ctx context.Context, memberID uuid.UUID) (AllowanceSetting, error)
+	// ── Savings goals ───────────────────────────────────────────────────────────
+	GetActiveSavingsGoal(ctx context.Context, memberID uuid.UUID) (SavingsGoal, error)
 	GetActiveShoppingList(ctx context.Context, householdID uuid.UUID) (ShoppingList, error)
 	GetAdHocTask(ctx context.Context, arg GetAdHocTaskParams) (AdHocTask, error)
 	GetBehavior(ctx context.Context, arg GetBehaviorParams) (Behavior, error)
@@ -130,6 +142,8 @@ type Querier interface {
 	GetRecipe(ctx context.Context, arg GetRecipeParams) (Recipe, error)
 	GetRecipeBySourceURL(ctx context.Context, arg GetRecipeBySourceURLParams) (Recipe, error)
 	GetRecipeCollection(ctx context.Context, arg GetRecipeCollectionParams) (RecipeCollection, error)
+	GetRedemption(ctx context.Context, arg GetRedemptionParams) (Redemption, error)
+	GetReward(ctx context.Context, arg GetRewardParams) (Reward, error)
 	GetRoutine(ctx context.Context, arg GetRoutineParams) (Routine, error)
 	GetShoppingList(ctx context.Context, arg GetShoppingListParams) (ShoppingList, error)
 	GetStep(ctx context.Context, arg GetStepParams) (RoutineStep, error)
@@ -147,7 +161,9 @@ type Querier interface {
 	InsertBackupRecord(ctx context.Context, arg InsertBackupRecordParams) (BackupRecord, error)
 	InsertShoppingListItem(ctx context.Context, arg InsertShoppingListItemParams) (ShoppingListItem, error)
 	ListAccountAudit(ctx context.Context, arg ListAccountAuditParams) ([]AuditEntry, error)
+	ListActiveRewardCostAdjustments(ctx context.Context, arg ListActiveRewardCostAdjustmentsParams) ([]RewardCostAdjustment, error)
 	ListAdHocTasks(ctx context.Context, arg ListAdHocTasksParams) ([]AdHocTask, error)
+	ListAllRewardCostAdjustments(ctx context.Context, arg ListAllRewardCostAdjustmentsParams) ([]RewardCostAdjustment, error)
 	ListAllowances(ctx context.Context, householdID uuid.UUID) ([]AllowanceSetting, error)
 	ListBackupRecords(ctx context.Context, arg ListBackupRecordsParams) ([]BackupRecord, error)
 	ListBehaviors(ctx context.Context, arg ListBehaviorsParams) ([]Behavior, error)
@@ -179,6 +195,8 @@ type Querier interface {
 	ListRecipeCollections(ctx context.Context, householdID uuid.UUID) ([]RecipeCollection, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	ListRecipesByCollection(ctx context.Context, arg ListRecipesByCollectionParams) ([]Recipe, error)
+	ListRedemptions(ctx context.Context, arg ListRedemptionsParams) ([]Redemption, error)
+	ListRewards(ctx context.Context, arg ListRewardsParams) ([]Reward, error)
 	ListRoutines(ctx context.Context, arg ListRoutinesParams) ([]Routine, error)
 	ListShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) ([]ShoppingListItem, error)
 	ListSteps(ctx context.Context, routineID uuid.UUID) ([]RoutineStep, error)
@@ -200,6 +218,7 @@ type Querier interface {
 	// Canonical ingredient search
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
+	SetRedemptionStatus(ctx context.Context, arg SetRedemptionStatusParams) (Redemption, error)
 	SumChorePayoutsForChoreInWeek(ctx context.Context, arg SumChorePayoutsForChoreInWeekParams) (int64, error)
 	// Returns total minutes logged per member within a time window.
 	SumMinutesByMember(ctx context.Context, arg SumMinutesByMemberParams) ([]SumMinutesByMemberRow, error)
@@ -207,6 +226,8 @@ type Querier interface {
 	SumMinutesByMemberAndDomain(ctx context.Context, arg SumMinutesByMemberAndDomainParams) ([]SumMinutesByMemberAndDomainRow, error)
 	SumPointsByMember(ctx context.Context, memberID uuid.UUID) (int64, error)
 	SumPointsByMemberAndCategory(ctx context.Context, memberID uuid.UUID) ([]SumPointsByMemberAndCategoryRow, error)
+	// ── Timeline (unified per-kid stream) ───────────────────────────────────────
+	TimelineForMember(ctx context.Context, arg TimelineForMemberParams) ([]TimelineForMemberRow, error)
 	UnmarkCompletion(ctx context.Context, id uuid.UUID) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateBackupRecord(ctx context.Context, arg UpdateBackupRecordParams) (BackupRecord, error)
@@ -223,6 +244,7 @@ type Querier interface {
 	UpdatePointCategory(ctx context.Context, arg UpdatePointCategoryParams) (PointCategory, error)
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)
 	UpdateRecipeCollection(ctx context.Context, arg UpdateRecipeCollectionParams) (RecipeCollection, error)
+	UpdateReward(ctx context.Context, arg UpdateRewardParams) (Reward, error)
 	UpdateRoutine(ctx context.Context, arg UpdateRoutineParams) (Routine, error)
 	UpdateShoppingListItem(ctx context.Context, arg UpdateShoppingListItemParams) (ShoppingListItem, error)
 	UpdateStep(ctx context.Context, arg UpdateStepParams) (RoutineStep, error)
@@ -236,6 +258,7 @@ type Querier interface {
 	UpsertMealPlanEntry(ctx context.Context, arg UpsertMealPlanEntryParams) (MealPlanEntry, error)
 	// Pantry staples
 	UpsertPantryStaple(ctx context.Context, arg UpsertPantryStapleParams) (PantryStaple, error)
+	UpsertSavingsGoal(ctx context.Context, arg UpsertSavingsGoalParams) (SavingsGoal, error)
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
