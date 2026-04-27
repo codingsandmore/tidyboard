@@ -35,6 +35,13 @@ import type {
   ApiChore,
   ApiChoreCompletion,
   ApiWalletGetResponse,
+  ApiPointCategory,
+  ApiBehavior,
+  ApiPointsBalance,
+  ApiScoreboardEntry,
+  ApiReward,
+  ApiRedemption,
+  ApiTimelineEvent,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -300,5 +307,73 @@ export const fallback = {
         { id: "t3", wallet_id: "w1", member_id: memberId, amount_cents: 200, kind: "chore_payout", reference_id: null, reason: "Take out trash",         created_at: now },
       ],
     };
+  },
+  pointCategories(): ApiPointCategory[] {
+    const now = new Date().toISOString();
+    return [
+      { id: "cat-kindness",       household_id: "h1", name: "Kindness",       color: "#ec4899", sort_order: 1, archived_at: null, created_at: now, updated_at: now },
+      { id: "cat-effort",         household_id: "h1", name: "Effort",         color: "#10b981", sort_order: 2, archived_at: null, created_at: now, updated_at: now },
+      { id: "cat-responsibility", household_id: "h1", name: "Responsibility", color: "#f59e0b", sort_order: 3, archived_at: null, created_at: now, updated_at: now },
+      { id: "cat-listening",      household_id: "h1", name: "Listening",      color: "#3b82f6", sort_order: 4, archived_at: null, created_at: now, updated_at: now },
+    ];
+  },
+  behaviors(categoryId?: string): ApiBehavior[] {
+    const now = new Date().toISOString();
+    const all: ApiBehavior[] = [
+      { id: "b1", household_id: "h1", category_id: "cat-kindness",       name: "Helped a sibling",          suggested_points: 3, archived_at: null, created_at: now, updated_at: now },
+      { id: "b2", household_id: "h1", category_id: "cat-effort",         name: "Did homework w/o reminder", suggested_points: 5, archived_at: null, created_at: now, updated_at: now },
+      { id: "b3", household_id: "h1", category_id: "cat-responsibility", name: "Cleaned up own mess",       suggested_points: 2, archived_at: null, created_at: now, updated_at: now },
+      { id: "b4", household_id: "h1", category_id: "cat-listening",      name: "First-time listener",       suggested_points: 4, archived_at: null, created_at: now, updated_at: now },
+    ];
+    return categoryId ? all.filter(b => b.category_id === categoryId) : all;
+  },
+  pointsBalance(memberId: string): ApiPointsBalance {
+    const now = new Date().toISOString();
+    return {
+      member_id: memberId,
+      total: 47,
+      by_category: [
+        { category_id: "cat-kindness",       total: 12 },
+        { category_id: "cat-effort",         total: 20 },
+        { category_id: "cat-responsibility", total: 10 },
+        { category_id: "cat-listening",      total: 5 },
+      ],
+      recent: [
+        { id: "g1", points: 3,   reason: "Helped Theo find his shoe",   category_id: "cat-kindness", behavior_id: "b1", granted_at: now },
+        { id: "g2", points: 5,   reason: "Started homework right away", category_id: "cat-effort",   behavior_id: "b2", granted_at: now },
+        { id: "g3", points: -10, reason: "Redeemed: stickers",          category_id: null,           behavior_id: null, granted_at: now },
+      ],
+    };
+  },
+  scoreboard(): ApiScoreboardEntry[] {
+    return [
+      { member_id: "m1", total: 84, by_category: [{ category_id: "cat-effort", total: 40 }, { category_id: "cat-kindness", total: 24 }, { category_id: "cat-responsibility", total: 12 }, { category_id: "cat-listening", total: 8 }] },
+      { member_id: "m2", total: 47, by_category: [{ category_id: "cat-effort", total: 20 }, { category_id: "cat-kindness", total: 12 }, { category_id: "cat-responsibility", total: 10 }, { category_id: "cat-listening", total: 5 }] },
+    ];
+  },
+  rewards(): ApiReward[] {
+    const now = new Date().toISOString();
+    return [
+      { id: "r1", household_id: "h1", name: "Stickers",         description: "Sheet of stickers",     image_url: null, cost_points: 30,  fulfillment_kind: "self_serve",     active: true, created_at: now, updated_at: now },
+      { id: "r2", household_id: "h1", name: "Movie night pick", description: "Pick the family movie", image_url: null, cost_points: 75,  fulfillment_kind: "needs_approval", active: true, created_at: now, updated_at: now },
+      { id: "r3", household_id: "h1", name: "Xbox game",        description: "$60 budget",            image_url: null, cost_points: 500, fulfillment_kind: "needs_approval", active: true, created_at: now, updated_at: now },
+    ];
+  },
+  redemptions(): ApiRedemption[] {
+    const now = new Date().toISOString();
+    return [
+      { id: "rd1", household_id: "h1", reward_id: "r1", member_id: "m1", points_at_redemption: 30, status: "fulfilled", requested_at: now, decided_at: now, decided_by_account_id: null, fulfilled_at: now,  decline_reason: "", grant_id: null },
+      { id: "rd2", household_id: "h1", reward_id: "r2", member_id: "m2", points_at_redemption: 75, status: "pending",   requested_at: now, decided_at: null, decided_by_account_id: null, fulfilled_at: null, decline_reason: "", grant_id: null },
+    ];
+  },
+  timeline(memberId: string): ApiTimelineEvent[] {
+    const now = new Date().toISOString();
+    void memberId; // mark used
+    return [
+      { kind: "point_grant",            id: "g1",  occurred_at: now, amount: 3,  reason: "Helped Theo",   ref_a: "b1",           ref_b: "cat-kindness" },
+      { kind: "wallet_transaction",     id: "t1",  occurred_at: now, amount: 30, reason: "Brush teeth",   ref_a: "chore_payout", ref_b: null },
+      { kind: "redemption",             id: "rd1", occurred_at: now, amount: 30, reason: "approved",      ref_a: "r1",           ref_b: null },
+      { kind: "reward_cost_adjustment", id: "a1",  occurred_at: now, amount: 25, reason: "Hit at school", ref_a: "r3",           ref_b: null },
+    ];
   },
 };
