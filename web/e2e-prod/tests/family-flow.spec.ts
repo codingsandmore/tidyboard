@@ -12,6 +12,12 @@ import {
   apiPinLogin,
   apiMe,
   ApiError,
+  apiCreateChore,
+  apiCompleteChore,
+  apiGetWallet,
+  apiTip,
+  apiUpsertAllowance,
+  apiCashOut,
 } from "../helpers/api";
 import { CleanupQueue } from "../helpers/cleanup";
 
@@ -194,5 +200,43 @@ test.describe("Production family flow (auth required)", () => {
     const me = await apiMe(kidToken);
     expect(me.member_id).toBe(kidMemberId);
     expect(me.role).toMatch(/child|kid|member/);
+  });
+
+  test("7. wallet flow: allowance + chore + completion + tip + cash-out", async () => {
+    const members = await apiListMembers(TOKEN, householdId);
+    const kid = members.find((m) => m.name.startsWith(`[${RUN}]`) && m.role === "child");
+    if (!kid) test.skip(true, "no test kid available from step 2");
+
+    // Set $5/week allowance
+    await apiUpsertAllowance(TOKEN, kid!.id, 500);
+
+    // Create a chore
+    const chore = await apiCreateChore(TOKEN, {
+      member_id: kid!.id,
+      name: `[${RUN}] feed dog`,
+      weight: 3,
+      frequency_kind: "daily",
+      auto_approve: true,
+    });
+    cleanup.trackChore(TOKEN, chore.id);
+    expect(chore.id).toBeTruthy();
+
+    // Complete it for today
+    await apiCompleteChore(TOKEN, chore.id);
+
+    // Verify wallet got credited
+    const w1 = await apiGetWallet(TOKEN, kid!.id);
+    expect(w1.wallet.balance_cents).toBeGreaterThan(0);
+
+    // Tip $1
+    await apiTip(TOKEN, kid!.id, 100, "great job today");
+    const w2 = await apiGetWallet(TOKEN, kid!.id);
+    expect(w2.wallet.balance_cents).toBeGreaterThan(w1.wallet.balance_cents);
+    expect(w2.transactions.some((t) => t.kind === "tip")).toBe(true);
+
+    // Cash out the full balance
+    await apiCashOut(TOKEN, kid!.id, w2.wallet.balance_cents);
+    const w3 = await apiGetWallet(TOKEN, kid!.id);
+    expect(w3.wallet.balance_cents).toBe(0);
   });
 });

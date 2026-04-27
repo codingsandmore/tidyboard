@@ -20,6 +20,32 @@ type Account struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AdHocTask struct {
+	ID                  uuid.UUID          `json:"id"`
+	HouseholdID         uuid.UUID          `json:"household_id"`
+	MemberID            uuid.UUID          `json:"member_id"`
+	Name                string             `json:"name"`
+	PayoutCents         int32              `json:"payout_cents"`
+	RequiresApproval    bool               `json:"requires_approval"`
+	Status              string             `json:"status"`
+	CreatedByAccountID  *uuid.NullUUID     `json:"created_by_account_id"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+	ApprovedAt          pgtype.Timestamptz `json:"approved_at"`
+	ApprovedByAccountID *uuid.NullUUID     `json:"approved_by_account_id"`
+	DeclineReason       string             `json:"decline_reason"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type AllowanceSetting struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	MemberID    uuid.UUID          `json:"member_id"`
+	AmountCents int64              `json:"amount_cents"`
+	ActiveFrom  pgtype.Date        `json:"active_from"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type AuditEntry struct {
 	ID             uuid.UUID          `json:"id"`
 	Timestamp      pgtype.Timestamptz `json:"timestamp"`
@@ -62,6 +88,32 @@ type Calendar struct {
 	Username          string             `json:"username"`
 	PasswordEncrypted string             `json:"password_encrypted"`
 	DisplayName       string             `json:"display_name"`
+}
+
+type Chore struct {
+	ID            uuid.UUID          `json:"id"`
+	HouseholdID   uuid.UUID          `json:"household_id"`
+	MemberID      uuid.UUID          `json:"member_id"`
+	Name          string             `json:"name"`
+	Weight        int32              `json:"weight"`
+	FrequencyKind string             `json:"frequency_kind"`
+	DaysOfWeek    []string           `json:"days_of_week"`
+	AutoApprove   bool               `json:"auto_approve"`
+	ArchivedAt    pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChoreCompletion struct {
+	ID                  uuid.UUID          `json:"id"`
+	ChoreID             uuid.UUID          `json:"chore_id"`
+	MemberID            uuid.UUID          `json:"member_id"`
+	Date                pgtype.Date        `json:"date"`
+	MarkedAt            pgtype.Timestamptz `json:"marked_at"`
+	Approved            bool               `json:"approved"`
+	ApprovedByAccountID *uuid.NullUUID     `json:"approved_by_account_id"`
+	PayoutCents         int32              `json:"payout_cents"`
+	Closed              bool               `json:"closed"`
 }
 
 type DomainOwnership struct {
@@ -375,4 +427,35 @@ type TaskLog struct {
 	Notes           string             `json:"notes"`
 	Source          string             `json:"source"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type Wallet struct {
+	ID           uuid.UUID          `json:"id"`
+	MemberID     uuid.UUID          `json:"member_id"`
+	BalanceCents int64              `json:"balance_cents"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WalletTransaction struct {
+	ID                 uuid.UUID          `json:"id"`
+	WalletID           uuid.UUID          `json:"wallet_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	AmountCents        int64              `json:"amount_cents"`
+	Kind               string             `json:"kind"`
+	ReferenceID        *uuid.NullUUID     `json:"reference_id"`
+	Reason             string             `json:"reason"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type WeeklySummary struct {
+	ID               uuid.UUID          `json:"id"`
+	HouseholdID      uuid.UUID          `json:"household_id"`
+	MemberID         uuid.UUID          `json:"member_id"`
+	WeekStart        pgtype.Date        `json:"week_start"`
+	EarnedCents      int64              `json:"earned_cents"`
+	StreakBonusCents int64              `json:"streak_bonus_cents"`
+	ChoresCompleted  int32              `json:"chores_completed"`
+	ChoresPossible   int32              `json:"chores_possible"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }

@@ -16,7 +16,9 @@
     "race": "Race",
     "stars": "Stars",
     "races": "Races",
-    "rewards": "Rewards"
+    "rewards": "Rewards",
+    "wallet": "Wallet",
+    "chores": "Chores"
   },
   "common": {
     "back": "Back",

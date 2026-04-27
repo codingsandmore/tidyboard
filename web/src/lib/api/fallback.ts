@@ -32,6 +32,9 @@ import type {
   Race,
   AuditEntry,
   ListAuditResponse,
+  ApiChore,
+  ApiChoreCompletion,
+  ApiWalletGetResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -273,6 +276,29 @@ export const fallback = {
       total,
       limit,
       offset,
+    };
+  },
+  chores(memberId?: string): ApiChore[] {
+    const childId = memberId ?? "jackson";
+    const now = new Date().toISOString();
+    return [
+      { id: "c1", household_id: "h1", member_id: childId, name: "Brush teeth", weight: 1, frequency_kind: "daily", days_of_week: [], auto_approve: true, archived_at: null, created_at: now, updated_at: now },
+      { id: "c2", household_id: "h1", member_id: childId, name: "Make bed",     weight: 2, frequency_kind: "daily", days_of_week: [], auto_approve: true, archived_at: null, created_at: now, updated_at: now },
+      { id: "c3", household_id: "h1", member_id: childId, name: "Take out trash", weight: 5, frequency_kind: "weekly", days_of_week: [], auto_approve: true, archived_at: null, created_at: now, updated_at: now },
+    ];
+  },
+  choreCompletions(_: { from: string; to: string; memberId?: string }): ApiChoreCompletion[] {
+    return [];
+  },
+  wallet(memberId: string): ApiWalletGetResponse {
+    const now = new Date().toISOString();
+    return {
+      wallet: { id: "w1", member_id: memberId, balance_cents: 480, updated_at: now },
+      transactions: [
+        { id: "t1", wallet_id: "w1", member_id: memberId, amount_cents: 30,  kind: "chore_payout", reference_id: null, reason: "Brush teeth", created_at: now },
+        { id: "t2", wallet_id: "w1", member_id: memberId, amount_cents: 250, kind: "tip",          reference_id: null, reason: "Helping with groceries", created_at: now },
+        { id: "t3", wallet_id: "w1", member_id: memberId, amount_cents: 200, kind: "chore_payout", reference_id: null, reason: "Take out trash",         created_at: now },
+      ],
     };
   },
 };

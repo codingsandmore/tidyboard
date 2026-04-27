@@ -182,3 +182,43 @@ export const apiToggleListItem = (
     token,
     body: { completed },
   });
+
+// ── Wallet / Chores ─────────────────────────────────────────────────────
+
+export interface ChoreResponse {
+  id: string;
+  household_id: string;
+  member_id: string;
+  name: string;
+  weight: number;
+  frequency_kind: string;
+  auto_approve: boolean;
+}
+
+export interface WalletGetResponseE2E {
+  wallet: { id: string; balance_cents: number };
+  transactions: Array<{ id: string; amount_cents: number; kind: string; reason: string }>;
+}
+
+export const apiCreateChore = (
+  token: string,
+  body: { member_id: string; name: string; weight: number; frequency_kind: string; auto_approve: boolean }
+) => request<ChoreResponse>("POST", "/v1/chores", { token, body });
+
+export const apiCompleteChore = (token: string, choreId: string, date?: string) =>
+  request<unknown>("POST", `/v1/chores/${choreId}/complete${date ? `?date=${date}` : ""}`, { token });
+
+export const apiGetWallet = (token: string, memberId: string) =>
+  request<WalletGetResponseE2E>("GET", `/v1/wallet/${memberId}`, { token });
+
+export const apiTip = (token: string, memberId: string, amount_cents: number, reason: string) =>
+  request<unknown>("POST", `/v1/wallet/${memberId}/tip`, { token, body: { amount_cents, reason } });
+
+export const apiUpsertAllowance = (token: string, memberId: string, amount_cents: number) =>
+  request<unknown>("PUT", `/v1/allowance/${memberId}`, { token, body: { amount_cents } });
+
+export const apiCashOut = (token: string, memberId: string, amount_cents: number) =>
+  request<unknown>("POST", `/v1/wallet/${memberId}/cash-out`, { token, body: { amount_cents, method: "cash", note: "e2e" } });
+
+export const apiArchiveChore = (token: string, choreId: string) =>
+  request<unknown>("DELETE", `/v1/chores/${choreId}`, { token });
