@@ -13,8 +13,12 @@ import (
 type Querier interface {
 	AddRecipeToCollection(ctx context.Context, arg AddRecipeToCollectionParams) error
 	AddStep(ctx context.Context, arg AddStepParams) (RoutineStep, error)
+	AdjustWalletBalance(ctx context.Context, arg AdjustWalletBalanceParams) (Wallet, error)
+	ApproveAdHocTask(ctx context.Context, arg ApproveAdHocTaskParams) (AdHocTask, error)
 	ApproveJoinRequest(ctx context.Context, arg ApproveJoinRequestParams) (JoinRequest, error)
+	ArchiveChore(ctx context.Context, arg ArchiveChoreParams) error
 	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
+	CloseChoreCompletionsForWeek(ctx context.Context, arg CloseChoreCompletionsForWeekParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
 	CountCompletionsForDay(ctx context.Context, arg CountCompletionsForDayParams) (int64, error)
 	CountStepsForRoutine(ctx context.Context, routineID uuid.UUID) (int64, error)
@@ -23,7 +27,13 @@ type Querier interface {
 	// sql/queries/account.sql
 	// Account queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
+	// ── Ad-hoc tasks ─────────────────────────────────────────────────────────────
+	CreateAdHocTask(ctx context.Context, arg CreateAdHocTaskParams) (AdHocTask, error)
 	CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error)
+	// sql/queries/chore.sql
+	// Chore + ChoreCompletion queries.
+	CreateChore(ctx context.Context, arg CreateChoreParams) (Chore, error)
+	CreateChoreCompletion(ctx context.Context, arg CreateChoreCompletionParams) (ChoreCompletion, error)
 	CreateEquityTask(ctx context.Context, arg CreateEquityTaskParams) (EquityTask, error)
 	// sql/queries/event.sql
 	// Event queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -56,8 +66,12 @@ type Querier interface {
 	CreateTaskDomain(ctx context.Context, arg CreateTaskDomainParams) (TaskDomain, error)
 	// ── Task Logs ────────────────────────────────────────────────────────────────
 	CreateTaskLog(ctx context.Context, arg CreateTaskLogParams) (TaskLog, error)
+	// ── Wallet transactions ─────────────────────────────────────────────────────
+	CreateWalletTransaction(ctx context.Context, arg CreateWalletTransactionParams) (WalletTransaction, error)
 	DeactivateAccount(ctx context.Context, id uuid.UUID) error
 	DeactivateShoppingLists(ctx context.Context, householdID uuid.UUID) error
+	DeclineAdHocTask(ctx context.Context, arg DeclineAdHocTaskParams) (AdHocTask, error)
+	DeleteChoreCompletion(ctx context.Context, arg DeleteChoreCompletionParams) error
 	DeleteEvent(ctx context.Context, arg DeleteEventParams) error
 	DeleteHousehold(ctx context.Context, id uuid.UUID) error
 	DeleteList(ctx context.Context, arg DeleteListParams) error
@@ -74,8 +88,13 @@ type Querier interface {
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)
+	// ── Allowance ────────────────────────────────────────────────────────────────
+	GetActiveAllowance(ctx context.Context, memberID uuid.UUID) (AllowanceSetting, error)
 	GetActiveShoppingList(ctx context.Context, householdID uuid.UUID) (ShoppingList, error)
+	GetAdHocTask(ctx context.Context, arg GetAdHocTaskParams) (AdHocTask, error)
 	GetCalendar(ctx context.Context, arg GetCalendarParams) (Calendar, error)
+	GetChore(ctx context.Context, arg GetChoreParams) (Chore, error)
+	GetChoreCompletion(ctx context.Context, arg GetChoreCompletionParams) (ChoreCompletion, error)
 	// Returns (date, completion_count) for the past N days for a given routine+member.
 	GetDailyCompletionCounts(ctx context.Context, arg GetDailyCompletionCountsParams) ([]GetDailyCompletionCountsRow, error)
 	GetEquityTask(ctx context.Context, arg GetEquityTaskParams) (EquityTask, error)
@@ -88,6 +107,9 @@ type Querier interface {
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
 	GetMember(ctx context.Context, arg GetMemberParams) (Member, error)
 	GetMemberByAccountAndHousehold(ctx context.Context, arg GetMemberByAccountAndHouseholdParams) (Member, error)
+	// sql/queries/wallet.sql
+	// ── Wallets ─────────────────────────────────────────────────────────────────
+	GetOrCreateWallet(ctx context.Context, memberID uuid.UUID) (Wallet, error)
 	// Returns the user's earliest-created membership; used by the auth middleware
 	// to populate household + role context for users that belong to one or more
 	// households. New users with no household yet get pgx.ErrNoRows here, which
@@ -102,6 +124,8 @@ type Querier interface {
 	GetSubscriptionByCustomer(ctx context.Context, stripeCustomerID string) (Subscription, error)
 	GetSubscriptionByHousehold(ctx context.Context, householdID uuid.UUID) (Subscription, error)
 	GetTaskDomain(ctx context.Context, arg GetTaskDomainParams) (GetTaskDomainRow, error)
+	GetWalletByMember(ctx context.Context, memberID uuid.UUID) (Wallet, error)
+	GetWeeklySummary(ctx context.Context, arg GetWeeklySummaryParams) (WeeklySummary, error)
 	IncrementTimesCooked(ctx context.Context, arg IncrementTimesCookedParams) (Recipe, error)
 	// sql/queries/audit.sql
 	// Audit log queries. Run `sqlc generate` to produce Go code in internal/query/.
@@ -111,8 +135,13 @@ type Querier interface {
 	InsertBackupRecord(ctx context.Context, arg InsertBackupRecordParams) (BackupRecord, error)
 	InsertShoppingListItem(ctx context.Context, arg InsertShoppingListItemParams) (ShoppingListItem, error)
 	ListAccountAudit(ctx context.Context, arg ListAccountAuditParams) ([]AuditEntry, error)
+	ListAdHocTasks(ctx context.Context, arg ListAdHocTasksParams) ([]AdHocTask, error)
+	ListAllowances(ctx context.Context, householdID uuid.UUID) ([]AllowanceSetting, error)
 	ListBackupRecords(ctx context.Context, arg ListBackupRecordsParams) ([]BackupRecord, error)
 	ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error)
+	ListChoreCompletionsForRange(ctx context.Context, arg ListChoreCompletionsForRangeParams) ([]ChoreCompletion, error)
+	ListChoreCompletionsForWeek(ctx context.Context, arg ListChoreCompletionsForWeekParams) ([]ChoreCompletion, error)
+	ListChores(ctx context.Context, arg ListChoresParams) ([]Chore, error)
 	ListCompletionsForDay(ctx context.Context, arg ListCompletionsForDayParams) ([]RoutineCompletion, error)
 	// ── Equity Tasks ─────────────────────────────────────────────────────────────
 	ListEquityTasks(ctx context.Context, householdID uuid.UUID) ([]EquityTask, error)
@@ -130,6 +159,7 @@ type Querier interface {
 	ListLists(ctx context.Context, householdID uuid.UUID) ([]List, error)
 	ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntriesParams) ([]MealPlanEntry, error)
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
+	ListMembersInHousehold(ctx context.Context, householdID uuid.UUID) ([]uuid.UUID, error)
 	ListPantryStaples(ctx context.Context, householdID uuid.UUID) ([]PantryStaple, error)
 	ListRecipeCollections(ctx context.Context, householdID uuid.UUID) ([]RecipeCollection, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
@@ -142,14 +172,18 @@ type Querier interface {
 	// ── Task Domains ─────────────────────────────────────────────────────────────
 	ListTaskDomains(ctx context.Context, householdID uuid.UUID) ([]ListTaskDomainsRow, error)
 	ListTaskLogs(ctx context.Context, arg ListTaskLogsParams) ([]ListTaskLogsRow, error)
+	ListWalletTransactions(ctx context.Context, arg ListWalletTransactionsParams) ([]WalletTransaction, error)
+	MarkAdHocTaskCompleted(ctx context.Context, arg MarkAdHocTaskCompletedParams) (AdHocTask, error)
 	MarkRoutineComplete(ctx context.Context, arg MarkRoutineCompleteParams) (RoutineCompletion, error)
 	MarkStepComplete(ctx context.Context, arg MarkStepCompleteParams) (RoutineCompletion, error)
+	RecomputeWalletBalance(ctx context.Context, memberID uuid.UUID) (Wallet, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
 	RejectJoinRequest(ctx context.Context, arg RejectJoinRequestParams) (JoinRequest, error)
 	RemoveRecipeFromCollection(ctx context.Context, arg RemoveRecipeFromCollectionParams) error
 	// Canonical ingredient search
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
+	SumChorePayoutsForChoreInWeek(ctx context.Context, arg SumChorePayoutsForChoreInWeekParams) (int64, error)
 	// Returns total minutes logged per member within a time window.
 	SumMinutesByMember(ctx context.Context, arg SumMinutesByMemberParams) ([]SumMinutesByMemberRow, error)
 	// Returns minutes per (member, domain) for the equity domain detail view.
@@ -158,6 +192,7 @@ type Querier interface {
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateBackupRecord(ctx context.Context, arg UpdateBackupRecordParams) (BackupRecord, error)
 	UpdateBackupS3Key(ctx context.Context, arg UpdateBackupS3KeyParams) (BackupRecord, error)
+	UpdateChore(ctx context.Context, arg UpdateChoreParams) (Chore, error)
 	UpdateEquityTask(ctx context.Context, arg UpdateEquityTaskParams) (EquityTask, error)
 	UpdateEvent(ctx context.Context, arg UpdateEventParams) (Event, error)
 	UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams) (Household, error)
@@ -172,6 +207,7 @@ type Querier interface {
 	UpdateStep(ctx context.Context, arg UpdateStepParams) (RoutineStep, error)
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) error
 	UpdateTaskDomain(ctx context.Context, arg UpdateTaskDomainParams) (TaskDomain, error)
+	UpsertAllowance(ctx context.Context, arg UpsertAllowanceParams) (AllowanceSetting, error)
 	UpsertDomainOwnership(ctx context.Context, arg UpsertDomainOwnershipParams) (DomainOwnership, error)
 	UpsertEventByExternalID(ctx context.Context, arg UpsertEventByExternalIDParams) (Event, error)
 	// sql/queries/meal_plan.sql
@@ -182,6 +218,8 @@ type Querier interface {
 	// sql/queries/subscription.sql
 	// Stripe subscription queries. Run `sqlc generate` to produce Go code.
 	UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (Subscription, error)
+	// ── Weekly summaries ─────────────────────────────────────────────────────────
+	UpsertWeeklySummary(ctx context.Context, arg UpsertWeeklySummaryParams) (WeeklySummary, error)
 	// Returns weekly aggregates for trend chart (last N weeks).
 	WeeklyMinutesByMember(ctx context.Context, arg WeeklyMinutesByMemberParams) ([]WeeklyMinutesByMemberRow, error)
 }
