@@ -14,6 +14,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { fallback, isApiFallbackMode } from "./fallback";
+import type { ApiError } from "./types";
 import type {
   TBDEvent,
   Member,
@@ -105,7 +106,18 @@ export const qk = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Wraps an API call and returns fallback data on any error. */
+/** Returns true when `err` is an ApiError plain object (duck-type check). */
+function isApiError(err: unknown): err is ApiError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "status" in err &&
+    typeof (err as ApiError).status === "number"
+  );
+}
+
+/** Wraps an API call and returns fallback data on network/5xx errors.
+ *  Auth errors (401/403) are re-thrown so the auth layer can redirect to login. */
 async function withFallback<T>(
   apiFn: () => Promise<T>,
   fallbackFn: () => T
@@ -113,7 +125,10 @@ async function withFallback<T>(
   if (isApiFallbackMode()) return fallbackFn();
   try {
     return await apiFn();
-  } catch {
+  } catch (err) {
+    if (isApiError(err) && (err.status === 401 || err.status === 403)) {
+      throw err; // let the auth layer handle it
+    }
     return fallbackFn();
   }
 }

@@ -210,13 +210,15 @@ export const fallback = {
     return TBD.recipes.find((r) => r.id === id);
   },
   lists(): FamilyList[] {
-    return TBD.lists;
+    if (isApiFallbackMode()) return TBD.lists;
+    return [];
   },
   list(id: string): FamilyList | undefined {
     return TBD.lists.find((l) => l.id === id);
   },
   shopping(): Shopping {
-    return TBD.shopping;
+    if (isApiFallbackMode()) return TBD.shopping;
+    return { weekOf: new Date().toISOString().slice(0, 10), fromRecipes: 0, categories: [] };
   },
   routines(): Routine[] {
     // data.ts stores a single legacy-shape routine; remap into the ApiRoutine
@@ -252,7 +254,12 @@ export const fallback = {
     return TBD.equity;
   },
   mealPlan(): MealPlan {
-    return TBD.mealPlan;
+    if (isApiFallbackMode()) return TBD.mealPlan;
+    return {
+      weekOf: new Date().toISOString().slice(0, 10),
+      rows: ["Breakfast", "Lunch", "Dinner", "Snack"],
+      grid: Array(4).fill(null).map(() => Array(7).fill(null)),
+    };
   },
   race(): Race {
     return TBD.race;
@@ -309,6 +316,7 @@ export const fallback = {
     };
   },
   pointCategories(): ApiPointCategory[] {
+    if (!isApiFallbackMode()) return [];
     const now = new Date().toISOString();
     return [
       { id: "cat-kindness",       household_id: "h1", name: "Kindness",       color: "#ec4899", sort_order: 1, archived_at: null, created_at: now, updated_at: now },
@@ -318,6 +326,7 @@ export const fallback = {
     ];
   },
   behaviors(categoryId?: string): ApiBehavior[] {
+    if (!isApiFallbackMode()) return [];
     const now = new Date().toISOString();
     const all: ApiBehavior[] = [
       { id: "b1", household_id: "h1", category_id: "cat-kindness",       name: "Helped a sibling",          suggested_points: 3, archived_at: null, created_at: now, updated_at: now },
@@ -328,6 +337,7 @@ export const fallback = {
     return categoryId ? all.filter(b => b.category_id === categoryId) : all;
   },
   pointsBalance(memberId: string): ApiPointsBalance {
+    if (!isApiFallbackMode()) return { member_id: memberId, total: 0, by_category: [], recent: [] };
     const now = new Date().toISOString();
     return {
       member_id: memberId,
@@ -346,12 +356,14 @@ export const fallback = {
     };
   },
   scoreboard(): ApiScoreboardEntry[] {
+    if (!isApiFallbackMode()) return [];
     return [
       { member_id: "m1", total: 84, by_category: [{ category_id: "cat-effort", total: 40 }, { category_id: "cat-kindness", total: 24 }, { category_id: "cat-responsibility", total: 12 }, { category_id: "cat-listening", total: 8 }] },
       { member_id: "m2", total: 47, by_category: [{ category_id: "cat-effort", total: 20 }, { category_id: "cat-kindness", total: 12 }, { category_id: "cat-responsibility", total: 10 }, { category_id: "cat-listening", total: 5 }] },
     ];
   },
   rewards(): ApiReward[] {
+    if (!isApiFallbackMode()) return [];
     const now = new Date().toISOString();
     return [
       { id: "r1", household_id: "h1", name: "Stickers",         description: "Sheet of stickers",     image_url: null, cost_points: 30,  fulfillment_kind: "self_serve",     active: true, created_at: now, updated_at: now },
@@ -360,6 +372,7 @@ export const fallback = {
     ];
   },
   redemptions(): ApiRedemption[] {
+    if (!isApiFallbackMode()) return [];
     const now = new Date().toISOString();
     return [
       { id: "rd1", household_id: "h1", reward_id: "r1", member_id: "m1", points_at_redemption: 30, status: "fulfilled", requested_at: now, decided_at: now, decided_by_account_id: null, fulfilled_at: now,  decline_reason: "", grant_id: null },
@@ -367,6 +380,10 @@ export const fallback = {
     ];
   },
   timeline(memberId: string): ApiTimelineEvent[] {
+    if (!isApiFallbackMode()) {
+      void memberId;
+      return [];
+    }
     const now = new Date().toISOString();
     void memberId; // mark used
     return [
