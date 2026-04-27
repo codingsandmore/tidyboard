@@ -304,3 +304,77 @@ export interface UpdateCollectionRequest {
   name?: string;
   sort_order?: number;
 }
+
+// ── Wallet / Chore types ────────────────────────────────────────────────────
+
+export interface ApiChore {
+  id: string;
+  household_id: string;
+  member_id: string;
+  name: string;
+  weight: number;
+  frequency_kind: "daily" | "weekdays" | "specific_days" | "weekly";
+  days_of_week: string[];
+  auto_approve: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiChoreCompletion {
+  id: string;
+  chore_id: string;
+  member_id: string;
+  date: string;
+  marked_at: string;
+  approved: boolean;
+  payout_cents: number;
+  closed: boolean;
+}
+
+export interface ApiWallet {
+  id: string;
+  member_id: string;
+  balance_cents: number;
+  updated_at: string;
+}
+
+export interface ApiWalletTransaction {
+  id: string;
+  wallet_id: string;
+  member_id: string;
+  amount_cents: number;
+  kind: "chore_payout" | "streak_bonus" | "tip" | "ad_hoc" | "cash_out" | "adjustment";
+  reference_id: string | null;
+  reason: string;
+  created_at: string;
+}
+
+export interface ApiWalletGetResponse {
+  wallet: ApiWallet;
+  transactions: ApiWalletTransaction[];
+}
+
+export interface ApiAllowance {
+  id: string;
+  household_id: string;
+  member_id: string;
+  amount_cents: number;
+  active_from: string;
+  created_at: string;
+}
+
+export interface ApiAdHocTask {
+  id: string;
+  household_id: string;
+  member_id: string;
+  name: string;
+  payout_cents: number;
+  requires_approval: boolean;
+  status: "open" | "pending" | "approved" | "declined";
+  completed_at: string | null;
+  approved_at: string | null;
+  decline_reason: string;
+  expires_at: string | null;
+  created_at: string;
+}
