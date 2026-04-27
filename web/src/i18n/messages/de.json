@@ -16,7 +16,9 @@
     "race": "Rennen",
     "stars": "Sterne",
     "races": "Rennen",
-    "rewards": "Belohnungen"
+    "rewards": "Belohnungen",
+    "wallet": "Geldbeutel",
+    "chores": "Aufgaben"
   },
   "common": {
     "back": "Zurück",

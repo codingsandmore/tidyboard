@@ -161,6 +161,8 @@ export function DashPhone() {
           { n: "list", l: tNav("lists"), href: "/lists" },
           { n: "pencil", l: tNav("notes"), href: "/notes" },
           { n: "chef", l: tNav("meals"), href: "/meals" },
+          { n: "star", l: tNav("wallet"), href: "/wallet" },
+          { n: "list", l: tNav("chores"), href: "/chores" },
           { n: "star", l: tNav("equity"), href: "/equity" },
         ]}
       />

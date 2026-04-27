@@ -41,6 +41,8 @@ export function DashDesktop() {
     { i: "list", l: tNav("lists"), href: "/lists" },
     { i: "pencil", l: tNav("notes"), href: "/notes" },
     { i: "chef", l: tNav("meals"), href: "/meals" },
+    { i: "star", l: tNav("wallet"), href: "/wallet" },
+    { i: "list", l: tNav("chores"), href: "/chores" },
     { i: "star", l: tNav("equity"), href: "/equity" },
     { i: "settings", l: tNav("settings"), href: "/settings" },
   ];
