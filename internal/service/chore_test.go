@@ -40,7 +40,7 @@ func seedChoreTestFixture(t *testing.T, inviteCode string) (householdID, memberI
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx,
-		`INSERT INTO households (id, name, timezone, invite_code, created_by_account_id) VALUES ($1, 'ChoreTest', 'UTC', $2, $3)`,
+		`INSERT INTO households (id, name, timezone, invite_code, created_by) VALUES ($1, 'ChoreTest', 'UTC', $2, $3)`,
 		householdID, inviteCode, creatorAccountID,
 	)
 	require.NoError(t, err)
