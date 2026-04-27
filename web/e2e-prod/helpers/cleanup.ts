@@ -5,6 +5,7 @@
  */
 
 import {
+  apiArchiveChore,
   apiDeleteEvent,
   apiDeleteHousehold,
   apiDeleteList,
@@ -16,7 +17,8 @@ type Cleanup =
   | { kind: "event"; token: string; id: string }
   | { kind: "list"; token: string; id: string }
   | { kind: "member"; token: string; householdId: string; id: string }
-  | { kind: "household"; token: string; id: string };
+  | { kind: "household"; token: string; id: string }
+  | { kind: "chore"; token: string; id: string };
 
 export class CleanupQueue {
   private items: Cleanup[] = [];
@@ -32,6 +34,9 @@ export class CleanupQueue {
   }
   trackHousehold(token: string, id: string) {
     this.items.push({ kind: "household", token, id });
+  }
+  trackChore(token: string, id: string) {
+    this.items.push({ kind: "chore", token, id });
   }
 
   async drain(): Promise<{ ok: number; failed: { kind: string; id: string; reason: string }[] }> {
@@ -54,6 +59,9 @@ export class CleanupQueue {
             break;
           case "household":
             await apiDeleteHousehold(c.token, c.id);
+            break;
+          case "chore":
+            await apiArchiveChore(c.token, c.id);
             break;
         }
         ok++;
