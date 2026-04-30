@@ -45,9 +45,13 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const { data: weather } = useWeather(weatherCoords, { enabled: Boolean(weatherCoords) });
   const router = useRouter();
   const members = apiMembers ?? [];
+  const activeMemberTargets = members.filter((member) => member.role !== "pet");
   const events = apiEvents ?? [];
-  const selectedMemberId = sel ?? activeMember?.id ?? null;
-  const selMember = members.find((m) => m.id === selectedMemberId) ?? members[0];
+  const activeMemberId = activeMemberTargets.some((member) => member.id === activeMember?.id)
+    ? activeMember?.id ?? null
+    : null;
+  const selectedMemberId = sel ?? activeMemberId;
+  const selMember = activeMemberTargets.find((m) => m.id === selectedMemberId) ?? activeMemberTargets[0];
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const displayedEvents = useMemo(
     () => filterEventsForMember(events, selectedMemberId),
@@ -189,7 +193,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             background: dark ? TB.dBg : TB.bg,
           }}
         >
-          {members.map((m) => {
+          {activeMemberTargets.map((m) => {
             const isSelected = selectedMemberId === m.id;
             return (
               <div

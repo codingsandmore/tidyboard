@@ -16,13 +16,18 @@ import { TB } from "@/lib/tokens";
 interface AuthGateProps {
   children: ReactNode;
   requireOnboarding?: boolean;
+  requireMemberProfile?: boolean;
 }
 
-export function AuthGate({ children, requireOnboarding = true }: AuthGateProps) {
+export function AuthGate({
+  children,
+  requireOnboarding = true,
+  requireMemberProfile = true,
+}: AuthGateProps) {
   const { status, account, household, member } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const hasCompletedOnboarding = Boolean(account && household && member);
+  const hasCompletedOnboarding = Boolean(account && household && (!requireMemberProfile || member));
 
   useEffect(() => {
     if (status === "unauthenticated") {

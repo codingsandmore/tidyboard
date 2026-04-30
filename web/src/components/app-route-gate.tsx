@@ -16,6 +16,8 @@ const PUBLIC_PREFIXES = [
   "/preview",
 ];
 
+const MEMBER_SELECTION_ROUTES = new Set(["/wallet", "/chores"]);
+
 function isPublicOrPreviewPath(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return true;
@@ -30,6 +32,10 @@ export function AppRouteGate({ children }: { children: ReactNode }) {
 
   if (isPublicOrPreviewPath(pathname)) {
     return <>{children}</>;
+  }
+
+  if (MEMBER_SELECTION_ROUTES.has(pathname)) {
+    return <AuthGate requireMemberProfile={false}>{children}</AuthGate>;
   }
 
   return <AuthGate>{children}</AuthGate>;
