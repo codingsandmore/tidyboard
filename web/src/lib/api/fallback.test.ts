@@ -50,11 +50,11 @@ describe("fallback.recipe", () => {
 });
 
 describe("fallback.lists", () => {
-  it("returns non-empty list", () => {
+  it("returns empty array when not in fallback mode", () => {
+    // isApiFallbackMode() is false in test env; fixture data must not leak
     const lists = fallback.lists();
-    expect(lists.length).toBeGreaterThan(0);
-    expect(lists[0]).toHaveProperty("id");
-    expect(lists[0]).toHaveProperty("items");
+    expect(Array.isArray(lists)).toBe(true);
+    expect(lists).toHaveLength(0);
   });
 });
 
@@ -71,10 +71,13 @@ describe("fallback.list", () => {
 });
 
 describe("fallback.shopping", () => {
-  it("returns shopping object with categories", () => {
+  it("returns empty shopping object when not in fallback mode", () => {
+    // isApiFallbackMode() is false in test env; fixture data must not leak
     const s = fallback.shopping();
     expect(s).toHaveProperty("categories");
-    expect(s.categories.length).toBeGreaterThan(0);
+    expect(s).toHaveProperty("weekOf");
+    expect(s).toHaveProperty("fromRecipes");
+    expect(s.categories).toHaveLength(0);
   });
 });
 

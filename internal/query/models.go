@@ -73,6 +73,17 @@ type BackupRecord struct {
 	S3Key          *string            `json:"s3_key"`
 }
 
+type Behavior struct {
+	ID              uuid.UUID          `json:"id"`
+	HouseholdID     uuid.UUID          `json:"household_id"`
+	CategoryID      uuid.UUID          `json:"category_id"`
+	Name            string             `json:"name"`
+	SuggestedPoints int32              `json:"suggested_points"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Calendar struct {
 	ID                uuid.UUID          `json:"id"`
 	HouseholdID       uuid.UUID          `json:"household_id"`
@@ -267,6 +278,29 @@ type PantryStaple struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PointCategory struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Color       string             `json:"color"`
+	SortOrder   int32              `json:"sort_order"`
+	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PointGrant struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	CategoryID         *uuid.NullUUID     `json:"category_id"`
+	BehaviorID         *uuid.NullUUID     `json:"behavior_id"`
+	Points             int32              `json:"points"`
+	Reason             string             `json:"reason"`
+	GrantedByAccountID *uuid.NullUUID     `json:"granted_by_account_id"`
+	GrantedAt          pgtype.Timestamptz `json:"granted_at"`
+}
+
 type Recipe struct {
 	ID           uuid.UUID          `json:"id"`
 	HouseholdID  uuid.UUID          `json:"household_id"`
@@ -335,6 +369,47 @@ type RecipeStep struct {
 	ImageUrl     string    `json:"image_url"`
 }
 
+type Redemption struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	RewardID           uuid.UUID          `json:"reward_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	PointsAtRedemption int32              `json:"points_at_redemption"`
+	Status             string             `json:"status"`
+	RequestedAt        pgtype.Timestamptz `json:"requested_at"`
+	DecidedAt          pgtype.Timestamptz `json:"decided_at"`
+	DecidedByAccountID *uuid.NullUUID     `json:"decided_by_account_id"`
+	FulfilledAt        pgtype.Timestamptz `json:"fulfilled_at"`
+	DeclineReason      string             `json:"decline_reason"`
+	GrantID            *uuid.NullUUID     `json:"grant_id"`
+}
+
+type Reward struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ImageUrl           *string            `json:"image_url"`
+	CostPoints         int32              `json:"cost_points"`
+	FulfillmentKind    string             `json:"fulfillment_kind"`
+	Active             bool               `json:"active"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RewardCostAdjustment struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	RewardID           uuid.UUID          `json:"reward_id"`
+	DeltaPoints        int32              `json:"delta_points"`
+	Reason             string             `json:"reason"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
 type Routine struct {
 	ID          uuid.UUID          `json:"id"`
 	HouseholdID uuid.UUID          `json:"household_id"`
@@ -365,6 +440,14 @@ type RoutineStep struct {
 	Icon       *string            `json:"icon"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SavingsGoal struct {
+	ID        uuid.UUID          `json:"id"`
+	MemberID  uuid.UUID          `json:"member_id"`
+	RewardID  uuid.UUID          `json:"reward_id"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+	ClearedAt pgtype.Timestamptz `json:"cleared_at"`
 }
 
 type ShoppingList struct {

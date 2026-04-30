@@ -222,3 +222,82 @@ export const apiCashOut = (token: string, memberId: string, amount_cents: number
 
 export const apiArchiveChore = (token: string, choreId: string) =>
   request<unknown>("DELETE", `/v1/chores/${choreId}`, { token });
+
+// ── Points / rewards ────────────────────────────────────────────────────
+
+export interface ApiPointCategoryT {
+  id: string;
+  name: string;
+  color: string;
+}
+export interface ApiBehaviorT {
+  id: string;
+  category_id: string;
+  name: string;
+  suggested_points: number;
+}
+export interface ApiRewardT {
+  id: string;
+  name: string;
+  cost_points: number;
+  fulfillment_kind: "self_serve" | "needs_approval";
+}
+export interface ApiRedemptionT {
+  id: string;
+  status: "pending" | "approved" | "fulfilled" | "declined";
+  points_at_redemption: number;
+}
+export interface ApiPointsBalanceT {
+  member_id: string;
+  total: number;
+}
+
+export const apiCreateCategory = (token: string, name: string, color: string) =>
+  request<ApiPointCategoryT>("POST", "/v1/point-categories", { token, body: { name, color } });
+
+export const apiDeleteCategory = (token: string, id: string) =>
+  request<void>("DELETE", `/v1/point-categories/${id}`, { token });
+
+export const apiCreateBehavior = (
+  token: string,
+  category_id: string,
+  name: string,
+  suggested_points: number
+) =>
+  request<ApiBehaviorT>("POST", "/v1/behaviors", {
+    token,
+    body: { category_id, name, suggested_points },
+  });
+
+export const apiDeleteBehavior = (token: string, id: string) =>
+  request<void>("DELETE", `/v1/behaviors/${id}`, { token });
+
+export const apiGrantPoints = (
+  token: string,
+  memberId: string,
+  body: { behavior_id?: string; category_id?: string; points: number; reason: string }
+) => request<{ id: string }>("POST", `/v1/points/${memberId}/grant`, { token, body });
+
+export const apiPointsBalance = (token: string, memberId: string) =>
+  request<ApiPointsBalanceT>("GET", `/v1/points/${memberId}`, { token });
+
+export const apiCreateReward = (
+  token: string,
+  name: string,
+  cost_points: number,
+  fulfillment_kind: "self_serve" | "needs_approval"
+) =>
+  request<ApiRewardT>("POST", "/v1/rewards", {
+    token,
+    body: { name, cost_points, fulfillment_kind },
+  });
+
+export const apiDeleteReward = (token: string, id: string) =>
+  request<void>("DELETE", `/v1/rewards/${id}`, { token });
+
+export const apiRedeemReward = (token: string, rewardId: string, memberId?: string) =>
+  request<{ redemption_id: string; status: "approved" | "pending" }>(
+    "POST",
+    `/v1/rewards/${rewardId}/redeem${memberId ? `?member_id=${memberId}` : ""}`,
+    { token, body: {} }
+  );

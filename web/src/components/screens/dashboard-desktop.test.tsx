@@ -14,6 +14,14 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/api/hooks", () => ({
   useMembers: () => ({ data: TBD.members }),
   useEvents: () => ({ data: TBD.events }),
+  useRedemptions: () => ({ data: [] }),
+  useAdHocTasks: () => ({ data: [] }),
+  useWeather: () => ({ data: null }),
+  useScoreboard: () => ({ data: [] }),
+  usePointCategories: () => ({ data: [] }),
+}));
+vi.mock("@/lib/weather/use-weather", () => ({
+  useWeather: () => ({ data: null }),
 }));
 
 const mockSetActiveMember = vi.fn();

@@ -106,7 +106,6 @@ function smokeWithAuth(name: string, Page: React.ComponentType) {
         </AuthProvider>
       </QueryClientProvider>
     );
-    vi.unstubAllGlobals();
     expect(container).toBeTruthy();
   });
 }
@@ -126,15 +125,15 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/calendar", CalendarPage);
   smokeWithQuery("/calendar/day", CalDayPage);
   smokeWithQuery("/calendar/day-dark", CalDayDarkPage);
-  smoke("/calendar/week", CalWeekPage);
+  smokeWithQuery("/calendar/week", CalWeekPage);
   smoke("/calendar/month", CalMonthPage);
   smokeWithQuery("/calendar/agenda", CalAgendaPage);
 
   smokeWithQuery("/routines", RoutinesPage);
   smokeWithQuery("/routines/kid", RoutinesKidPage);
   smokeWithQuery("/routines/kid-dark", RoutinesKidDarkPage);
-  smoke("/routines/checklist", RoutinesChecklistPage);
-  smoke("/routines/path", RoutinesPathPage);
+  smokeWithQuery("/routines/checklist", RoutinesChecklistPage);
+  smokeWithQuery("/routines/path", RoutinesPathPage);
 
   smokeWithQuery("/meals", MealsPage);
   smokeWithQuery("/meals/preview", MealsPreviewPage);
@@ -155,10 +154,10 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/equity", EquityPage);
   smokeWithQuery("/equity/preview", EquityPreviewPage);
   smokeWithQuery("/equity/preview-dark", EquityPreviewDarkPage);
-  smoke("/equity/preview-scales", EquityPreviewScalesPage);
+  smokeWithQuery("/equity/preview-scales", EquityPreviewScalesPage);
 
   smokeWithAuth("/lock", LockPage);
-  smoke("/lock/members", LockMembersPage);
+  smokeWithQuery("/lock/members", LockMembersPage);
   smoke("/lock/screen", LockScreenPage);
 
   smokeWithQuery("/race", RacePage);

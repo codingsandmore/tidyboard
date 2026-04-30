@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
-// TBD import kept for CalWeek (TBD.week) and CalAgenda static group fixtures
+// TBD import: TBD.week used only in isApiFallbackMode() path; CalAgenda static group fixtures
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
 import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
+import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
@@ -311,6 +312,23 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
   );
 }
 
+// Day-of-week keys in order (index 0 = Sunday)
+const DOW_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+type DowKey = (typeof DOW_KEYS)[number];
+
+/** Parse an HH:mm or ISO string into fractional hours (e.g. "09:30" → 9.5) */
+function toFractionalHours(timeStr: string): number {
+  if (!timeStr) return 0;
+  // ISO datetime string
+  if (timeStr.includes("T")) {
+    const d = new Date(timeStr);
+    return d.getHours() + d.getMinutes() / 60;
+  }
+  // HH:mm
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h ?? 0) + (m ?? 0) / 60;
+}
+
 export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
   const [weekStart, setWeekStart] = useState<Date>(() => {
@@ -321,6 +339,8 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
   });
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
   const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
   const headerLabel = sameMonth
     ? `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.getDate()}, ${weekEnd.getFullYear()}`
@@ -328,8 +348,65 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
   const shiftWeek = (delta: number) => {
     const next = new Date(weekStart);
     next.setDate(next.getDate() + delta * 7);
+    next.setHours(0, 0, 0, 0);
     setWeekStart(next);
   };
+
+  const { data: apiEvents } = useEvents({
+    start: weekStart.toISOString(),
+    end: weekEnd.toISOString(),
+  });
+
+  // Build a map from day-of-week index (0=Sun…6=Sat) to events for that day.
+  // In fallback mode we reuse TBD.week instead of deriving from the flat list.
+  const today = new Date();
+
+  // Build 7 columns: one per day of the current week
+  const columns = DOW_KEYS.map((dowKey, dowIndex) => {
+    const colDate = new Date(weekStart);
+    colDate.setDate(weekStart.getDate() + dowIndex);
+    const dateNum = colDate.getDate();
+    const isToday =
+      colDate.getFullYear() === today.getFullYear() &&
+      colDate.getMonth() === today.getMonth() &&
+      colDate.getDate() === today.getDate();
+
+    // Derive events for this column
+    let colEvents: TBDEvent[];
+    if (isApiFallbackMode()) {
+      // In fallback mode keep using TBD.week fixture for visual fidelity
+      const tbdDay = TBD.week[dowIndex];
+      colEvents = tbdDay
+        ? tbdDay.items.map((it, i) => ({
+            id: `tbd-${dowKey}-${i}`,
+            title: it.t,
+            start: `${Math.floor(it.h)}:${(it.h % 1) * 60 === 0 ? "00" : "30"}`,
+            end: `${Math.floor(it.h) + 1}:00`,
+            members: it.m === "all" ? [] : [it.m],
+          }))
+        : [];
+    } else {
+      // Derive from real API events: match events whose start date falls on this column's date
+      colEvents = (apiEvents ?? [])
+        .filter((e) => {
+          const evStart = e.start_time ?? (e.start?.includes("T") ? e.start : null);
+          if (evStart) {
+            const d = new Date(evStart);
+            return (
+              d.getFullYear() === colDate.getFullYear() &&
+              d.getMonth() === colDate.getMonth() &&
+              d.getDate() === colDate.getDate()
+            );
+          }
+          // Legacy HH:mm events have no date — skip them in live mode
+          return false;
+        })
+        .sort((a, b) => toFractionalHours(a.start_time ?? a.start) - toFractionalHours(b.start_time ?? b.start));
+    }
+
+    return { dowKey, dowIndex, colDate, dateNum, isToday, colEvents };
+  });
+
   return (
     <div
       style={{
@@ -389,98 +466,93 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
           overflow: "hidden",
         }}
       >
-        {TBD.week.map((d) => {
-          const isToday = d.day === "Thu";
-          const dayKeyMap: Record<string, "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat"> = {
-            Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat",
-          };
-          const dayKey = dayKeyMap[d.day] ?? "mon";
-          return (
+        {columns.map(({ dowKey, colDate, dateNum, isToday, colEvents }) => (
+          <div
+            key={dowKey}
+            style={{
+              borderLeft: `1px solid ${TB.borderSoft}`,
+              display: "flex",
+              flexDirection: "column",
+              background: isToday ? TB.primary + "08" : TB.surface,
+            }}
+          >
             <div
-              key={d.day}
               style={{
-                borderLeft: `1px solid ${TB.borderSoft}`,
+                padding: "10px 10px",
+                borderBottom: `1px solid ${TB.borderSoft}`,
                 display: "flex",
-                flexDirection: "column",
-                background: isToday ? TB.primary + "08" : TB.surface,
+                alignItems: "baseline",
+                gap: 6,
+                background: isToday ? TB.primary + "15" : TB.bg2,
               }}
             >
               <div
                 style={{
-                  padding: "10px 10px",
-                  borderBottom: `1px solid ${TB.borderSoft}`,
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 6,
-                  background: isToday ? TB.primary + "15" : TB.bg2,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: isToday ? TB.primary : TB.text2,
+                  letterSpacing: "0.08em",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: isToday ? TB.primary : TB.text2,
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  {t(`weekDays.${dayKey}`)}
-                </div>
-                <div
-                  style={{
-                    fontFamily: TB.fontDisplay,
-                    fontSize: 20,
-                    fontWeight: 500,
-                    color: isToday ? TB.primary : TB.text,
-                    marginLeft: "auto",
-                  }}
-                >
-                  {d.date}
-                </div>
+                {t(`weekDays.${dowKey}`)}
               </div>
               <div
                 style={{
-                  flex: 1,
-                  padding: 6,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 3,
-                  overflow: "hidden",
+                  fontFamily: TB.fontDisplay,
+                  fontSize: 20,
+                  fontWeight: 500,
+                  color: isToday ? TB.primary : TB.text,
+                  marginLeft: "auto",
                 }}
               >
-                {d.items.map((it, j) => {
-                  const m = it.m === "all" ? null : getMember(it.m);
-                  const c = m ? m.color : TB.primary;
-                  const mins = (it.h % 1) * 60;
-                  return (
-                    <div
-                      key={j}
-                      style={{
-                        padding: "4px 6px",
-                        background: c + "1A",
-                        borderLeft: `2.5px solid ${c}`,
-                        borderRadius: 4,
-                        fontSize: 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: TB.fontMono,
-                          color: TB.text2,
-                          fontSize: 9,
-                        }}
-                      >
-                        {Math.floor(it.h)}:{mins ? "30" : "00"} {it.h < 12 ? "a" : "p"}
-                      </div>
-                      <div style={{ fontWeight: 600, marginTop: 1, color: TB.text }}>
-                        {it.t}
-                      </div>
-                    </div>
-                  );
-                })}
+                {dateNum}
               </div>
             </div>
-          );
-        })}
+            <div
+              style={{
+                flex: 1,
+                padding: 6,
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+                overflow: "hidden",
+              }}
+            >
+              {colEvents.map((ev) => {
+                const memberIds = ev.members ?? [];
+                const firstMember = memberIds.length > 0 ? getMember(memberIds[0]) : null;
+                const c = firstMember ? firstMember.color : TB.primary;
+                const startH = toFractionalHours(ev.start_time ?? ev.start);
+                const mins = Math.round((startH % 1) * 60);
+                return (
+                  <div
+                    key={ev.id}
+                    style={{
+                      padding: "4px 6px",
+                      background: c + "1A",
+                      borderLeft: `2.5px solid ${c}`,
+                      borderRadius: 4,
+                      fontSize: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: TB.fontMono,
+                        color: TB.text2,
+                        fontSize: 9,
+                      }}
+                    >
+                      {Math.floor(startH)}:{String(mins).padStart(2, "0")} {startH < 12 ? "a" : "p"}
+                    </div>
+                    <div style={{ fontWeight: 600, marginTop: 1, color: TB.text }}>
+                      {ev.title}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
