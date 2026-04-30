@@ -93,6 +93,13 @@ describe("DashDesktop", () => {
     expect(mockPush).toHaveBeenCalledWith("/calendar?new=event");
   });
 
+  it("clicking an event navigates to its calendar detail route", () => {
+    mockPush.mockClear();
+    renderWithQuery(<DashDesktop />);
+    fireEvent.click(screen.getByText("Morning standup"));
+    expect(mockPush).toHaveBeenCalledWith("/calendar?event=e1");
+  });
+
   it("clicking a member tile calls setActiveMember with that member", () => {
     mockSetActiveMember.mockClear();
     mockActiveMemberId = null;

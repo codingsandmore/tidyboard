@@ -273,10 +273,20 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                   key={e.id}
                   dark={dark}
                   pad={0}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/calendar?event=${encodeURIComponent(e.id)}`)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter" || ev.key === " ") {
+                      ev.preventDefault();
+                      router.push(`/calendar?event=${encodeURIComponent(e.id)}`);
+                    }
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "stretch",
                     overflow: "hidden",
+                    cursor: "pointer",
                   }}
                 >
                   <div style={{ width: 4, background: accent }} />

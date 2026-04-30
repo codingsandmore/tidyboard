@@ -236,11 +236,21 @@ export function DashDesktop() {
               return (
                 <div
                   key={e.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/calendar?event=${encodeURIComponent(e.id)}`)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter" || ev.key === " ") {
+                      ev.preventDefault();
+                      router.push(`/calendar?event=${encodeURIComponent(e.id)}`);
+                    }
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "stretch",
                     borderBottom:
                       i < events.length - 1 ? `1px solid ${TB.borderSoft}` : "none",
+                    cursor: "pointer",
                   }}
                 >
                   <div

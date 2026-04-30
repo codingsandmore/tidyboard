@@ -40,7 +40,7 @@ If a signed-in account has no active member where one is required, Tidyboard sho
 
 ## Calendar
 
-The calendar shows real household events. Calendar items should open a detail view where the family can inspect the event and, when permitted, edit it.
+The calendar shows real household events. Calendar items open a detail view where the family can inspect the event title, start and end times, location, notes, repeat rule, and assigned family members, and when permitted edit or delete it.
 
 Calendar views may include day, week, month, and agenda layouts. Member filtering should show the events that apply to the selected person or household view.
 

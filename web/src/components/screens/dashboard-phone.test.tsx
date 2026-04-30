@@ -1,8 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBD } from "@/lib/data";
 import { DashPhone } from "./dashboard-phone";
+
+const mockPush = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
 
 vi.mock("@/lib/api/hooks", () => ({
   useMembers: () => ({ data: TBD.members }),
@@ -43,6 +49,13 @@ describe("DashPhone", () => {
   it("shows at least one event", () => {
     renderWithQuery(<DashPhone />);
     expect(screen.getByText("Morning standup")).toBeTruthy();
+  });
+
+  it("clicking an event navigates to its calendar detail route", () => {
+    mockPush.mockClear();
+    renderWithQuery(<DashPhone />);
+    fireEvent.click(screen.getByText("Morning standup"));
+    expect(mockPush).toHaveBeenCalledWith("/calendar?event=e1");
   });
 
   it("shows Spaghetti Carbonara dinner", () => {
