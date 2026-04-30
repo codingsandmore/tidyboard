@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { AuthGate } from "./auth-gate";
 import { AuthProvider } from "@/lib/auth/auth-store";
 
+const HOUSEHOLD_ID = "11111111-1111-4111-8111-111111111111";
+
 // ── Shared router mock ──────────────────────────────────────────────────────
 // Override setup.tsx's per-call mock so all useRouter() calls share one push fn.
 
@@ -83,7 +85,7 @@ describe("AuthGate", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-1",
-          household_id: "hh-1",
+          household_id: HOUSEHOLD_ID,
           member_id: "member-1",
           role: "adult",
         }),
@@ -132,7 +134,7 @@ describe("AuthGate", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-1",
-          household_id: "hh-1",
+          household_id: HOUSEHOLD_ID,
           member_id: null,
           role: "adult",
         }),
@@ -157,7 +159,7 @@ describe("AuthGate", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-1",
-          household_id: "hh-1",
+          household_id: HOUSEHOLD_ID,
           member_id: null,
           role: "adult",
         }),

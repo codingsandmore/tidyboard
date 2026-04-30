@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEvents, useMembers } from "./hooks";
+import { useEvents, useHousehold, useMembers } from "./hooks";
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -33,5 +33,15 @@ describe("production API hooks", () => {
 
     await waitFor(() => expect(events.result.current.isError).toBe(true));
     expect(events.result.current.data).toBeUndefined();
+  });
+
+  it("does not request a household endpoint for an invalid household ID", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const household = renderHook(() => useHousehold("smith"), { wrapper: wrapper() });
+
+    expect(household.result.current.fetchStatus).toBe("idle");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

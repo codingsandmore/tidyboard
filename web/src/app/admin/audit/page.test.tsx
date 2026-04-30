@@ -32,23 +32,25 @@ vi.mock("next/navigation", () => ({
 
 // ── Mock entries used in fetch responses ──────────────────────────────────────
 
+const HOUSEHOLD_ID = "11111111-1111-4111-8111-111111111111";
+
 const MOCK_ENTRIES = [
   {
-    id: "a1", account_id: "demo-account", household_id: "demo-household",
+    id: "a1", account_id: "demo-account", household_id: HOUSEHOLD_ID,
     action: "event.create", target_type: "event", target_id: "evt-001",
     diff: { title: [null, "Soccer practice"] },
     ip_address: "192.168.1.10", user_agent: "Mozilla/5.0",
     created_at: "2026-04-22T14:55:00Z",
   },
   {
-    id: "a2", account_id: "demo-account", household_id: "demo-household",
+    id: "a2", account_id: "demo-account", household_id: HOUSEHOLD_ID,
     action: "list.update", target_type: "list", target_id: "lst-001",
     diff: { name: ["Old list", "Grocery run"] },
     ip_address: "192.168.1.11", user_agent: "Mozilla/5.0 (iPhone)",
     created_at: "2026-04-22T13:30:00Z",
   },
   {
-    id: "a3", account_id: "demo-account", household_id: "demo-household",
+    id: "a3", account_id: "demo-account", household_id: HOUSEHOLD_ID,
     action: "member.delete", target_type: "member", target_id: "mbr-099",
     diff: { name: ["Guest", null] },
     ip_address: "192.168.1.10", user_agent: "Mozilla/5.0",
@@ -58,7 +60,7 @@ const MOCK_ENTRIES = [
 
 const ME_RESPONSE = {
   account_id: "demo-account",
-  household_id: "demo-household",
+  household_id: HOUSEHOLD_ID,
   member_id: "demo-member",
   role: "adult",
 };

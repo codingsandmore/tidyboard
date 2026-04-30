@@ -28,6 +28,7 @@ import {
 } from "react";
 import { api } from "@/lib/api/client";
 import { readOIDCConfig, signIn as oidcSignIn, signOut as oidcSignOut } from "@/lib/auth/oidc";
+import { isUuid } from "@/lib/id";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -91,9 +92,14 @@ interface PinResponse {
 
 interface MeResponse {
   account_id: string;
-  household_id?: string;
-  member_id?: string;
+  household_id?: string | null;
+  member_id?: string | null;
   role: string;
+}
+
+interface HouseholdSummaryResponse {
+  id: string;
+  name: string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -184,9 +190,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!me.account_id) {
         return false;
       }
+      let households: AuthHousehold[] = [];
+      try {
+        const summaries = await api.get<HouseholdSummaryResponse[]>("/v1/me/households");
+        households = summaries
+          .filter((h) => isUuid(h.id))
+          .map((h) => ({ id: h.id, name: h.name }));
+      } catch {
+        // Non-fatal when /me supplied a valid household. Screens that need
+        // household data surface their own API failures.
+      }
+
       setAccount({ id: me.account_id, email: "" });
-      if (me.household_id) {
-        setHousehold({ id: me.household_id, name: "" });
+      if (isUuid(me.household_id)) {
+        const matched = households.find((h) => h.id === me.household_id);
+        setHousehold({ id: me.household_id, name: matched?.name ?? "" });
+      } else if (households.length > 0) {
+        setHousehold(households[0]);
       } else {
         setHousehold(null);
       }
@@ -202,11 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMember(null);
         setActiveMemberState(null);
       }
+      setAvailableHouseholds(households);
       setStatus("authenticated");
-      // Fetch available households in the background — non-fatal if it fails.
-      api.get<{ id: string; name: string }[]>("/v1/me/households")
-        .then((hhs) => setAvailableHouseholds(hhs.map((h) => ({ id: h.id, name: h.name }))))
-        .catch(() => {/* leave empty; callers surface household-specific failures */});
       return true;
     } catch {
       return false;
