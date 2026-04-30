@@ -45,6 +45,20 @@ jobs:
             fi
             free -m | head -3
 
+            # The EC2 host has limited disk. Clear Docker build cache and
+            # unused images before rebuilding so npm dependency layers do not
+            # fail with ENOSPC. Do not prune volumes; production data lives in
+            # Docker volumes.
+            echo "==> Docker disk usage before prune..."
+            docker system df
+
+            echo "==> Pruning Docker build cache and unused images..."
+            docker builder prune -af
+            docker image prune -af
+
+            echo "==> Docker disk usage after prune..."
+            docker system df
+
             # Build services one at a time to keep peak RSS below the 2GB
             # limit + swap headroom. `docker compose build` builds without
             # restarting; the subsequent `up -d` only restarts containers

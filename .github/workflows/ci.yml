@@ -43,7 +43,7 @@ jobs:
       - name: Coverage
         run: |
           set +e
-          timeout 180s npm run coverage
+          timeout --kill-after=15s 180s npm run coverage
           status=$?
           set -e
           if [ "${status}" -eq 124 ]; then
