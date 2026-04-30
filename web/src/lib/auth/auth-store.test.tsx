@@ -225,11 +225,22 @@ describe("pinLogin()", () => {
   it("calls POST /v1/auth/pin, stores token, sets authenticated", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ token: "pin-token", member_id: "mem-kid" }),
-      }),
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ token: "pin-token", member_id: "mem-kid" }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            account_id: "acct-1",
+            household_id: "hh-1",
+            member_id: "mem-kid",
+            role: "child",
+          }),
+        }),
     );
 
     function PinDisplay() {

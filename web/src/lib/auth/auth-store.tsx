@@ -7,7 +7,8 @@
  * Stored in localStorage under "tb-auth-token". On mount, if a token exists
  * the provider calls /v1/auth/me to hydrate account/household/member.
  *
- * Demo mode (NEXT_PUBLIC_API_URL == "") still mocks the Smith Family.
+ * Auth never fabricates a household. Preview fixtures may still be used by
+ * preview routes, but production routes require a real token from Cognito.
  *
  * Sign-in is OIDC redirect to Cognito's Hosted UI (PKCE Authorization Code).
  * The callback page (/auth/callback) calls completeCallback() which finishes
@@ -26,7 +27,6 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/lib/api/client";
-import { isApiFallbackMode } from "@/lib/api/fallback";
 import { readOIDCConfig, signIn as oidcSignIn, signOut as oidcSignOut } from "@/lib/auth/oidc";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -98,18 +98,6 @@ interface MeResponse {
 
 const TOKEN_KEY = "tb-auth-token";
 
-// ── Fallback mock auth ─────────────────────────────────────────────────────
-
-const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token" | "activeMember" | "availableHouseholds"> = {
-  status: "authenticated",
-  account: { id: "demo-account", email: "demo@smithfamily.net" },
-  household: { id: "demo-household", name: "Smith Family" },
-  member: { id: "demo-member", name: "Sarah Smith", role: "adult" },
-  token: "demo-token",
-  activeMember: { id: "demo-member", name: "Sarah Smith", role: "adult" },
-  availableHouseholds: [{ id: "demo-household", name: "Smith Family" }],
-};
-
 // ── Context ────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthState>({
@@ -155,6 +143,27 @@ function clearToken(): void {
   }
 }
 
+function clearSessionState(
+  setters: {
+    setToken: (token: string | null) => void;
+    setAccount: (account: AuthAccount | null) => void;
+    setHousehold: (household: AuthHousehold | null) => void;
+    setMember: (member: AuthMember | null) => void;
+    setActiveMember: (member: AuthMember | null) => void;
+    setAvailableHouseholds: (households: AuthHousehold[]) => void;
+    setStatus: (status: AuthStatus) => void;
+  },
+  status: AuthStatus = "unauthenticated",
+): void {
+  setters.setToken(null);
+  setters.setAccount(null);
+  setters.setHousehold(null);
+  setters.setMember(null);
+  setters.setActiveMember(null);
+  setters.setAvailableHouseholds([]);
+  setters.setStatus(status);
+}
+
 // ── Provider ───────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -169,6 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hydrate = useCallback(async (): Promise<boolean> => {
     try {
       const me = await api.get<MeResponse>("/v1/auth/me");
+      if (!me.account_id) {
+        return false;
+      }
       setAccount({ id: me.account_id, email: "" });
       if (me.household_id) {
         setHousehold({ id: me.household_id, name: "" });
@@ -176,13 +188,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHousehold(null);
       }
       if (me.member_id) {
-        setMember({
+        const hydratedMember = {
           id: me.member_id,
           name: "",
           role: me.role === "child" ? "child" : "adult",
-        });
+        } satisfies AuthMember;
+        setMember(hydratedMember);
+        setActiveMemberState(hydratedMember);
       } else {
         setMember(null);
+        setActiveMemberState(null);
       }
       setStatus("authenticated");
       // Fetch available households in the background — non-fatal if it fails.
@@ -196,20 +211,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isApiFallbackMode()) {
-      setStatus(FALLBACK_AUTH.status);
-      setAccount(FALLBACK_AUTH.account);
-      setHousehold(FALLBACK_AUTH.household);
-      setMember(FALLBACK_AUTH.member);
-      setToken(FALLBACK_AUTH.token);
-      setActiveMemberState(FALLBACK_AUTH.activeMember);
-      setAvailableHouseholds(FALLBACK_AUTH.availableHouseholds);
-      return;
-    }
-
     const stored = readToken();
     if (!stored) {
-      setStatus("unauthenticated");
+      clearSessionState({
+        setToken,
+        setAccount,
+        setHousehold,
+        setMember,
+        setActiveMember: setActiveMemberState,
+        setAvailableHouseholds,
+        setStatus,
+      });
       return;
     }
 
@@ -217,8 +229,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hydrate().then((ok) => {
       if (!ok) {
         clearToken();
-        setToken(null);
-        setStatus("unauthenticated");
+        clearSessionState({
+          setToken,
+          setAccount,
+          setHousehold,
+          setMember,
+          setActiveMember: setActiveMemberState,
+          setAvailableHouseholds,
+          setStatus,
+        });
       }
     });
   }, [hydrate]);
@@ -236,7 +255,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (idToken: string): Promise<void> => {
       persistToken(idToken);
       setToken(idToken);
-      await hydrate();
+      const ok = await hydrate();
+      if (!ok) {
+        clearToken();
+        clearSessionState({
+          setToken,
+          setAccount,
+          setHousehold,
+          setMember,
+          setActiveMember: setActiveMemberState,
+          setAvailableHouseholds,
+          setStatus,
+        });
+      }
     },
     [hydrate],
   );
@@ -245,13 +276,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<PinResponse>("/v1/auth/pin", { member_id: memberId, pin });
     persistToken(res.token);
     setToken(res.token);
-    setStatus("authenticated");
+    const ok = await hydrate();
+    if (!ok) {
+      clearToken();
+      clearSessionState({
+        setToken,
+        setAccount,
+        setHousehold,
+        setMember,
+        setActiveMember: setActiveMemberState,
+        setAvailableHouseholds,
+        setStatus,
+      });
+      throw new Error("auth: PIN login succeeded but account context could not be loaded");
+    }
     if (res.member_id) {
       const m: AuthMember = { id: res.member_id, name: "", role: "child" };
       setMember((prev) => prev ? { ...prev, id: res.member_id! } : m);
       setActiveMemberState(m);
     }
-  }, []);
+  }, [hydrate]);
 
   const setActiveMember = useCallback((m: AuthMember | null): void => {
     setActiveMemberState(m);
@@ -263,11 +307,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback((): void => {
     clearToken();
-    setToken(null);
-    setAccount(null);
-    setHousehold(null);
-    setMember(null);
-    setStatus("unauthenticated");
+    clearSessionState({
+      setToken,
+      setAccount,
+      setHousehold,
+      setMember,
+      setActiveMember: setActiveMemberState,
+      setAvailableHouseholds,
+      setStatus,
+    });
     const cfg = readOIDCConfig();
     if (cfg) {
       // Redirects to Cognito /logout, which redirects back to logoutUri.

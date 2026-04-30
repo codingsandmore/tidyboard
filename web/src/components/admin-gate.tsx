@@ -3,9 +3,6 @@
 /**
  * AdminGate — protects routes that require admin (adult) role.
  *
- * In fallback mode the Smith-Family mock user (Sarah Smith, role='adult')
- * is treated as an admin, so the audit page renders with mock data.
- *
  * Real-mode admin check: member.role === 'adult'.
  * Extend with a server-side `is_admin` flag on AuthAccount when available.
  */
