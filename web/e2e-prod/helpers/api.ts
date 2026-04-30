@@ -105,7 +105,8 @@ export const apiCreateMember = (
   body: {
     name: string;
     display_name: string;
-    role: "adult" | "child";
+    role: "adult" | "child" | "pet";
+    age_group?: "adult" | "child" | "pet";
     color: string;
     pin?: string;
   }

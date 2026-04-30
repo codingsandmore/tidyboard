@@ -2,6 +2,7 @@ import { test, expect, gotoAndWait } from "./fixtures";
 
 const PROTECTED_ROUTES = [
   "/",
+  "/dashboard/kiosk",
   "/calendar",
   "/routines",
   "/lists",

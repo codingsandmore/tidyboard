@@ -72,6 +72,7 @@ Next.js Frontend  ──────────────────►  Go 
 
 - [Agent Operator Manual](docs/manuals/agent-operator-manual.md) - issue, PR, CI, merge, deploy, and documentation workflow for Codex agents.
 - [User Manual](docs/manuals/user-manual.md) - family-facing setup and usage guide for production Tidyboard.
+- [Production Flow Verification](docs/manuals/production-flow-verification.md) - automated and manual smoke checks for real-account family flows.
 
 | Component | Tech | Port |
 |---|---|---|
