@@ -68,4 +68,4 @@ PGPASSWORD="" psql \
 
 echo ""
 echo "Bootstrap complete. The tidyboard role and schema are ready."
-echo "Next: run 'terraform apply' if not already done, then force-redeploy ECS services."
+echo "Next: run 'terraform apply' if not already done, then run the Deploy to EC2 workflow."

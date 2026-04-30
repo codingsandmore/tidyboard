@@ -91,9 +91,9 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_ec2" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id       = data.aws_caller_identity.current.account_id
-  media_bucket     = "${var.project}-media-${local.account_id}"
-  backup_bucket    = "${var.project}-backups-${local.account_id}"
+  account_id    = data.aws_caller_identity.current.account_id
+  media_bucket  = "${var.project}-media-${local.account_id}"
+  backup_bucket = "${var.project}-backups-${local.account_id}"
 }
 
 resource "aws_iam_role" "ec2" {
