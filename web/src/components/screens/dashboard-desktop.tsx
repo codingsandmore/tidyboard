@@ -10,9 +10,10 @@ import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useEvents, useMembers, useRedemptions, useAdHocTasks } from "@/lib/api/hooks";
 import { useWeather } from "@/lib/weather/use-weather";
 import { useAuth } from "@/lib/auth/auth-store";
+import { Scoreboard } from "@/components/screens/scoreboard";
 import { useTranslations } from "next-intl";
 
 export function DashDesktop() {
@@ -23,6 +24,10 @@ export function DashDesktop() {
   const { activeMember, setActiveMember } = useAuth();
   const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
   const { data: weather } = useWeather();
+  const isAdmin = activeMember?.role === "adult";
+  const { data: pendingRedemptions } = useRedemptions(isAdmin ? { status: "pending" } : undefined);
+  const { data: pendingAdHoc } = useAdHocTasks(isAdmin ? { status: "pending" } : undefined);
+  const pendingCount = (pendingRedemptions?.length ?? 0) + (pendingAdHoc?.length ?? 0);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
 
@@ -35,13 +40,28 @@ export function DashDesktop() {
     }
   }
 
-  const NAV: { i: IconName; l: string; href: string; active?: boolean }[] = [
+  const NAV: { i: IconName; l: string; href: string; active?: boolean; badge?: number }[] = [
     { i: "calendar", l: tNav("calendar"), href: "/calendar", active: true },
     { i: "checkCircle", l: tNav("routines"), href: "/routines" },
     { i: "list", l: tNav("lists"), href: "/lists" },
     { i: "pencil", l: tNav("notes"), href: "/notes" },
     { i: "chef", l: tNav("meals"), href: "/meals" },
+    { i: "star", l: tNav("wallet"), href: "/wallet" },
+    { i: "list", l: tNav("chores"), href: "/chores" },
     { i: "star", l: tNav("equity"), href: "/equity" },
+    ...(activeMember?.role === "child"
+      ? [
+          { i: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
+          { i: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          { i: "star" as IconName, l: "Points", href: "/admin/points", badge: pendingCount > 0 ? pendingCount : undefined },
+          { i: "plus" as IconName, l: "Award", href: "/admin/points/award" },
+          { i: "trophy" as IconName, l: "Rewards", href: "/admin/rewards" },
+        ]
+      : []),
     { i: "settings", l: tNav("settings"), href: "/settings" },
   ];
 
@@ -153,7 +173,24 @@ export function DashDesktop() {
               }}
             >
               <Icon name={n.i} size={16} color={n.active ? TB.primary : TB.text2} />
-              {n.l}
+              <span style={{ flex: 1 }}>{n.l}</span>
+              {n.badge != null && n.badge > 0 && (
+                <span
+                  style={{
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    padding: "1px 6px",
+                    lineHeight: "16px",
+                    minWidth: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {n.badge}
+                </span>
+              )}
             </Link>
           ))}
         </div>
@@ -396,6 +433,15 @@ export function DashDesktop() {
                 <div style={{ fontSize: 12 }}>{task}</div>
               </div>
             ))}
+          </Card>
+        </div>
+
+        <div>
+          <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
+            Top kids
+          </H>
+          <Card pad={0} style={{ overflow: "hidden" }}>
+            <Scoreboard />
           </Card>
         </div>
       </div>

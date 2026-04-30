@@ -22,10 +22,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	robfigcron "github.com/robfig/cron/v3"
 	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/client"
 	"github.com/tidyboard/tidyboard/internal/config"
+	tidycron "github.com/tidyboard/tidyboard/internal/cron"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -137,6 +139,10 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
 	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
+	walletSvc := service.NewWalletService(q, bc, auditSvc)
+	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
+	pointsSvc := service.NewPointsService(q, bc, auditSvc)
+	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -146,6 +152,20 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 			logger.Warn("backup scheduler failed to start", "err", err)
 		}
 	}
+
+	// --- Cron scheduler ---
+	scheduler := robfigcron.New()
+	weekEndJob := tidycron.WeekEndBatch{Q: q, WS: walletSvc}
+	if _, err := scheduler.AddFunc("59 23 * * 0", func() {
+		ctx := context.Background()
+		if err := weekEndJob.Run(ctx); err != nil {
+			logger.Error("week-end batch failed", "err", err)
+		}
+	}); err != nil {
+		return fmt.Errorf("schedule week-end batch: %w", err)
+	}
+	scheduler.Start()
+	defer scheduler.Stop()
 
 	// --- Handlers ---
 	jwtSecret := cfg.Auth.JWTSecret
@@ -183,6 +203,10 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	equityHandler := handler.NewEquityHandler(equitySvc)
 	notifyHandler := handler.NewNotifyHandler(notifySvc)
 	routineHandler := handler.NewRoutineHandler(routineSvc)
+	walletHandler := handler.NewWalletHandler(walletSvc, q)
+	choreHandler := handler.NewChoreHandler(choreSvc, q)
+	pointsHandler := handler.NewPointsHandler(pointsSvc)
+	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -386,6 +410,59 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Delete("/v1/routines/{id}/complete/{completionID}", routineHandler.UnmarkCompletion)
 		r.Get("/v1/routines/{id}/streak", routineHandler.GetStreak)
 		r.Get("/v1/routines/completions", routineHandler.ListCompletionsForDay)
+
+		// Chores.
+		r.Get("/v1/chores", choreHandler.List)
+		r.Post("/v1/chores", choreHandler.Create)
+		r.Get("/v1/chores/completions", choreHandler.ListCompletions)
+		r.Patch("/v1/chores/{id}", choreHandler.Update)
+		r.Delete("/v1/chores/{id}", choreHandler.Archive)
+		r.Post("/v1/chores/{id}/complete", choreHandler.Complete)
+		r.Delete("/v1/chores/{id}/complete/{date}", choreHandler.UndoComplete)
+
+		// Wallet.
+		r.Get("/v1/wallet/{member_id}", walletHandler.GetWallet)
+		r.Post("/v1/wallet/{member_id}/tip", walletHandler.Tip)
+		r.Post("/v1/wallet/{member_id}/cash-out", walletHandler.CashOut)
+		r.Post("/v1/wallet/{member_id}/adjust", walletHandler.Adjust)
+		r.Get("/v1/allowance", walletHandler.ListAllowances)
+		r.Put("/v1/allowance/{member_id}", walletHandler.SetAllowance)
+
+		// Ad-hoc tasks.
+		r.Get("/v1/ad-hoc-tasks", walletHandler.ListAdHocTasks)
+		r.Post("/v1/ad-hoc-tasks", walletHandler.CreateAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/complete", walletHandler.CompleteAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/approve", walletHandler.ApproveAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/decline", walletHandler.DeclineAdHocTask)
+
+		// ── Points ──
+		r.Get("/v1/point-categories", pointsHandler.ListCategories)
+		r.Post("/v1/point-categories", pointsHandler.CreateCategory)
+		r.Patch("/v1/point-categories/{id}", pointsHandler.UpdateCategory)
+		r.Delete("/v1/point-categories/{id}", pointsHandler.ArchiveCategory)
+		r.Get("/v1/behaviors", pointsHandler.ListBehaviors)
+		r.Post("/v1/behaviors", pointsHandler.CreateBehavior)
+		r.Patch("/v1/behaviors/{id}", pointsHandler.UpdateBehavior)
+		r.Delete("/v1/behaviors/{id}", pointsHandler.ArchiveBehavior)
+		r.Post("/v1/points/{member_id}/grant", pointsHandler.Grant)
+		r.Post("/v1/points/{member_id}/adjust", pointsHandler.Adjust)
+		r.Get("/v1/points/scoreboard", pointsHandler.Scoreboard)
+		r.Get("/v1/points/{member_id}", pointsHandler.GetBalance)
+
+		// ── Rewards ──
+		r.Get("/v1/rewards", rewardHandler.List)
+		r.Post("/v1/rewards", rewardHandler.Create)
+		r.Patch("/v1/rewards/{id}", rewardHandler.Update)
+		r.Delete("/v1/rewards/{id}", rewardHandler.Archive)
+		r.Post("/v1/rewards/{id}/redeem", rewardHandler.Redeem)
+		r.Post("/v1/rewards/{id}/cost-adjust", rewardHandler.CostAdjust)
+		r.Delete("/v1/reward-adjustments/{id}", rewardHandler.DeleteCostAdjustment)
+		r.Get("/v1/redemptions", rewardHandler.ListRedemptions)
+		r.Post("/v1/redemptions/{id}/approve", rewardHandler.Approve)
+		r.Post("/v1/redemptions/{id}/decline", rewardHandler.Decline)
+		r.Post("/v1/redemptions/{id}/fulfill", rewardHandler.Fulfill)
+		r.Put("/v1/savings-goals/{member_id}", rewardHandler.SetSavingsGoal)
+		r.Get("/v1/timeline/{member_id}", rewardHandler.Timeline)
 
 		// Equity engine.
 		r.Get("/v1/equity", equityHandler.GetDashboard)

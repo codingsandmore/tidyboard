@@ -16,7 +16,9 @@
     "race": "Rennen",
     "stars": "Sterne",
     "races": "Rennen",
-    "rewards": "Belohnungen"
+    "rewards": "Belohnungen",
+    "wallet": "Geldbeutel",
+    "chores": "Aufgaben"
   },
   "common": {
     "back": "Zurück",
@@ -359,5 +361,21 @@
       "diffExpand": "Diff anzeigen",
       "diffCollapse": "Diff ausblenden"
     }
+  },
+  "points": {
+    "rewards": "Belohnungen",
+    "scoreboard": "Bestenliste",
+    "timeline": "Verlauf",
+    "pointsBalance": "{count} Pkt",
+    "redeem": "Einlösen",
+    "request": "Anfragen",
+    "needMore": "Noch {count} Pkt nötig",
+    "approve": "Genehmigen",
+    "decline": "Ablehnen",
+    "fulfilled": "Erledigt",
+    "savingFor": "Sparen für dieses",
+    "saveForThis": "Hierfür sparen",
+    "redeemedToast": "Eingelöst! {count} Pkt ausgegeben.",
+    "requestedToast": "Anfrage gesendet — wartet auf Eltern."
   }
 }

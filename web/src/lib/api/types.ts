@@ -304,3 +304,206 @@ export interface UpdateCollectionRequest {
   name?: string;
   sort_order?: number;
 }
+
+// ── Wallet / Chore types ────────────────────────────────────────────────────
+
+export interface ApiChore {
+  id: string;
+  household_id: string;
+  member_id: string;
+  name: string;
+  weight: number;
+  frequency_kind: "daily" | "weekdays" | "specific_days" | "weekly";
+  days_of_week: string[];
+  auto_approve: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiChoreCompletion {
+  id: string;
+  chore_id: string;
+  member_id: string;
+  date: string;
+  marked_at: string;
+  approved: boolean;
+  payout_cents: number;
+  closed: boolean;
+}
+
+export interface ApiWallet {
+  id: string;
+  member_id: string;
+  balance_cents: number;
+  updated_at: string;
+}
+
+export interface ApiWalletTransaction {
+  id: string;
+  wallet_id: string;
+  member_id: string;
+  amount_cents: number;
+  kind: "chore_payout" | "streak_bonus" | "tip" | "ad_hoc" | "cash_out" | "adjustment";
+  reference_id: string | null;
+  reason: string;
+  created_at: string;
+}
+
+export interface ApiWalletGetResponse {
+  wallet: ApiWallet;
+  transactions: ApiWalletTransaction[];
+}
+
+export interface ApiAllowance {
+  id: string;
+  household_id: string;
+  member_id: string;
+  amount_cents: number;
+  active_from: string;
+  created_at: string;
+}
+
+export interface ApiAdHocTask {
+  id: string;
+  household_id: string;
+  member_id: string;
+  name: string;
+  payout_cents: number;
+  requires_approval: boolean;
+  status: "open" | "pending" | "approved" | "declined";
+  completed_at: string | null;
+  approved_at: string | null;
+  decline_reason: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+// ── Points / Rewards types ──────────────────────────────────────────────────
+
+export interface ApiPointCategory {
+  id: string;
+  household_id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiBehavior {
+  id: string;
+  household_id: string;
+  category_id: string;
+  name: string;
+  suggested_points: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiPointGrant {
+  id: string;
+  household_id: string;
+  member_id: string;
+  category_id: string | null;
+  behavior_id: string | null;
+  points: number;
+  reason: string;
+  granted_by_account_id: string | null;
+  granted_at: string;
+}
+
+export interface ApiCategoryTotal {
+  category_id: string | null;
+  total: number;
+}
+
+export interface ApiPointGrantSummary {
+  id: string;
+  points: number;
+  reason: string;
+  category_id: string | null;
+  behavior_id: string | null;
+  granted_at: string;
+}
+
+export interface ApiPointsBalance {
+  member_id: string;
+  total: number;
+  by_category: ApiCategoryTotal[];
+  recent: ApiPointGrantSummary[];
+}
+
+export interface ApiScoreboardEntry {
+  member_id: string;
+  total: number;
+  by_category: ApiCategoryTotal[];
+}
+
+export interface ApiReward {
+  id: string;
+  household_id: string;
+  name: string;
+  description: string;
+  image_url: string | null;
+  cost_points: number;
+  fulfillment_kind: "self_serve" | "needs_approval";
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiRedemption {
+  id: string;
+  household_id: string;
+  reward_id: string;
+  member_id: string;
+  points_at_redemption: number;
+  status: "pending" | "approved" | "fulfilled" | "declined";
+  requested_at: string;
+  decided_at: string | null;
+  decided_by_account_id: string | null;
+  fulfilled_at: string | null;
+  decline_reason: string;
+  grant_id: string | null;
+}
+
+export interface ApiRedeemResponse {
+  redemption_id: string;
+  status: "approved" | "pending";
+  points_charged: number;
+  new_balance: number;
+  effective_cost: number;
+}
+
+export interface ApiSavingsGoal {
+  id: string;
+  member_id: string;
+  reward_id: string;
+  started_at: string;
+  cleared_at: string | null;
+}
+
+export interface ApiRewardCostAdjustment {
+  id: string;
+  household_id: string;
+  member_id: string;
+  reward_id: string;
+  delta_points: number;
+  reason: string;
+  expires_at: string | null;
+  created_by_account_id: string | null;
+  created_at: string;
+}
+
+export interface ApiTimelineEvent {
+  kind: "point_grant" | "redemption" | "reward_cost_adjustment" | "wallet_transaction";
+  id: string;
+  occurred_at: string;
+  amount: number;
+  reason: string;
+  ref_a: string | null;
+  ref_b: string | null;
+}

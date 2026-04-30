@@ -14,6 +14,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { fallback, isApiFallbackMode } from "./fallback";
+import type { ApiError } from "./types";
 import type {
   TBDEvent,
   Member,
@@ -49,6 +50,22 @@ import type {
   MarkCompleteRequest,
   JoinRequest,
   HouseholdPreview,
+  ApiChore,
+  ApiChoreCompletion,
+  ApiWalletGetResponse,
+  ApiAllowance,
+  ApiAdHocTask,
+  ApiPointCategory,
+  ApiBehavior,
+  ApiPointGrant,
+  ApiPointsBalance,
+  ApiScoreboardEntry,
+  ApiReward,
+  ApiRedemption,
+  ApiRedeemResponse,
+  ApiSavingsGoal,
+  ApiRewardCostAdjustment,
+  ApiTimelineEvent,
 } from "./types";
 
 // ── Query key factory ──────────────────────────────────────────────────────
@@ -89,7 +106,18 @@ export const qk = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Wraps an API call and returns fallback data on any error. */
+/** Returns true when `err` is an ApiError plain object (duck-type check). */
+function isApiError(err: unknown): err is ApiError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "status" in err &&
+    typeof (err as ApiError).status === "number"
+  );
+}
+
+/** Wraps an API call and returns fallback data on network/5xx errors.
+ *  Auth errors (401/403) are re-thrown so the auth layer can redirect to login. */
 async function withFallback<T>(
   apiFn: () => Promise<T>,
   fallbackFn: () => T
@@ -97,7 +125,10 @@ async function withFallback<T>(
   if (isApiFallbackMode()) return fallbackFn();
   try {
     return await apiFn();
-  } catch {
+  } catch (err) {
+    if (isApiError(err) && (err.status === 401 || err.status === 403)) {
+      throw err; // let the auth layer handle it
+    }
     return fallbackFn();
   }
 }
@@ -1108,5 +1139,436 @@ export function useRejectJoinRequest() {
     onSuccess: (_data, { householdId }) => {
       qc.invalidateQueries({ queryKey: qk.joinRequests(householdId) });
     },
+  });
+}
+
+// ── Chores ─────────────────────────────────────────────────────────────────
+export function useChores(opts?: { memberId?: string }) {
+  return useQuery<ApiChore[]>({
+    queryKey: ["chores", opts?.memberId ?? null],
+    queryFn: () =>
+      withFallback(
+        () => api.get<ApiChore[]>("/v1/chores" + (opts?.memberId ? `?member_id=${opts.memberId}` : "")),
+        () => fallback.chores(opts?.memberId)
+      ),
+  });
+}
+
+export function useChoreCompletions(opts: { from: string; to: string; memberId?: string }) {
+  return useQuery<ApiChoreCompletion[]>({
+    queryKey: ["chore-completions", opts.from, opts.to, opts.memberId ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams({ from: opts.from, to: opts.to });
+      if (opts.memberId) qs.set("member_id", opts.memberId);
+      return withFallback(
+        () => api.get<ApiChoreCompletion[]>(`/v1/chores/completions?${qs}`),
+        () => fallback.choreCompletions(opts)
+      );
+    },
+  });
+}
+
+export function useMarkChoreComplete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ choreId, date }: { choreId: string; date?: string }) =>
+      api.post<ApiChoreCompletion>(`/v1/chores/${choreId}/complete${date ? `?date=${date}` : ""}`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-completions"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useUndoChoreComplete() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ choreId, date }: { choreId: string; date: string }) =>
+      api.delete(`/v1/chores/${choreId}/complete/${date}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-completions"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useCreateChore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { member_id: string; name: string; weight: number; frequency_kind: string; days_of_week?: string[]; auto_approve: boolean }) =>
+      api.post<ApiChore>("/v1/chores", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chores"] }),
+  });
+}
+
+export function useUpdateChore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name?: string; weight?: number; frequency_kind?: string; days_of_week?: string[]; auto_approve?: boolean }) =>
+      api.patch<ApiChore>(`/v1/chores/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chores"] }),
+  });
+}
+
+export function useArchiveChore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete(`/v1/chores/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chores"] }),
+  });
+}
+
+// ── Wallet ─────────────────────────────────────────────────────────────────
+export function useWallet(memberId: string | undefined) {
+  return useQuery<ApiWalletGetResponse>({
+    queryKey: ["wallet", memberId],
+    queryFn: () =>
+      withFallback(
+        () => api.get<ApiWalletGetResponse>(`/v1/wallet/${memberId}`),
+        () => fallback.wallet(memberId!)
+      ),
+    enabled: Boolean(memberId),
+  });
+}
+
+export function useTip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, amountCents, reason }: { memberId: string; amountCents: number; reason: string }) =>
+      api.post(`/v1/wallet/${memberId}/tip`, { amount_cents: amountCents, reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wallet"] }),
+  });
+}
+
+export function useCashOut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, amountCents, method, note }: { memberId: string; amountCents: number; method?: string; note?: string }) =>
+      api.post(`/v1/wallet/${memberId}/cash-out`, { amount_cents: amountCents, method: method ?? "", note: note ?? "" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wallet"] }),
+  });
+}
+
+export function useAllowance() {
+  return useQuery<ApiAllowance[]>({
+    queryKey: ["allowance"],
+    queryFn: () => withFallback(() => api.get<ApiAllowance[]>("/v1/allowance"), () => []),
+  });
+}
+
+export function useUpsertAllowance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, amountCents }: { memberId: string; amountCents: number }) =>
+      api.put(`/v1/allowance/${memberId}`, { amount_cents: amountCents }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allowance"] });
+      qc.invalidateQueries({ queryKey: ["chores"] });
+    },
+  });
+}
+
+// ── Ad-hoc tasks ───────────────────────────────────────────────────────────
+export function useAdHocTasks(opts?: { memberId?: string; status?: string }) {
+  return useQuery<ApiAdHocTask[]>({
+    queryKey: ["ad-hoc-tasks", opts?.memberId ?? null, opts?.status ?? null],
+    queryFn: () => withFallback(
+      () => {
+        const qs = new URLSearchParams();
+        if (opts?.memberId) qs.set("member_id", opts.memberId);
+        if (opts?.status) qs.set("status", opts.status);
+        return api.get<ApiAdHocTask[]>(`/v1/ad-hoc-tasks${qs.toString() ? "?" + qs : ""}`);
+      },
+      () => []
+    ),
+  });
+}
+
+export function useCreateAdHocTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { member_id: string; name: string; payout_cents: number; expires_at?: string; requires_approval?: boolean }) =>
+      api.post<ApiAdHocTask>("/v1/ad-hoc-tasks", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ad-hoc-tasks"] }),
+  });
+}
+
+export function useApproveAdHocTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.post(`/v1/ad-hoc-tasks/${id}/approve`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ad-hoc-tasks"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useDeclineAdHocTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/v1/ad-hoc-tasks/${id}/decline`, { reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ad-hoc-tasks"] }),
+  });
+}
+
+export function useCompleteAdHocTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.post(`/v1/ad-hoc-tasks/${id}/complete`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ad-hoc-tasks"] }),
+  });
+}
+
+// ── Point categories ───────────────────────────────────────────────────────
+export function usePointCategories(opts?: { includeArchived?: boolean }) {
+  return useQuery<ApiPointCategory[]>({
+    queryKey: ["point-categories", opts?.includeArchived ?? false],
+    queryFn: () =>
+      withFallback(
+        () => api.get<ApiPointCategory[]>(`/v1/point-categories${opts?.includeArchived ? "?include_archived=true" : ""}`),
+        () => fallback.pointCategories()
+      ),
+  });
+}
+export function useCreatePointCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { name: string; color: string; sort_order?: number }) =>
+      api.post<ApiPointCategory>("/v1/point-categories", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["point-categories"] }),
+  });
+}
+export function useUpdatePointCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name?: string; color?: string; sort_order?: number }) =>
+      api.patch<ApiPointCategory>(`/v1/point-categories/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["point-categories"] }),
+  });
+}
+export function useArchivePointCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete(`/v1/point-categories/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["point-categories"] }),
+  });
+}
+
+// ── Behaviors ───────────────────────────────────────────────────────────────
+export function useBehaviors(opts?: { categoryId?: string; includeArchived?: boolean }) {
+  return useQuery<ApiBehavior[]>({
+    queryKey: ["behaviors", opts?.categoryId ?? null, opts?.includeArchived ?? false],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (opts?.categoryId) qs.set("category_id", opts.categoryId);
+      if (opts?.includeArchived) qs.set("include_archived", "true");
+      return withFallback(
+        () => api.get<ApiBehavior[]>(`/v1/behaviors${qs.toString() ? "?" + qs : ""}`),
+        () => fallback.behaviors(opts?.categoryId)
+      );
+    },
+  });
+}
+export function useCreateBehavior() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { category_id: string; name: string; suggested_points: number }) =>
+      api.post<ApiBehavior>("/v1/behaviors", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["behaviors"] }),
+  });
+}
+export function useUpdateBehavior() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; category_id?: string; name?: string; suggested_points?: number }) =>
+      api.patch<ApiBehavior>(`/v1/behaviors/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["behaviors"] }),
+  });
+}
+export function useArchiveBehavior() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete(`/v1/behaviors/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["behaviors"] }),
+  });
+}
+
+// ── Points: balance / scoreboard / grant / adjust ─────────────────────────
+export function usePointsBalance(memberId: string | undefined) {
+  return useQuery<ApiPointsBalance>({
+    queryKey: ["points-balance", memberId],
+    queryFn: () => withFallback(
+      () => api.get<ApiPointsBalance>(`/v1/points/${memberId}`),
+      () => fallback.pointsBalance(memberId!)
+    ),
+    enabled: Boolean(memberId),
+  });
+}
+export function useScoreboard() {
+  return useQuery<ApiScoreboardEntry[]>({
+    queryKey: ["scoreboard"],
+    queryFn: () => withFallback(
+      () => api.get<ApiScoreboardEntry[]>("/v1/points/scoreboard"),
+      () => fallback.scoreboard()
+    ),
+    refetchInterval: 30_000,
+  });
+}
+export function useGrantPoints() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, ...req }: { memberId: string; behavior_id?: string; category_id?: string; points: number; reason: string }) =>
+      api.post<ApiPointGrant>(`/v1/points/${memberId}/grant`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["points-balance"] });
+      qc.invalidateQueries({ queryKey: ["scoreboard"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+}
+export function useAdjustPoints() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, points, reason }: { memberId: string; points: number; reason: string }) =>
+      api.post<ApiPointGrant>(`/v1/points/${memberId}/adjust`, { points, reason }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["points-balance"] });
+      qc.invalidateQueries({ queryKey: ["scoreboard"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+}
+
+// ── Rewards catalog ────────────────────────────────────────────────────────
+export function useRewards(opts?: { onlyActive?: boolean }) {
+  const onlyActive = opts?.onlyActive ?? true;
+  return useQuery<ApiReward[]>({
+    queryKey: ["rewards", onlyActive],
+    queryFn: () => withFallback(
+      () => api.get<ApiReward[]>(`/v1/rewards?active=${onlyActive}`),
+      () => fallback.rewards()
+    ),
+  });
+}
+export function useCreateReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: { name: string; description?: string; image_url?: string | null; cost_points: number; fulfillment_kind: "self_serve" | "needs_approval" }) =>
+      api.post<ApiReward>("/v1/rewards", req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rewards"] }),
+  });
+}
+export function useUpdateReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; name?: string; description?: string; image_url?: string | null; cost_points?: number; fulfillment_kind?: "self_serve" | "needs_approval"; active?: boolean }) =>
+      api.patch<ApiReward>(`/v1/rewards/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rewards"] }),
+  });
+}
+export function useArchiveReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete(`/v1/rewards/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rewards"] }),
+  });
+}
+
+// ── Redemptions ────────────────────────────────────────────────────────────
+export function useRedeemReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rewardId }: { rewardId: string }) => api.post<ApiRedeemResponse>(`/v1/rewards/${rewardId}/redeem`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["points-balance"] });
+      qc.invalidateQueries({ queryKey: ["redemptions"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+}
+export function useRedemptions(opts?: { memberId?: string; status?: string }) {
+  return useQuery<ApiRedemption[]>({
+    queryKey: ["redemptions", opts?.memberId ?? null, opts?.status ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (opts?.memberId) qs.set("member_id", opts.memberId);
+      if (opts?.status) qs.set("status", opts.status);
+      return withFallback(
+        () => api.get<ApiRedemption[]>(`/v1/redemptions${qs.toString() ? "?" + qs : ""}`),
+        () => fallback.redemptions()
+      );
+    },
+  });
+}
+export function useApproveRedemption() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.post<ApiRedemption>(`/v1/redemptions/${id}/approve`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["redemptions"] });
+      qc.invalidateQueries({ queryKey: ["points-balance"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+}
+export function useDeclineRedemption() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post<ApiRedemption>(`/v1/redemptions/${id}/decline`, { reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["redemptions"] }),
+  });
+}
+export function useFulfillRedemption() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.post<ApiRedemption>(`/v1/redemptions/${id}/fulfill`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["redemptions"] }),
+  });
+}
+
+// ── Savings goal ───────────────────────────────────────────────────────────
+export function useSetSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, rewardId }: { memberId: string; rewardId: string | null }) =>
+      api.put<ApiSavingsGoal | null>(`/v1/savings-goals/${memberId}`, { reward_id: rewardId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["points-balance"] }),
+  });
+}
+
+// ── Reward cost adjustments ────────────────────────────────────────────────
+export function useCostAdjustReward() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rewardId, ...req }: { rewardId: string; member_id: string; delta_points: number; reason: string; expires_at?: string }) =>
+      api.post<ApiRewardCostAdjustment>(`/v1/rewards/${rewardId}/cost-adjust`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rewards"] });
+      qc.invalidateQueries({ queryKey: ["timeline"] });
+    },
+  });
+}
+export function useDeleteRewardAdjustment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete(`/v1/reward-adjustments/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rewards"] }),
+  });
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────────
+export function useTimeline(memberId: string | undefined, opts?: { limit?: number; offset?: number }) {
+  const limit = opts?.limit ?? 50;
+  const offset = opts?.offset ?? 0;
+  return useQuery<ApiTimelineEvent[]>({
+    queryKey: ["timeline", memberId, limit, offset],
+    queryFn: () => withFallback(
+      () => api.get<ApiTimelineEvent[]>(`/v1/timeline/${memberId}?limit=${limit}&offset=${offset}`),
+      () => fallback.timeline(memberId!)
+    ),
+    enabled: Boolean(memberId),
   });
 }

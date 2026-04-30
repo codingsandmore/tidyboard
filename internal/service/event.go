@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	rrule "github.com/teambition/rrule-go"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	rrule "github.com/teambition/rrule-go"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -143,6 +143,10 @@ func (s *EventService) Create(ctx context.Context, householdID uuid.UUID, req mo
 	if req.CalendarID != nil {
 		calID = &uuid.NullUUID{UUID: *req.CalendarID, Valid: true}
 	}
+	assignedMembers := req.AssignedMembers
+	if assignedMembers == nil {
+		assignedMembers = []uuid.UUID{}
+	}
 
 	e, err := s.q.CreateEvent(ctx, query.CreateEventParams{
 		ID:              uuid.New(),
@@ -155,7 +159,7 @@ func (s *EventService) Create(ctx context.Context, householdID uuid.UUID, req mo
 		AllDay:          req.AllDay,
 		Location:        req.Location,
 		RecurrenceRule:  req.RecurrenceRule,
-		AssignedMembers: req.AssignedMembers,
+		AssignedMembers: assignedMembers,
 		Reminders:       []byte("[]"),
 	})
 	if err != nil {
