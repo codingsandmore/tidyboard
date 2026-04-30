@@ -8,13 +8,15 @@ Sign in with the configured account provider. After sign-in, Tidyboard checks wh
 
 If your household is not ready yet, Tidyboard sends you to onboarding. Onboarding is where you create the household and define the family roster.
 
+Onboarding requires a household name, household timezone, the signed-in adult's member profile, and a reviewed roster before the dashboard opens. The signed-in adult becomes an administrator for the household.
+
 The family roster should include:
 
 - Adults who can administer the household
 - Children who use routines, chores, rewards, wallet, and calendar views
 - Pets that need care schedules, shopping items, routines, or household reminders
 
-Pets are household participants for planning and care. They do not sign in, enter PINs, receive wallet balances, or administer settings.
+Children can optionally receive a 4-6 digit kiosk PIN. Pets are household participants for planning and care. They do not sign in, enter PINs, receive wallet balances, redeem rewards, or administer settings.
 
 ## Home And Kiosk Dashboard
 

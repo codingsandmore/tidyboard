@@ -1,13 +1,10 @@
 "use client";
 
-// TODO(i18n): strings extracted — this is the reference migration screen.
-// Remaining untranslated string: ONBOARDING_LABELS (step labels from @/components/screens/onboarding).
-
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { TB } from "@/lib/tokens";
-import { Onboarding, ONBOARDING_LABELS } from "@/components/screens/onboarding";
+import { Onboarding, ONBOARDING_LABELS, type FamilyMemberDraft } from "@/components/screens/onboarding";
 import { useAuth } from "@/lib/auth/auth-store";
 import { api } from "@/lib/api/client";
 import { isApiFallbackMode } from "@/lib/api/fallback";
@@ -16,14 +13,6 @@ import { useSearchParams } from "next/navigation";
 const TOTAL = 7;
 
 // ── Types ──────────────────────────────────────────────────────────────────
-
-interface FamilyMemberDraft {
-  name: string;
-  display_name: string;
-  role: "adult" | "child";
-  color: string;
-  pin?: string;
-}
 
 // ── Network helpers ────────────────────────────────────────────────────────
 
@@ -37,8 +26,8 @@ interface MemberResponse {
   name: string;
 }
 
-async function createHousehold(name: string): Promise<HouseholdResponse> {
-  return api.post<HouseholdResponse>("/v1/households", { name });
+async function createHousehold(name: string, timezone: string): Promise<HouseholdResponse> {
+  return api.post<HouseholdResponse>("/v1/households", { name, timezone });
 }
 
 async function addMember(
@@ -49,8 +38,10 @@ async function addMember(
   return api.post<MemberResponse>(`/v1/households/${householdId}/members`, {
     name: member.name,
     display_name: member.display_name,
-    role: member.role,
+    role: member.role === "adult" ? "admin" : member.role,
+    age_group: member.age_group,
     color: member.color,
+    ...(member.role === "child" && member.pin ? { pin: member.pin } : {}),
     ...(accountId ? { account_id: accountId } : {}),
   });
 }
@@ -77,13 +68,9 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
 
-  // Step 1 (account) is fulfilled by Cognito sign-in before the user reaches
-  // this page. The email below is read from the Cognito-hydrated auth context
-  // so we can display it as confirmation (no edit, no submit).
-  const email = account?.email ?? "";
-
   // Step 2 state
   const [householdName, setHouseholdName] = useState("");
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [householdId, setHouseholdId] = useState<string | null>(null);
 
   // Step 3 state (add self)
@@ -92,7 +79,14 @@ export default function OnboardingPage() {
   const [selfColor, setSelfColor] = useState<string>(TB.memberColors[0]);
 
   // Step 4 state (family members)
-  const [familyMembers] = useState<FamilyMemberDraft[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMemberDraft[]>([]);
+  const [familyDraft, setFamilyDraft] = useState<Omit<FamilyMemberDraft, "id" | "color">>({
+    name: "",
+    display_name: "",
+    role: "adult",
+    age_group: "adult",
+  });
+  const [rosterReviewed, setRosterReviewed] = useState(false);
 
   // Auto-redirect on step 6 (landing)
   useEffect(() => {
@@ -115,7 +109,7 @@ export default function OnboardingPage() {
   async function advance() {
     setError(null);
 
-    // In fallback/demo mode, skip all network calls
+    // Local static builds can walk the wizard without a backend.
     if (isApiFallbackMode()) {
       if (step < TOTAL - 1) setStep(step + 1);
       else router.push("/");
@@ -129,23 +123,37 @@ export default function OnboardingPage() {
         // the auth middleware populated /v1/auth/me. Nothing to do here;
         // step 1 is now just a "you're signed in as X" confirmation.
       } else if (step === 2) {
+        if (!householdName.trim()) {
+          throw new Error("Household name is required.");
+        }
+        if (!timezone.trim()) {
+          throw new Error("Household timezone is required.");
+        }
         // Create household
-        const hh = await createHousehold(householdName);
+        const hh = await createHousehold(householdName.trim(), timezone.trim());
         setHouseholdId(hh.id);
       } else if (step === 3 && householdId) {
+        if (!selfName.trim()) {
+          throw new Error("Your name is required.");
+        }
         // Add self as adult member, linking to the signed-in account so
         // /v1/auth/me can resolve household_id + member_id after onboarding.
         await addMember(
           householdId,
           {
-            name: selfName,
-            display_name: selfDisplayName || selfName,
+            id: "self",
+            name: selfName.trim(),
+            display_name: (selfDisplayName || selfName).trim(),
             role: "adult",
+            age_group: "adult",
             color: selfColor,
           },
           account?.id
         );
       } else if (step === 4 && householdId) {
+        if (!rosterReviewed) {
+          throw new Error("Review the roster before continuing.");
+        }
         // Add any queued family members
         for (const m of familyMembers) {
           await addMember(householdId, m);
@@ -176,6 +184,31 @@ export default function OnboardingPage() {
     if (step > 0) setStep(step - 1);
   };
 
+  function addFamilyDraft() {
+    const name = familyDraft.name.trim();
+    if (!name) {
+      setError("Family member name is required.");
+      return;
+    }
+    const role = familyDraft.role;
+    const next: FamilyMemberDraft = {
+      ...familyDraft,
+      id: crypto.randomUUID(),
+      name,
+      display_name: (familyDraft.display_name || name).trim(),
+      age_group: role === "pet" ? "pet" : role === "child" ? "child" : "adult",
+      color: TB.memberColors[(familyMembers.length + 1) % TB.memberColors.length],
+      pin: role === "child" && familyDraft.pin?.trim() ? familyDraft.pin.trim() : undefined,
+    };
+    setFamilyMembers((members) => [...members, next]);
+    setFamilyDraft({ name: "", display_name: "", role: "adult", age_group: "adult" });
+    setError(null);
+  }
+
+  function removeFamilyDraft(id: string) {
+    setFamilyMembers((members) => members.filter((member) => member.id !== id));
+  }
+
   return (
     <div
       style={{
@@ -205,12 +238,21 @@ export default function OnboardingPage() {
           step={step}
           householdName={householdName}
           setHouseholdName={setHouseholdName}
+          timezone={timezone}
+          setTimezone={setTimezone}
           selfName={selfName}
           setSelfName={setSelfName}
           selfDisplayName={selfDisplayName}
           setSelfDisplayName={setSelfDisplayName}
           selfColor={selfColor}
           setSelfColor={setSelfColor}
+          familyMembers={familyMembers}
+          familyDraft={familyDraft}
+          setFamilyDraft={setFamilyDraft}
+          addFamilyDraft={addFamilyDraft}
+          removeFamilyDraft={removeFamilyDraft}
+          rosterReviewed={rosterReviewed}
+          setRosterReviewed={setRosterReviewed}
         />
 
         {/* Step 2: "Join instead" alternative path */}

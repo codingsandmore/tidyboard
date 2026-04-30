@@ -24,17 +24,14 @@ describe("Onboarding", () => {
     expect(screen.getByText("Create Account")).toBeTruthy();
   });
 
-  it("step 1 shows email field", () => {
+  it("step 1 confirms the account is already ready", () => {
     render(<Onboarding step={1} />);
-    expect(screen.getByText("Email")).toBeTruthy();
+    expect(screen.getByText(/Your Tidyboard account is ready/)).toBeTruthy();
   });
 
-  it("step 1 toggles password visibility", () => {
-    render(<Onboarding step={1} />);
-    // eye icon button is present
-    const { container } = render(<Onboarding step={1} />);
-    const eyeBtn = container.querySelector("button[style*='transparent']");
-    expect(eyeBtn).toBeTruthy();
+  it("step 2 shows timezone input", () => {
+    render(<Onboarding step={2} />);
+    expect(screen.getByLabelText("Household timezone")).toBeTruthy();
   });
 
   it("renders step 2 (Household) without crashing", () => {
@@ -64,8 +61,22 @@ describe("Onboarding", () => {
   });
 
   it("step 4 shows member count badge", () => {
-    render(<Onboarding step={4} />);
-    expect(screen.getByText("4 members")).toBeTruthy();
+    render(
+      <Onboarding
+        step={4}
+        familyMembers={[
+          {
+            id: "m1",
+            name: "Avery",
+            display_name: "Avery",
+            role: "child",
+            age_group: "child",
+            color: "#22C55E",
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText("1 added")).toBeTruthy();
   });
 
   it("renders step 5 (Calendar) without crashing", () => {

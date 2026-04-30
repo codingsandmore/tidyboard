@@ -246,6 +246,7 @@ export default function PinLoginPage() {
   const router = useRouter();
   const t = useTranslations("auth");
   const { data: members, isLoading } = useMembers();
+  const loginMembers = members?.filter((member) => member.role !== "pet");
   const [selected, setSelected] = useState<Member | null>(null);
 
   function handleSuccess() {
@@ -288,7 +289,7 @@ export default function PinLoginPage() {
         <div style={{ color: TB.text2, fontSize: 14 }}>{t("loadingMembers")}</div>
       )}
 
-      {!isLoading && members && (
+      {!isLoading && loginMembers && (
         <div
           style={{
             display: "flex",
@@ -298,7 +299,7 @@ export default function PinLoginPage() {
             maxWidth: 480,
           }}
         >
-          {members.map((m) => (
+          {loginMembers.map((m) => (
             <MemberAvatar key={m.id} member={m} onSelect={() => setSelected(m)} />
           ))}
         </div>

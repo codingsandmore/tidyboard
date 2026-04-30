@@ -57,7 +57,12 @@ func (h *MemberHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	member, err := h.svc.Create(r.Context(), householdID, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create member")
+		switch err {
+		case service.ErrForbidden:
+			respond.Error(w, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
+		default:
+			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create member")
+		}
 		return
 	}
 	respond.JSON(w, http.StatusCreated, member)
@@ -113,6 +118,8 @@ func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 		switch err {
 		case service.ErrNotFound:
 			respond.Error(w, http.StatusNotFound, "not_found", "member not found")
+		case service.ErrForbidden:
+			respond.Error(w, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
 		default:
 			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update member")
 		}

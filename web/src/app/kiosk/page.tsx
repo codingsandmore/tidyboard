@@ -37,7 +37,7 @@ function KioskInner() {
   // If ?member= param is set, skip directly to PIN for that member
   useEffect(() => {
     if (!preSelectId || !members) return;
-    const found = members.find((m) => m.id === preSelectId);
+    const found = members.find((m) => m.id === preSelectId && m.role !== "pet");
     if (found) {
       setSelectedMember(found);
       setState("pin");
@@ -102,6 +102,7 @@ export default function KioskPage() {
 
 function MemberPicker({ onSelect }: { onSelect: (m: Member) => void }) {
   const { data: members, isLoading } = useMembers();
+  const loginMembers = members?.filter((member) => member.role !== "pet");
   const t = useTranslations("lock");
 
   return (
@@ -134,18 +135,18 @@ function MemberPicker({ onSelect }: { onSelect: (m: Member) => void }) {
         </div>
       )}
 
-      {!isLoading && members && (
+      {!isLoading && loginMembers && (
         <div
           style={{
             flex: 1,
             display: "grid",
-            gridTemplateColumns: members.length <= 2 ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
+            gridTemplateColumns: loginMembers.length <= 2 ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
             gap: 32,
             alignItems: "center",
             justifyItems: "center",
           }}
         >
-          {members.map((m) => (
+          {loginMembers.map((m) => (
             <button
               key={m.id}
               data-testid={`member-tile-${m.id}`}

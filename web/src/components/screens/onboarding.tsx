@@ -168,7 +168,6 @@ const ObWelcome = () => {
 
 const ObCreate = () => {
   const t = useTranslations("onboarding.create");
-  const [show, setShow] = useState(false);
   return (
     <ObShell
       footer={
@@ -200,75 +199,18 @@ const ObCreate = () => {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Field label={t("email")}>
-          <Input
-            value="sarah@smithfamily.net"
-            onChange={() => {}}
-            placeholder="you@example.com"
-            readOnly
-          />
-        </Field>
-        <Field label={t("password")}>
-          <div style={{ position: "relative" }}>
-            <Input
-              value={show ? "crab-orbit-piano-73" : "••••••••••••••••"}
-              onChange={() => {}}
-              type="text"
-              placeholder={t("passwordHint")}
-              readOnly
-            />
-            <button
-              type="button"
-              aria-label={show ? "Hide password" : "Show password"}
-              onClick={() => setShow(!show)}
-              style={{
-                position: "absolute",
-                right: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "transparent",
-                border: "none",
-                color: TB.text2,
-                cursor: "pointer",
-                padding: 8,
-              }}
-            >
-              <Icon name="eye" size={16} />
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  height: 3,
-                  borderRadius: 9999,
-                  background: i <= 2 ? TB.success : TB.border,
-                }}
-              />
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: TB.success, marginTop: 6 }}>
-            {t("strong")}
-          </div>
-        </Field>
-        <Field label={t("confirmPassword")}>
-          <Input
-            value="••••••••••••••••"
-            onChange={() => {}}
-            placeholder={t("reEnterPassword")}
-            readOnly
-          />
-        </Field>
-        <Divider>{t("orContinueWith")}</Divider>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn kind="secondary" size="lg" full icon="google" disabled>
-            Google
-          </Btn>
-          <Btn kind="secondary" size="lg" full icon="apple" disabled>
-            Apple
-          </Btn>
+        <div
+          style={{
+            padding: 16,
+            border: `1px solid ${TB.border}`,
+            borderRadius: TB.r.md,
+            background: TB.surface,
+            color: TB.text2,
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          Your Tidyboard account is ready. Continue to create the household that will own this dashboard.
         </div>
       </div>
     </ObShell>
@@ -278,9 +220,13 @@ const ObCreate = () => {
 const ObHousehold = ({
   householdName,
   setHouseholdName,
+  timezone,
+  setTimezone,
 }: {
   householdName: string;
   setHouseholdName: (v: string) => void;
+  timezone: string;
+  setTimezone: (v: string) => void;
 }) => {
   const t = useTranslations("onboarding.household");
   return (
@@ -313,7 +259,7 @@ const ObHousehold = ({
         <Input
           value={householdName}
           onChange={setHouseholdName}
-          placeholder="e.g. The Smiths"
+          placeholder="e.g. Our household"
           style={{
             height: 56,
             fontSize: 20,
@@ -322,34 +268,15 @@ const ObHousehold = ({
             fontWeight: 500,
           }}
         />
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: 20,
-            display: "flex",
-            gap: 8,
-            justifyContent: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          {["The Johnsons", "Casa Martinez", "The Chen-Okonkwo Household", "Team Harrow"].map(
-            (s) => (
-              <span
-                key={s}
-                onClick={() => setHouseholdName(s)}
-                style={{
-                  fontSize: 12,
-                  color: TB.text2,
-                  padding: "6px 10px",
-                  background: TB.bg2,
-                  borderRadius: 9999,
-                  cursor: "pointer",
-                }}
-              >
-                {s}
-              </span>
-            )
-          )}
+        <div style={{ marginTop: 18 }}>
+          <Field label="Timezone" hint="Used for routines, calendar days, and shopping windows.">
+            <Input
+              ariaLabel="Household timezone"
+              value={timezone}
+              onChange={setTimezone}
+              placeholder="America/Los_Angeles"
+            />
+          </Field>
         </div>
       </div>
     </ObShell>
@@ -470,21 +397,42 @@ const ObSelf = ({
   );
 };
 
-const ObFamily = () => {
+export type FamilyRole = "adult" | "child" | "pet";
+
+export interface FamilyMemberDraft {
+  id: string;
+  name: string;
+  display_name: string;
+  role: FamilyRole;
+  color: string;
+  age_group: "adult" | "child" | "pet";
+  pin?: string;
+}
+
+const roleLabels: Record<FamilyRole, string> = {
+  adult: "Adult",
+  child: "Child",
+  pet: "Pet",
+};
+
+const ObFamily = ({
+  members,
+  draft,
+  setDraft,
+  addDraft,
+  removeDraft,
+  rosterReviewed,
+  setRosterReviewed,
+}: {
+  members: FamilyMemberDraft[];
+  draft: Omit<FamilyMemberDraft, "id" | "color">;
+  setDraft: (draft: Omit<FamilyMemberDraft, "id" | "color">) => void;
+  addDraft: () => void;
+  removeDraft: (id: string) => void;
+  rosterReviewed: boolean;
+  setRosterReviewed: (checked: boolean) => void;
+}) => {
   const t = useTranslations("onboarding.family");
-  const members: {
-    id: string;
-    initial: string;
-    name: string;
-    role: string;
-    color: string;
-    pin?: string;
-  }[] = [
-    { id: "mom", initial: "M", name: "Sarah (Mom)", role: "Adult", color: "#EF4444" },
-    { id: "dad", initial: "D", name: "Mike (Dad)", role: "Adult", color: "#3B82F6" },
-    { id: "jax", initial: "J", name: "Jackson", role: "Child · 6", color: "#22C55E", pin: "••••" },
-    { id: "em", initial: "E", name: "Emma", role: "Child · 9", color: "#F59E0B", pin: "••••" },
-  ];
   return (
     <ObShell
       footer={
@@ -505,7 +453,7 @@ const ObFamily = () => {
         <H as="h2" style={{ fontSize: 26 }}>
           {t("title")}
         </H>
-        <Badge>{members.length} members</Badge>
+        <Badge>{members.length} added</Badge>
       </div>
       <div style={{ color: TB.text2, fontSize: 13, marginTop: 4, marginBottom: 18 }}>
         {t("subtitle")}
@@ -532,10 +480,10 @@ const ObFamily = () => {
                 fontSize: 17,
               }}
             >
-              {m.initial}
+              {m.name.trim()[0]?.toUpperCase() ?? "?"}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 550, fontSize: 15 }}>{m.name}</div>
+              <div style={{ fontWeight: 550, fontSize: 15 }}>{m.display_name || m.name}</div>
               <div
                 style={{
                   fontSize: 12,
@@ -545,11 +493,14 @@ const ObFamily = () => {
                   alignItems: "center",
                 }}
               >
-                <span>{m.role}</span>
+                <span>{roleLabels[m.role]}</span>
                 {m.pin && <span style={{ fontFamily: TB.fontMono }}>PIN {m.pin}</span>}
               </div>
             </div>
             <button
+              type="button"
+              aria-label={`Remove ${m.name}`}
+              onClick={() => removeDraft(m.id)}
               style={{
                 background: "transparent",
                 border: "none",
@@ -558,33 +509,92 @@ const ObFamily = () => {
                 padding: 6,
               }}
             >
-              <Icon name="pencil" size={16} />
+              <Icon name="trash" size={16} />
             </button>
           </Card>
         ))}
 
-        <button
-          style={{
-            padding: "14px 12px",
-            background: TB.surface,
-            border: `1.5px dashed ${TB.border}`,
-            borderRadius: TB.r.lg,
-            cursor: "pointer",
-            color: TB.primary,
-            fontWeight: 600,
-            fontSize: 14,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            fontFamily: TB.fontBody,
-          }}
-        >
-          <Icon name="plus" size={18} /> {t("addMember")}
-        </button>
+        <Card pad={12} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Field label="Name">
+            <Input
+              ariaLabel="Family member name"
+              value={draft.name}
+              onChange={(name) => setDraft({ ...draft, name, display_name: draft.display_name || name })}
+              placeholder="Name"
+            />
+          </Field>
+          <Field label="Role">
+            <select
+              aria-label="Family member role"
+              value={draft.role}
+              onChange={(e) => {
+                const role = e.target.value as FamilyRole;
+                setDraft({
+                  ...draft,
+                  role,
+                  age_group: role === "pet" ? "pet" : role === "child" ? "child" : "adult",
+                  pin: role === "child" ? draft.pin : undefined,
+                });
+              }}
+              style={{
+                width: "100%",
+                height: 44,
+                border: `1px solid ${TB.border}`,
+                borderRadius: TB.r.sm,
+                background: TB.surface,
+                color: TB.text,
+                fontFamily: TB.fontBody,
+                fontSize: 14,
+                padding: "0 12px",
+              }}
+            >
+              <option value="adult">Adult</option>
+              <option value="child">Child</option>
+              <option value="pet">Pet</option>
+            </select>
+          </Field>
+          {draft.role === "child" && (
+            <Field label="PIN" hint="Optional 4-6 digit kiosk unlock code.">
+              <Input
+                ariaLabel="Optional child PIN"
+                value={draft.pin ?? ""}
+                onChange={(pin) => setDraft({ ...draft, pin })}
+                placeholder="1234"
+              />
+            </Field>
+          )}
+          <button
+            type="button"
+            onClick={addDraft}
+            style={{
+              padding: "14px 12px",
+              background: TB.surface,
+              border: `1.5px dashed ${TB.border}`,
+              borderRadius: TB.r.lg,
+              cursor: "pointer",
+              color: TB.primary,
+              fontWeight: 600,
+              fontSize: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              fontFamily: TB.fontBody,
+            }}
+          >
+            <Icon name="plus" size={18} /> {t("addMember")}
+          </button>
+        </Card>
       </div>
-      <div style={{ textAlign: "center", marginTop: 14 }}>
-        <span style={{ fontSize: 13, color: TB.text2, cursor: "pointer" }}>{t("skipForNow")}</span>
+      <div style={{ marginTop: 14 }}>
+        <label style={{ display: "flex", gap: 10, fontSize: 13, color: TB.text2, lineHeight: 1.4 }}>
+          <input
+            type="checkbox"
+            checked={rosterReviewed}
+            onChange={(e) => setRosterReviewed(e.target.checked)}
+          />
+          My roster includes everyone who should appear on Tidyboard.
+        </label>
       </div>
     </ObShell>
   );
@@ -729,9 +739,9 @@ const ObCalendar = () => {
           </div>
           <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
             {[
-              { c: "#3B82F6", t: "Standup", time: "8:00" },
-              { c: "#EF4444", t: "Dentist", time: "9:00" },
-              { c: "#22C55E", t: "Soccer", time: "3:30" },
+              { c: "#3B82F6", t: "Calendar events", time: "8:00" },
+              { c: "#EF4444", t: "Routine blocks", time: "9:00" },
+              { c: "#22C55E", t: "Care reminders", time: "3:30" },
             ].map((e, i) => (
               <div
                 key={i}
@@ -855,10 +865,10 @@ const ObLanding = () => {
               THU · APR 22
             </div>
             {[
-              { c: "#3B82F6", t: "Morning standup", time: "8:00 AM" },
-              { c: "#EF4444", t: "Dentist — Jackson", time: "9:00 AM" },
-              { c: "#22C55E", t: "Soccer practice", time: "3:30 PM" },
-              { c: "#F59E0B", t: "Piano lesson", time: "5:00 PM" },
+              { c: "#3B82F6", t: "Household created" },
+              { c: "#EF4444", t: "Adult profile linked" },
+              { c: "#22C55E", t: "Roster reviewed" },
+              { c: "#F59E0B", t: "Pets kept out of sign-in and wallet flows" },
             ].map((e, i) => (
               <div
                 key={i}
@@ -874,13 +884,18 @@ const ObLanding = () => {
               >
                 <div
                   style={{
-                    fontFamily: TB.fontMono,
-                    fontSize: 11,
-                    color: TB.text2,
-                    width: 62,
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: e.c,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: "0 0 auto",
                   }}
                 >
-                  {e.time}
+                  <Icon name="check" size={12} stroke={2.5} />
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{e.t}</div>
               </div>
@@ -898,31 +913,49 @@ const ObLanding = () => {
 export interface OnboardingFormProps {
   householdName?: string;
   setHouseholdName?: (v: string) => void;
+  timezone?: string;
+  setTimezone?: (v: string) => void;
   selfName?: string;
   setSelfName?: (v: string) => void;
   selfDisplayName?: string;
   setSelfDisplayName?: (v: string) => void;
   selfColor?: string;
   setSelfColor?: (v: string) => void;
+  familyMembers?: FamilyMemberDraft[];
+  familyDraft?: Omit<FamilyMemberDraft, "id" | "color">;
+  setFamilyDraft?: (draft: Omit<FamilyMemberDraft, "id" | "color">) => void;
+  addFamilyDraft?: () => void;
+  removeFamilyDraft?: (id: string) => void;
+  rosterReviewed?: boolean;
+  setRosterReviewed?: (checked: boolean) => void;
 }
 
 export function Onboarding({
   step = 0,
   householdName = "",
   setHouseholdName = () => {},
+  timezone = "",
+  setTimezone = () => {},
   selfName = "",
   setSelfName = () => {},
   selfDisplayName = "",
   setSelfDisplayName = () => {},
   selfColor = TB.memberColors[0],
   setSelfColor = () => {},
+  familyMembers = [],
+  familyDraft = { name: "", display_name: "", role: "adult", age_group: "adult" },
+  setFamilyDraft = () => {},
+  addFamilyDraft = () => {},
+  removeFamilyDraft = () => {},
+  rosterReviewed = false,
+  setRosterReviewed = () => {},
 }: { step?: number } & OnboardingFormProps) {
   switch (step) {
     case 0: return <ObWelcome />;
     case 1: return <ObCreate />;
-    case 2: return <ObHousehold householdName={householdName} setHouseholdName={setHouseholdName} />;
+    case 2: return <ObHousehold householdName={householdName} setHouseholdName={setHouseholdName} timezone={timezone} setTimezone={setTimezone} />;
     case 3: return <ObSelf selfName={selfName} setSelfName={setSelfName} selfDisplayName={selfDisplayName} setSelfDisplayName={setSelfDisplayName} selfColor={selfColor} setSelfColor={setSelfColor} />;
-    case 4: return <ObFamily />;
+    case 4: return <ObFamily members={familyMembers} draft={familyDraft} setDraft={setFamilyDraft} addDraft={addFamilyDraft} removeDraft={removeFamilyDraft} rosterReviewed={rosterReviewed} setRosterReviewed={setRosterReviewed} />;
     case 5: return <ObCalendar />;
     case 6: return <ObLanding />;
     default: return <ObWelcome />;

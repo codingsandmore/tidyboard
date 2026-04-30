@@ -78,7 +78,7 @@ func (s *AuthService) PINLogin(ctx context.Context, req model.PINLoginRequest) (
 		return nil, fmt.Errorf("fetching member: %w", err)
 	}
 
-	if mem.PinHash == nil {
+	if !canPINLoginMember(mem.Role) || mem.PinHash == nil {
 		return nil, ErrInvalidCredentials
 	}
 	if err := s.CheckPIN(*mem.PinHash, req.PIN); err != nil {

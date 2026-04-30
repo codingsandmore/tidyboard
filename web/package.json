@@ -8,7 +8,7 @@
     "start": "next start",
     "test": "TIDYBOARD_FORCE_VITEST_EXIT=1 vitest run --reporter=default --reporter=./src/test/ci-exit-reporter.ts",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage",
+    "coverage": "TIDYBOARD_FORCE_VITEST_EXIT=1 vitest run --coverage --reporter=default --reporter=./src/test/ci-exit-reporter.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:real": "playwright test --config=e2e-real/playwright.config.ts",
