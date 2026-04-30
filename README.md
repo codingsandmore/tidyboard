@@ -70,6 +70,7 @@ Next.js Frontend  ──────────────────►  Go 
 
 ## Documentation
 
+- [Documentation index](docs/README.md)
 - [Agent Operator Manual](docs/manuals/agent-operator-manual.md) - issue, PR, CI, merge, deploy, and documentation workflow for Codex agents.
 - [User Manual](docs/manuals/user-manual.md) - family-facing setup and usage guide for production Tidyboard.
 - [Production Flow Verification](docs/manuals/production-flow-verification.md) - automated and manual smoke checks for real-account family flows.
@@ -142,7 +143,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment documentation:
 - **Vercel + managed Postgres** — frontend on Vercel, backend on any host
 - **AWS Lambda** — cloud-native serverless (Phase 2)
 
-Web-specific deployment: [web/DEPLOY_WEB.md](web/DEPLOY_WEB.md)
+Web-specific deployment: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ---
 
