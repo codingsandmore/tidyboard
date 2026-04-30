@@ -22,7 +22,9 @@ Children can optionally receive a 4-6 digit kiosk PIN. Pets are household partic
 
 The home dashboard is the family command center. It shows household activity from the signed-in account and the selected household. If the account is signed in but the household or member profile is incomplete, Tidyboard returns to onboarding instead of showing placeholder data.
 
-Kiosk mode is intended for a shared tablet or wall display. Members can use the kiosk flow to identify themselves before accessing member-scoped actions.
+Kiosk mode is intended for a shared tablet or wall display. The kiosk dashboard fills the screen directly; it is not a phone or tablet simulation. It uses the household's live members, calendar events, routines, lists, meal plan, recipes, and weather. If a section has no household data yet, it shows an empty state that tells the family what to add.
+
+Selecting a member on the kiosk filters the schedule to that member while keeping shared household events visible. Members can use the kiosk flow to identify themselves before accessing member-scoped actions.
 
 ## Member Context
 

@@ -1,45 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { fmtTime, getMembers } from "@/lib/data";
+import {
+  fmtTime,
+  type MealPlan,
+  type Member,
+  type Recipe,
+  type TBDEvent,
+} from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { H } from "@/components/ui/heading";
 import { BottomNav } from "./bottom-nav";
-import { useEvents, useMembers } from "@/lib/api/hooks";
+import {
+  useLiveEvents,
+  useLiveLists,
+  useLiveMealPlan,
+  useLiveMembers,
+  useLiveRecipes,
+  useLiveRoutines,
+  useHousehold,
+} from "@/lib/api/hooks";
 import { useWeather } from "@/lib/weather/use-weather";
 import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
-const KIOSK_TABS = [
-  { n: "calendar" as const, l: "Calendar" },
-  { n: "checkCircle" as const, l: "Routines" },
-  { n: "list" as const, l: "Lists" },
-  { n: "chef" as const, l: "Meals" },
-  { n: "star" as const, l: "Stars" },
-  { n: "flag" as const, l: "Races" },
-];
-
 export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
-  const tRecipe = useTranslations("recipe");
   const [sel, setSel] = useState<string | null>(null);
-  const { data: apiMembers } = useMembers();
-  const { lockKiosk, status, activeMember, setActiveMember } = useAuth();
-  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
-  const { data: weather } = useWeather();
+  const [now, setNow] = useState(() => new Date());
+  const { data: apiMembers } = useLiveMembers();
+  const { lockKiosk, status, activeMember, setActiveMember, household } = useAuth();
+  const { data: apiEvents } = useLiveEvents();
+  const { data: routines } = useLiveRoutines();
+  const { data: lists } = useLiveLists();
+  const { data: recipes } = useLiveRecipes();
+  const { data: mealPlan } = useLiveMealPlan();
+  const { data: householdRecord } = useHousehold(household?.id);
+  const weatherCoords = getHouseholdWeatherCoords(householdRecord?.settings);
+  const { data: weather } = useWeather(weatherCoords, { enabled: Boolean(weatherCoords) });
   const router = useRouter();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
-  const selMember = members.find((m) => m.id === sel) ?? members[0];
+  const selectedMemberId = sel ?? activeMember?.id ?? null;
+  const selMember = members.find((m) => m.id === selectedMemberId) ?? members[0];
+  const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const displayedEvents = useMemo(
+    () => filterEventsForMember(events, selectedMemberId),
+    [events, selectedMemberId]
+  );
+  const dinnerRecipe = useMemo(
+    () => findDinnerRecipe(now, mealPlan, recipes ?? []),
+    [mealPlan, now, recipes]
+  );
+  const openListCount = (lists ?? []).reduce(
+    (count, list) => count + list.items.filter((item) => !item.done).length,
+    0
+  );
   const bg = dark ? TB.dBg : TB.bg;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const kioskTabs = [
     { n: "calendar" as const, l: tNav("calendar"), href: "/calendar" },
@@ -78,15 +108,15 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
               fontFamily: TB.fontDisplay,
               fontSize: 64,
               fontWeight: 500,
-              letterSpacing: "-0.03em",
+              letterSpacing: 0,
               lineHeight: 1,
               color: tc,
             }}
           >
-            10:34
+            {formatClock(now)}
           </div>
           <div style={{ marginTop: 6, fontSize: 15, color: tc2, fontWeight: 500 }}>
-            Thursday, April 22
+            {formatDate(now)}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -103,7 +133,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
               {weather ? `${weather.tempNow}°` : "—"}
             </div>
             <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>
-              {weather ? weather.label : t("partlySunny")}
+              {weather ? weather.label : "Weather unavailable"}
             </div>
           </div>
           <div
@@ -122,7 +152,10 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           {status === "authenticated" && (
             <button
               data-testid="kiosk-lock-btn"
-              onClick={() => { lockKiosk(); router.push("/kiosk"); }}
+              onClick={() => {
+                lockKiosk();
+                router.push("/kiosk");
+              }}
               title="Lock screen"
               style={{
                 width: 44,
@@ -157,7 +190,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           }}
         >
           {members.map((m) => {
-            const isSelected = sel === m.id;
+            const isSelected = selectedMemberId === m.id;
             return (
               <div
                 key={m.id}
@@ -168,9 +201,11 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                     setActiveMember(null);
                   } else {
                     setSel(m.id);
-                    setActiveMember({ id: m.id, name: m.name, role: m.role === "child" ? "child" : "adult" });
-                    // Trigger PIN login for the selected member
-                    router.push(`/kiosk?member=${m.id}`);
+                    setActiveMember({
+                      id: m.id,
+                      name: m.name,
+                      role: m.role === "child" ? "child" : "adult",
+                    });
                   }
                 }}
                 style={{
@@ -197,33 +232,12 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           <div style={{ flex: 1 }} />
           {selMember && (
             <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>{selMember.name}</div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <Icon name="star" size={16} color={TB.warning} />
-                <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
-                  {selMember.stars}
-                </div>
+              <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>Viewing</div>
+              <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
+                {selMember.name}
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 4,
-                  marginTop: 6,
-                }}
-              >
-                <Icon name="flame" size={14} color="#F97316" />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#F97316" }}>
-                  {t("streak", { n: selMember.streak })}
-                </div>
+              <div style={{ fontSize: 12, color: tc2, marginTop: 6, textTransform: "capitalize" }}>
+                {selMember.role}
               </div>
             </Card>
           )}
@@ -242,18 +256,18 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
               {t("todaysSchedule")}
             </H>
             <div style={{ fontSize: 13, color: tc2, fontFamily: TB.fontMono }}>
-              {t("eventsShort", { count: events.length })}
+              {t("eventsShort", { count: displayedEvents.length })}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {events.length === 0 && (
+            {displayedEvents.length === 0 && (
               <div style={{ padding: "24px 0", textAlign: "center", color: tc2, fontSize: 14 }}>
-                {t("noEvents")}
+                Add calendar events to show today&apos;s household schedule.
               </div>
             )}
-            {events.map((e) => {
-              const ms = getMembers(e.members);
-              const accent = ms.length > 1 ? TB.primary : ms[0].color;
+            {displayedEvents.map((e) => {
+              const ms = getEventMembers(e, memberById);
+              const accent = ms.length > 1 ? TB.primary : ms[0]?.color ?? TB.primary;
               return (
                 <Card
                   key={e.id}
@@ -284,7 +298,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                           fontWeight: 500,
                         }}
                       >
-                        {fmtTime(e.start)}
+                        {formatEventTime(e.start_time ?? e.start)}
                       </div>
                       <div
                         style={{
@@ -293,7 +307,7 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                           color: tc2,
                         }}
                       >
-                        {fmtTime(e.end)}
+                        {formatEventTime(e.end_time ?? e.end)}
                       </div>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -332,52 +346,44 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             })}
           </div>
 
-          <div style={{ marginTop: 20 }}>
-            <H as="h3" style={{ color: tc, marginBottom: 10 }}>
-              {t("whatsForDinner")}
-            </H>
-            <Card
+          <div
+            style={{
+              marginTop: 20,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <KioskSummaryCard
               dark={dark}
-              pad={0}
-              style={{ display: "flex", alignItems: "stretch", overflow: "hidden" }}
-            >
-              <div
-                style={{
-                  width: 96,
-                  background:
-                    "repeating-linear-gradient(135deg, #D4A574 0 10px, #C29663 10px 20px)",
-                }}
-              />
-              <div style={{ flex: 1, padding: 16 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: tc2,
-                    fontFamily: TB.fontMono,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  PASTA · {tRecipe("serves", { n: 4 }).toUpperCase()} · 30 MIN
-                </div>
-                <div
-                  style={{
-                    fontFamily: TB.fontDisplay,
-                    fontSize: 22,
-                    fontWeight: 500,
-                    marginTop: 4,
-                    color: tc,
-                  }}
-                >
-                  Spaghetti Carbonara
-                </div>
-                <div style={{ fontSize: 13, color: tc2, marginTop: 4 }}>
-                  {t("tapForRecipe")}
-                </div>
-              </div>
-              <div style={{ padding: 16, display: "flex", alignItems: "center" }}>
-                <Icon name="chevronR" size={22} color={tc2} />
-              </div>
-            </Card>
+              title={t("whatsForDinner")}
+              value={dinnerRecipe?.title ?? "No dinner planned yet"}
+              detail={
+                dinnerRecipe
+                  ? `${dinnerRecipe.total} min · serves ${dinnerRecipe.serves}`
+                  : "Add meals from recipes to fill this tile."
+              }
+            />
+            <KioskSummaryCard
+              dark={dark}
+              title="Routines"
+              value={routines?.[0]?.name ?? "No routines set up yet"}
+              detail={
+                routines && routines.length > 0
+                  ? `${routines.length} active routine${routines.length === 1 ? "" : "s"}`
+                  : "Create routines for mornings, evenings, or chores."
+              }
+            />
+            <KioskSummaryCard
+              dark={dark}
+              title="Lists"
+              value={lists?.[0]?.title ?? "No lists yet"}
+              detail={
+                lists && lists.length > 0
+                  ? `${openListCount} open item${openListCount === 1 ? "" : "s"}`
+                  : "Create lists for packing, chores, or errands."
+              }
+            />
           </div>
         </div>
       </div>
@@ -388,5 +394,140 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
         tabs={kioskTabs}
       />
     </div>
+  );
+}
+
+function formatClock(now: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(now);
+}
+
+function formatDate(now: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(now);
+}
+
+function formatEventTime(value: string): string {
+  if (value.includes("T")) {
+    return formatClock(new Date(value));
+  }
+  return fmtTime(value);
+}
+
+function filterEventsForMember(events: TBDEvent[], memberId: string | null): TBDEvent[] {
+  if (!memberId) {
+    return events;
+  }
+  return events.filter((event) => event.members.length === 0 || event.members.includes(memberId));
+}
+
+function getEventMembers(event: TBDEvent, memberById: Map<string, Member>): Member[] {
+  return event.members.map((id) => memberById.get(id)).filter((m): m is Member => Boolean(m));
+}
+
+function findDinnerRecipe(now: Date, mealPlan: MealPlan | undefined, recipes: Recipe[]) {
+  if (!mealPlan) {
+    return undefined;
+  }
+  const dinnerIndex = mealPlan.rows.findIndex((row) => row.toLowerCase() === "dinner");
+  if (dinnerIndex < 0) {
+    return undefined;
+  }
+  const dayIndex = getMealPlanDayIndex(now, mealPlan.weekOf);
+  const recipeId = mealPlan.grid[dinnerIndex]?.[dayIndex];
+  return recipes.find((recipe) => recipe.id === recipeId);
+}
+
+function getMealPlanDayIndex(now: Date, weekOf: string): number {
+  const weekStart = new Date(`${weekOf}T00:00:00`);
+  if (Number.isNaN(weekStart.getTime())) {
+    return now.getDay() === 0 ? 6 : now.getDay() - 1;
+  }
+  const diffDays = Math.floor(
+    (startOfDay(now).getTime() - startOfDay(weekStart).getTime()) / 86_400_000
+  );
+  return Math.min(6, Math.max(0, diffDays));
+}
+
+function startOfDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function getHouseholdWeatherCoords(
+  settings: Record<string, unknown> | undefined
+): { lat: number; lon: number } | undefined {
+  if (!settings) {
+    return undefined;
+  }
+  const candidates = [
+    { lat: settings.weather_latitude, lon: settings.weather_longitude },
+    { lat: settings.weatherLat, lon: settings.weatherLon },
+    { lat: settings.latitude, lon: settings.longitude },
+  ];
+  for (const candidate of candidates) {
+    const lat = toFiniteNumber(candidate.lat);
+    const lon = toFiniteNumber(candidate.lon);
+    if (lat !== undefined && lon !== undefined) {
+      return { lat, lon };
+    }
+  }
+  return undefined;
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+function KioskSummaryCard({
+  dark,
+  title,
+  value,
+  detail,
+}: {
+  dark: boolean;
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  const tc = dark ? TB.dText : TB.text;
+  const tc2 = dark ? TB.dText2 : TB.text2;
+
+  return (
+    <Card dark={dark} pad={16}>
+      <div
+        style={{
+          fontSize: 12,
+          color: tc2,
+          fontFamily: TB.fontMono,
+          textTransform: "uppercase",
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          fontFamily: TB.fontDisplay,
+          fontSize: 22,
+          fontWeight: 500,
+          marginTop: 8,
+          color: tc,
+        }}
+      >
+        {value}
+      </div>
+      <div style={{ fontSize: 13, color: tc2, marginTop: 6 }}>{detail}</div>
+    </Card>
   );
 }
