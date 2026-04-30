@@ -75,7 +75,13 @@ export type MealPlan = {
   grid: (string | null)[][];
 };
 
-export type ShoppingItem = { amt: string; name: string; done: boolean };
+export type ShoppingItem = {
+  amt: string;
+  name: string;
+  done: boolean;
+  id?: string;
+  sourceRecipes?: string[];
+};
 export type ShoppingCategory = {
   name: string;
   pantry?: boolean;

@@ -13,16 +13,21 @@ vi.mock("next/navigation", () => ({
 
 const importMutateMock = vi.fn();
 const upsertMutateAsyncMock = vi.fn().mockResolvedValue({});
+const generateShoppingMutateMock = vi.fn();
+const toggleShoppingMutateMock = vi.fn();
+const hookState = vi.hoisted(() => ({
+  mealPlan: null as unknown,
+}));
 
 vi.mock("@/lib/api/hooks", () => ({
   useRecipe: (_id: string) => ({ data: TBD.recipes[0] }),
   useRecipes: () => ({ data: TBD.recipes }),
-  useMealPlan: () => ({ data: TBD.mealPlan }),
+  useMealPlan: () => ({ data: hookState.mealPlan ?? TBD.mealPlan }),
   useShopping: () => ({ data: TBD.shopping }),
-  useToggleShoppingItem: () => ({ mutate: vi.fn() }),
+  useToggleShoppingItem: () => ({ mutate: toggleShoppingMutateMock }),
   useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
   useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
-  useGenerateShoppingList: () => ({ mutate: vi.fn(), isPending: false }),
+  useGenerateShoppingList: () => ({ mutate: generateShoppingMutateMock, isPending: false }),
 }));
 
 function createWrapper() {
@@ -170,6 +175,9 @@ function makeLocalStorageMock() {
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", makeLocalStorageMock());
+  hookState.mealPlan = null;
+  generateShoppingMutateMock.mockReset();
+  toggleShoppingMutateMock.mockReset();
 });
 
 afterEach(() => {
@@ -312,6 +320,41 @@ describe("MealPlan", () => {
     // Picker should be gone
     expect(screen.queryByTestId("meal-picker")).toBeNull();
   });
+
+  it("lets backend validation explain missing planned recipes", async () => {
+    hookState.mealPlan = {
+      weekOf: "2026-04-27",
+      rows: ["Breakfast", "Lunch", "Dinner", "Snack"],
+      grid: Array.from({ length: 4 }, () => Array(7).fill(null)),
+    };
+    generateShoppingMutateMock.mockImplementation((_payload, options) => {
+      options.onError({ code: "missing_meal_plan" });
+    });
+
+    renderWithQuery(<MealPlan />);
+    fireEvent.click(screen.getByText("Generate shopping list"));
+
+    expect(generateShoppingMutateMock).toHaveBeenCalledWith(
+      { dateFrom: "2026-04-27", dateTo: "2026-05-03" },
+      expect.any(Object)
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/Add recipes to this week before generating a shopping list/i)).toBeTruthy();
+    });
+  });
+
+  it("shows backend missing-ingredient errors from shopping generation", async () => {
+    generateShoppingMutateMock.mockImplementation((_payload, options) => {
+      options.onError({ code: "missing_recipe_ingredients" });
+    });
+
+    renderWithQuery(<MealPlan />);
+    fireEvent.click(screen.getByText("Generate shopping list"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Planned recipes need ingredients/i)).toBeTruthy();
+    });
+  });
 });
 
 describe("ShoppingList", () => {
@@ -337,6 +380,20 @@ describe("ShoppingList", () => {
     expect(item.style.textDecoration).not.toBe("line-through");
     fireEvent.click(item.closest("div[style*='cursor: pointer']")!);
     expect(item.style.textDecoration).toBe("line-through");
+  });
+
+  it("rolls back optimistic item toggles when the update fails", async () => {
+    toggleShoppingMutateMock.mockImplementation((_payload, options) => {
+      options.onError();
+    });
+    renderWithQuery(<ShoppingList />);
+
+    const item = screen.getByText("Roma tomatoes");
+    fireEvent.click(item.closest("div[style*='cursor: pointer']")!);
+
+    await waitFor(() => {
+      expect(item.style.textDecoration).not.toBe("line-through");
+    });
   });
 });
 

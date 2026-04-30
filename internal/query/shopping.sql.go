@@ -136,8 +136,8 @@ func (q *Queries) GetShoppingList(ctx context.Context, arg GetShoppingListParams
 }
 
 const insertShoppingListItem = `-- name: InsertShoppingListItem :one
-INSERT INTO shopping_list_items (shopping_list_id, household_id, name, amount, unit, aisle, source_recipes, sort_order)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO shopping_list_items (shopping_list_id, household_id, name, amount, unit, aisle, source_recipes, completed, sort_order)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, shopping_list_id, household_id, name, amount, unit, aisle, source_recipes, completed, sort_order, created_at, updated_at
 `
 
@@ -149,6 +149,7 @@ type InsertShoppingListItemParams struct {
 	Unit           string         `json:"unit"`
 	Aisle          string         `json:"aisle"`
 	SourceRecipes  []string       `json:"source_recipes"`
+	Completed      bool           `json:"completed"`
 	SortOrder      int32          `json:"sort_order"`
 }
 
@@ -161,6 +162,7 @@ func (q *Queries) InsertShoppingListItem(ctx context.Context, arg InsertShopping
 		arg.Unit,
 		arg.Aisle,
 		arg.SourceRecipes,
+		arg.Completed,
 		arg.SortOrder,
 	)
 	var i ShoppingListItem
@@ -184,6 +186,7 @@ func (q *Queries) InsertShoppingListItem(ctx context.Context, arg InsertShopping
 const listIngredientsForMealPlanRange = `-- name: ListIngredientsForMealPlanRange :many
 
 SELECT
+    r.id AS recipe_id,
     ri.name,
     ri.amount,
     ri.unit,
@@ -208,6 +211,7 @@ type ListIngredientsForMealPlanRangeParams struct {
 }
 
 type ListIngredientsForMealPlanRangeRow struct {
+	RecipeID    uuid.UUID      `json:"recipe_id"`
 	Name        string         `json:"name"`
 	Amount      pgtype.Numeric `json:"amount"`
 	Unit        string         `json:"unit"`
@@ -229,6 +233,7 @@ func (q *Queries) ListIngredientsForMealPlanRange(ctx context.Context, arg ListI
 	for rows.Next() {
 		var i ListIngredientsForMealPlanRangeRow
 		if err := rows.Scan(
+			&i.RecipeID,
 			&i.Name,
 			&i.Amount,
 			&i.Unit,

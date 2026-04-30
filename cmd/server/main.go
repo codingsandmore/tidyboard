@@ -387,6 +387,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// Shopping lists.
 		r.Post("/v1/shopping/generate", shoppingHandler.Generate)
 		r.Get("/v1/shopping/current", shoppingHandler.GetCurrent)
+		r.Patch("/v1/shopping/current/items/{id}", shoppingHandler.UpdateItem)
 		r.Get("/v1/shopping/staples", shoppingHandler.ListStaples)
 		r.Post("/v1/shopping/staples", shoppingHandler.UpsertStaple)
 		r.Delete("/v1/shopping/staples/{id}", shoppingHandler.DeleteStaple)
@@ -494,7 +495,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/billing/subscription", billingHandler.Subscription)
 
 		// Media upload — larger body limit (10 MB).
-		r.With(middleware.MaxRequestBody(10 << 20)).Post("/v1/media/upload", mediaHandler.Upload)
+		r.With(middleware.MaxRequestBody(10<<20)).Post("/v1/media/upload", mediaHandler.Upload)
 	})
 
 	// Media sign endpoint — authenticated, outside the group above.
