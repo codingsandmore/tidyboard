@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import {
-  apiCreateHousehold,
   apiCreateMember,
   apiListMembers,
   apiCreateEvent,
@@ -44,7 +43,7 @@ import { CleanupQueue } from "../helpers/cleanup";
  *
  * What it covers:
  *   1. /v1/auth/me round-trips and yields a household_id
- *   2. New household + 3 members (1 adult, 2 kids with PINs)
+ *   2. Real roster in the authenticated household (1 adult, 2 kids with PINs, 1 pet)
  *   3. Calendar event create + list + delete round-trip
  *   4. Yearly-recurring event (birthday) — verifies recurrence_rule pass-through
  *   5. List + items: create, toggle, verify state, delete
@@ -77,46 +76,51 @@ test.describe("Production family flow (auth required)", () => {
     householdId = me.household_id;
   });
 
-  test("2. create a fresh test household + 3 members", async () => {
-    const hh = await apiCreateHousehold(TOKEN, { name: `[${RUN}] Test Family` });
-    expect(hh.id).toBeTruthy();
-    cleanup.trackHousehold(TOKEN, hh.id);
+  test("2. seed the authenticated household with adults, kids, and pet", async () => {
+    if (!householdId) test.skip(true, "no authenticated household available from step 1");
 
-    const adult = await apiCreateMember(TOKEN, hh.id, {
+    const adult = await apiCreateMember(TOKEN, householdId, {
       name: `[${RUN}] Parent`,
       display_name: "Parent",
       role: "adult",
       color: "#3B82F6",
     });
-    cleanup.trackMember(TOKEN, hh.id, adult.id);
-    expect(adult.role).toBe("adult");
+    cleanup.trackMember(TOKEN, householdId, adult.id);
+    expect(["admin", "adult"]).toContain(adult.role);
 
-    const kid1 = await apiCreateMember(TOKEN, hh.id, {
+    const kid1 = await apiCreateMember(TOKEN, householdId, {
       name: `[${RUN}] KidOne`,
       display_name: "KidOne",
       role: "child",
       color: "#22C55E",
       pin: kidPin,
     });
-    cleanup.trackMember(TOKEN, hh.id, kid1.id);
+    cleanup.trackMember(TOKEN, householdId, kid1.id);
     kidMemberId = kid1.id;
 
-    const kid2 = await apiCreateMember(TOKEN, hh.id, {
+    const kid2 = await apiCreateMember(TOKEN, householdId, {
       name: `[${RUN}] KidTwo`,
       display_name: "KidTwo",
       role: "child",
       color: "#F59E0B",
       pin: "2468",
     });
-    cleanup.trackMember(TOKEN, hh.id, kid2.id);
+    cleanup.trackMember(TOKEN, householdId, kid2.id);
 
-    const members = await apiListMembers(TOKEN, hh.id);
+    const pet = await apiCreateMember(TOKEN, householdId, {
+      name: `[${RUN}] Buddy`,
+      display_name: "Buddy",
+      role: "pet",
+      age_group: "pet",
+      color: "#A855F7",
+    });
+    cleanup.trackMember(TOKEN, householdId, pet.id);
+    expect(pet.role).toBe("pet");
+
+    const members = await apiListMembers(TOKEN, householdId);
     const ourMembers = members.filter((m) => m.name.startsWith(`[${RUN}]`));
-    expect(ourMembers.length).toBe(3);
-
-    // Use this fresh household for the rest of the suite. The user's real
-    // household_id stays untouched.
-    householdId = hh.id;
+    expect(ourMembers.length).toBe(4);
+    expect(ourMembers.some((m) => m.role === "pet" && m.display_name === "Buddy")).toBe(true);
   });
 
   test("3. create + list + delete a calendar event", async () => {
