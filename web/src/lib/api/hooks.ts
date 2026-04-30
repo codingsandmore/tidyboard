@@ -9,6 +9,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { fallback } from "./fallback";
+import { isUuid } from "@/lib/id";
 import { apiShoppingListItemToShoppingItem, apiShoppingListToShopping, type ApiShoppingList, type ApiShoppingListItem } from "./shopping";
 import type {
   TBDEvent,
@@ -969,7 +970,7 @@ export function useHousehold(householdId: string | undefined) {
   return useQuery<HouseholdResponse>({
     queryKey: ["household", householdId],
     queryFn: () => api.get<HouseholdResponse>(`/v1/households/${householdId}`),
-    enabled: Boolean(householdId),
+    enabled: isUuid(householdId),
   });
 }
 

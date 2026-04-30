@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import { AuthProvider, useAuth } from "./auth-store";
 
+const HOUSEHOLD_ID = "11111111-1111-4111-8111-111111111111";
+const COGNITO_HOUSEHOLD_ID = "22222222-2222-4222-8222-222222222222";
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function makeLocalStorageMock() {
@@ -99,7 +102,7 @@ describe("/me hydration", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-1",
-          household_id: "hh-1",
+          household_id: HOUSEHOLD_ID,
           member_id: "mem-1",
           role: "adult",
         }),
@@ -116,7 +119,7 @@ describe("/me hydration", () => {
       expect(screen.getByTestId("status").textContent).toBe("authenticated");
     });
     expect(screen.getByTestId("account-id").textContent).toBe("acct-1");
-    expect(screen.getByTestId("household-id").textContent).toBe("hh-1");
+    expect(screen.getByTestId("household-id").textContent).toBe(HOUSEHOLD_ID);
   });
 
   it("clears token and goes unauthenticated when /me fails", async () => {
@@ -173,6 +176,76 @@ describe("/me hydration", () => {
     expect(screen.getByTestId("account-id").textContent).toBe("acct-fresh");
     expect(screen.getByTestId("household-id").textContent).toBe("null");
   });
+
+  it("ignores invalid /me household IDs so protected routes send users to onboarding", async () => {
+    localStorage.setItem("tb-auth-token", "tok");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            account_id: "acct-stale",
+            household_id: "smith",
+            member_id: null,
+            role: "",
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => [],
+        }),
+    );
+
+    render(
+      <AuthProvider>
+        <AuthDisplay />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("authenticated");
+    });
+    expect(screen.getByTestId("household-id").textContent).toBe("null");
+  });
+
+  it("uses the account's real household list when /me has no usable household ID", async () => {
+    localStorage.setItem("tb-auth-token", "tok");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            account_id: "acct-real",
+            household_id: "undefined",
+            member_id: "mem-real",
+            role: "adult",
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => [{ id: HOUSEHOLD_ID, name: "Wohlgemuth household" }],
+        }),
+    );
+
+    render(
+      <AuthProvider>
+        <AuthDisplay />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("authenticated");
+    });
+    expect(screen.getByTestId("household-id").textContent).toBe(HOUSEHOLD_ID);
+  });
 });
 
 // ── acceptToken ─────────────────────────────────────────────────────────────
@@ -189,7 +262,7 @@ describe("acceptToken()", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-cog",
-          household_id: "hh-cog",
+          household_id: COGNITO_HOUSEHOLD_ID,
           member_id: "mem-cog",
           role: "adult",
         }),
@@ -215,7 +288,7 @@ describe("acceptToken()", () => {
     });
     expect(screen.getByTestId("token").textContent).toBe("test-id-token");
     expect(localStorage.getItem("tb-auth-token")).toBe("test-id-token");
-    expect(screen.getByTestId("household-id").textContent).toBe("hh-cog");
+    expect(screen.getByTestId("household-id").textContent).toBe(COGNITO_HOUSEHOLD_ID);
   });
 });
 
@@ -236,7 +309,7 @@ describe("pinLogin()", () => {
           status: 200,
           json: async () => ({
             account_id: "acct-1",
-            household_id: "hh-1",
+            household_id: HOUSEHOLD_ID,
             member_id: "mem-kid",
             role: "child",
           }),
@@ -288,7 +361,7 @@ describe("logout()", () => {
         status: 200,
         json: async () => ({
           account_id: "acct-1",
-          household_id: "hh-1",
+          household_id: HOUSEHOLD_ID,
           member_id: null,
           role: "adult",
         }),
