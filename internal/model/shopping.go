@@ -48,6 +48,11 @@ type GenerateShoppingListRequest struct {
 	DateTo   string `json:"date_to"`   // YYYY-MM-DD
 }
 
+// UpdateShoppingListItemRequest updates one item on the active shopping list.
+type UpdateShoppingListItemRequest struct {
+	Completed bool `json:"completed"`
+}
+
 // UpsertPantryStapleRequest is the payload for POST /v1/shopping/staples.
 type UpsertPantryStapleRequest struct {
 	Name   string  `json:"name"`

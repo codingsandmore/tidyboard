@@ -23,8 +23,8 @@ SET is_active = false, updated_at = NOW()
 WHERE household_id = $1 AND is_active = true;
 
 -- name: InsertShoppingListItem :one
-INSERT INTO shopping_list_items (shopping_list_id, household_id, name, amount, unit, aisle, source_recipes, sort_order)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO shopping_list_items (shopping_list_id, household_id, name, amount, unit, aisle, source_recipes, completed, sort_order)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: ListShoppingListItems :many
@@ -66,6 +66,7 @@ WHERE id = $1 AND household_id = $2;
 
 -- name: ListIngredientsForMealPlanRange :many
 SELECT
+    r.id AS recipe_id,
     ri.name,
     ri.amount,
     ri.unit,

@@ -780,6 +780,7 @@ export function MealPlan() {
   const mealPlan = apiMealPlan;
   const recipes = apiRecipes ?? [];
   const [generateStatus, setGenerateStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [generateMessage, setGenerateMessage] = useState("");
   const [copyStatus, setCopyStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
   // Fetch last week's meal plan so we can copy it
@@ -818,18 +819,28 @@ export function MealPlan() {
     toDate.setUTCDate(toDate.getUTCDate() + 6);
     const to = toDate.toISOString().slice(0, 10);
     setGenerateStatus("loading");
+    setGenerateMessage("");
     generateShopping.mutate(
       { dateFrom: from, dateTo: to },
       {
         onSuccess: () => {
           setGenerateStatus("ok");
+          setGenerateMessage("Shopping list generated.");
           // Navigate to shopping list after a brief moment
           setTimeout(() => {
             window.location.href = "/shopping";
           }, 600);
         },
-        onError: () => {
+        onError: (err) => {
           setGenerateStatus("error");
+          const code = typeof err === "object" && err !== null && "code" in err ? String((err as { code?: string }).code) : "";
+          setGenerateMessage(
+            code === "missing_meal_plan"
+              ? "Add recipes to this week before generating a shopping list."
+              : code === "missing_recipe_ingredients"
+              ? "Planned recipes need ingredients before a shopping list can be generated."
+              : "Shopping list generation failed. Please retry."
+          );
           setTimeout(() => setGenerateStatus("idle"), 3000);
         },
       }
@@ -1050,6 +1061,11 @@ export function MealPlan() {
               : t("generateShoppingList")}
           </Btn>
         </div>
+        {generateMessage && (
+          <div style={{ marginTop: 8, fontSize: 12, color: generateStatus === "error" ? TB.destructive : TB.text2 }}>
+            {generateMessage}
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, padding: 16, overflow: "auto" }}>
         <div
@@ -1302,6 +1318,11 @@ export function ShoppingList() {
   }
 
   const toggle = (catIdx: number, itemIdx: number) => {
+    const currentItem = categories[catIdx]?.items[itemIdx];
+    const currentCategory = categories[catIdx];
+    if (!currentItem || !currentCategory) return;
+    const nextDone = !currentItem.done;
+
     setCategories((prev) => {
       const next = prev.map((cat, ci) =>
         ci !== catIdx
@@ -1313,11 +1334,27 @@ export function ShoppingList() {
               ),
             }
       );
-      const item = next[catIdx].items[itemIdx];
-      const cat = next[catIdx];
-      toggleMutation.mutate({ category: cat.name, name: item.name, done: item.done });
       return next;
     });
+    toggleMutation.mutate(
+      { id: currentItem.id, category: currentCategory.name, name: currentItem.name, done: nextDone },
+      {
+        onError: () => {
+          setCategories((prev) =>
+            prev.map((cat, ci) =>
+              ci !== catIdx
+                ? cat
+                : {
+                    ...cat,
+                    items: cat.items.map((it, ii) =>
+                      ii !== itemIdx ? it : { ...it, done: currentItem.done }
+                    ),
+                  }
+            )
+          );
+        },
+      }
+    );
   };
 
   const weekOf = shopping?.weekOf ?? "";
@@ -1442,6 +1479,11 @@ export function ShoppingList() {
                     }}
                   >
                     {it.name}
+                    {it.sourceRecipes && it.sourceRecipes.length > 0 && (
+                      <span style={{ display: "block", fontSize: 11, color: TB.text2, marginTop: 2 }}>
+                        {it.sourceRecipes.join(", ")}
+                      </span>
+                    )}
                   </span>
                 </div>
               ))}

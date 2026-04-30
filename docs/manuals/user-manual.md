@@ -60,7 +60,9 @@ Recipes and meal planning help the family decide what to cook and what ingredien
 
 ## Shopping And Pantry
 
-Shopping lists should be generated deterministically from meal plans, recipes, pantry state, and household list items. If required data is missing, Tidyboard should explain what needs to be added instead of pretending a list was generated.
+Shopping lists are generated deterministically from the selected week's meal plan. Tidyboard reads planned recipes, collects their ingredients, groups matching items by aisle, quantity, and unit, keeps source recipe labels on each item, adds pantry staples where configured, and preserves already-completed matching items when the list is regenerated.
+
+If required data is missing, Tidyboard explains what needs to be added instead of pretending a list was generated. Add recipes to the meal plan first, and make sure planned recipes include ingredient data.
 
 Pantry data belongs to the household. It should reflect real stored items, quantities, and needs.
 

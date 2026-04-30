@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -52,6 +54,60 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 		return nil, fmt.Errorf("invalid date_to: %w", err)
 	}
 
+	dateFrom := pgtype.Date{Time: fromT, Valid: true}
+	dateTo := pgtype.Date{Time: toT, Valid: true}
+	entries, err := s.q.ListMealPlanEntries(ctx, query.ListMealPlanEntriesParams{
+		HouseholdID: householdID,
+		Date:        dateFrom,
+		Date_2:      dateTo,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetching meal plan entries: %w", err)
+	}
+	plannedRecipeIDs := map[uuid.UUID]struct{}{}
+	for _, entry := range entries {
+		if entry.RecipeID != nil && entry.RecipeID.Valid {
+			plannedRecipeIDs[entry.RecipeID.UUID] = struct{}{}
+		}
+	}
+	if len(plannedRecipeIDs) == 0 {
+		return nil, ErrNoMealPlan
+	}
+
+	// Fetch ingredients before mutating active shopping lists. Missing recipe
+	// ingredient data should be explained without replacing a useful old list.
+	rows, err := s.q.ListIngredientsForMealPlanRange(ctx, query.ListIngredientsForMealPlanRangeParams{
+		HouseholdID: householdID,
+		Date:        dateFrom,
+		Date_2:      dateTo,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetching ingredients: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, ErrNoRecipeIngredients
+	}
+	if hasMissingIngredientRows(plannedRecipeIDs, rows) {
+		return nil, ErrNoRecipeIngredients
+	}
+
+	completedItems := map[aggregateKey]bool{}
+	activeList, err := s.q.GetActiveShoppingList(ctx, householdID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("fetching active shopping list: %w", err)
+	}
+	if err == nil && sameDateRange(activeList.DateFrom, activeList.DateTo, dateFrom, dateTo) {
+		existingItems, err := s.q.ListShoppingListItems(ctx, activeList.ID)
+		if err != nil {
+			return nil, fmt.Errorf("fetching existing shopping list items: %w", err)
+		}
+		for _, item := range existingItems {
+			if item.Completed {
+				completedItems[itemAggregateKey(item.Name, item.Unit, item.Aisle)] = true
+			}
+		}
+	}
+
 	// Deactivate previous active list(s).
 	if err := s.q.DeactivateShoppingLists(ctx, householdID); err != nil {
 		return nil, fmt.Errorf("deactivating previous lists: %w", err)
@@ -62,21 +118,11 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 	sl, err := s.q.CreateShoppingList(ctx, query.CreateShoppingListParams{
 		HouseholdID: householdID,
 		Name:        listName,
-		DateFrom:    pgtype.Date{Time: fromT, Valid: true},
-		DateTo:      pgtype.Date{Time: toT, Valid: true},
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating shopping list: %w", err)
-	}
-
-	// Fetch ingredients for the meal plan range.
-	rows, err := s.q.ListIngredientsForMealPlanRange(ctx, query.ListIngredientsForMealPlanRangeParams{
-		HouseholdID: householdID,
-		Date:        pgtype.Date{Time: fromT, Valid: true},
-		Date_2:      pgtype.Date{Time: toT, Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("fetching ingredients: %w", err)
 	}
 
 	// Aggregate: same name (case-insensitive) + same unit → sum amounts.
@@ -88,11 +134,7 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 
 	for _, row := range rows {
 		amt := numericToFloat(row.Amount)
-		key := aggregateKey{
-			name:  strings.ToLower(strings.TrimSpace(row.Name)),
-			unit:  strings.ToLower(strings.TrimSpace(row.Unit)),
-			aisle: strings.ToLower(strings.TrimSpace(row.Aisle)),
-		}
+		key := itemAggregateKey(row.Name, row.Unit, row.Aisle)
 		if _, exists := totals[key]; !exists {
 			totals[key] = &aggregated{}
 			displayName[key] = strings.TrimSpace(row.Name)
@@ -111,11 +153,7 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 		return nil, fmt.Errorf("fetching pantry staples: %w", err)
 	}
 	for _, st := range staples {
-		key := aggregateKey{
-			name:  strings.ToLower(st.Name),
-			unit:  strings.ToLower(st.Unit),
-			aisle: strings.ToLower(st.Aisle),
-		}
+		key := itemAggregateKey(st.Name, st.Unit, st.Aisle)
 		if _, exists := totals[key]; !exists {
 			totals[key] = &aggregated{}
 			displayName[key] = st.Name
@@ -160,6 +198,7 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 			Unit:           key.unit,
 			Aisle:          aisle,
 			SourceRecipes:  agg.recipes,
+			Completed:      completedItems[key],
 			SortOrder:      int32(idx),
 		})
 		if err != nil {
@@ -191,6 +230,23 @@ func (s *ShoppingService) GetCurrent(ctx context.Context, householdID uuid.UUID)
 		out.Items[i] = itemToModel(it)
 	}
 	return out, nil
+}
+
+// UpdateItemCompleted updates the checked state for one shopping list item.
+func (s *ShoppingService) UpdateItemCompleted(ctx context.Context, householdID, itemID uuid.UUID, completed bool) (*model.ShoppingListItem, error) {
+	item, err := s.q.UpdateShoppingListItem(ctx, query.UpdateShoppingListItemParams{
+		ID:          itemID,
+		HouseholdID: householdID,
+		Completed:   completed,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("updating shopping list item: %w", err)
+	}
+	out := itemToModel(item)
+	return &out, nil
 }
 
 // UpsertStaple creates or updates a pantry staple.
@@ -281,6 +337,40 @@ func numericToFloat(n pgtype.Numeric) float64 {
 
 func numericString(f float64) string {
 	return fmt.Sprintf("%.6g", f)
+}
+
+func itemAggregateKey(name, unit, aisle string) aggregateKey {
+	normalizedAisle := strings.ToLower(strings.TrimSpace(aisle))
+	if normalizedAisle == "" {
+		normalizedAisle = "other"
+	}
+	return aggregateKey{
+		name:  strings.ToLower(strings.TrimSpace(name)),
+		unit:  strings.ToLower(strings.TrimSpace(unit)),
+		aisle: normalizedAisle,
+	}
+}
+
+func sameDateRange(leftFrom, leftTo, rightFrom, rightTo pgtype.Date) bool {
+	return leftFrom.Valid &&
+		leftTo.Valid &&
+		rightFrom.Valid &&
+		rightTo.Valid &&
+		leftFrom.Time.Equal(rightFrom.Time) &&
+		leftTo.Time.Equal(rightTo.Time)
+}
+
+func hasMissingIngredientRows(plannedRecipeIDs map[uuid.UUID]struct{}, rows []query.ListIngredientsForMealPlanRangeRow) bool {
+	recipesWithIngredients := map[uuid.UUID]struct{}{}
+	for _, row := range rows {
+		recipesWithIngredients[row.RecipeID] = struct{}{}
+	}
+	for recipeID := range plannedRecipeIDs {
+		if _, ok := recipesWithIngredients[recipeID]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func containsStr(ss []string, s string) bool {

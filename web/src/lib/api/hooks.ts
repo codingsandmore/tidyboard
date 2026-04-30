@@ -14,6 +14,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { fallback, isApiFallbackMode } from "./fallback";
+import { apiShoppingListItemToShoppingItem, apiShoppingListToShopping, type ApiShoppingList, type ApiShoppingListItem } from "./shopping";
 import type { ApiError } from "./types";
 import type {
   TBDEvent,
@@ -297,7 +298,7 @@ export function useShopping() {
     queryKey: qk.shopping(),
     queryFn: () =>
       withFallback(
-        () => api.get<Shopping>("/v1/shopping/current"),
+        async () => apiShoppingListToShopping(await api.get<ApiShoppingList>("/v1/shopping/current")),
         () => fallback.shopping()
       ),
   });
@@ -640,8 +641,13 @@ export function useToggleRoutineStep() {
 export function useToggleShoppingItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ category, name, done }: { category: string; name: string; done: boolean }) =>
-      api.put<ShoppingItem>(`/v1/shopping/current/items`, { category, name, done }),
+    mutationFn: async ({ id, name, done }: { id?: string; category: string; name: string; done: boolean }) => {
+      if (!id) return { amt: "", name, done } satisfies ShoppingItem;
+      const item = await api.patch<ApiShoppingListItem>(`/v1/shopping/current/items/${encodeURIComponent(id)}`, {
+        completed: done,
+      });
+      return apiShoppingListItemToShoppingItem(item);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.shopping() });
     },
@@ -822,35 +828,11 @@ export function useImportRecipe() {
 
 // ── Shopping mutation hooks ────────────────────────────────────────────────
 
-export interface GeneratedShoppingListItem {
-  id: string;
-  shopping_list_id: string;
-  name: string;
-  amount: number;
-  unit: string;
-  aisle: string;
-  source_recipes: string[];
-  completed: boolean;
-  sort_order: number;
-}
-
-export interface GeneratedShoppingList {
-  id: string;
-  household_id: string;
-  name: string;
-  date_from: string;
-  date_to: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  items: GeneratedShoppingListItem[];
-}
-
 export function useGenerateShoppingList() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) =>
-      api.post<GeneratedShoppingList>("/v1/shopping/generate", {
+      api.post<ApiShoppingList>("/v1/shopping/generate", {
         date_from: dateFrom,
         date_to: dateTo,
       }),
