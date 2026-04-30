@@ -15,6 +15,7 @@ export function Input({
   readOnly,
   disabled,
   style,
+  ariaLabel,
 }: {
   value?: string;
   onChange?: (v: string) => void;
@@ -26,6 +27,7 @@ export function Input({
   readOnly?: boolean;
   disabled?: boolean;
   style?: CSSProperties;
+  ariaLabel?: string;
 }) {
   return (
     <div style={{ position: "relative", width: full ? "100%" : "auto" }}>
@@ -48,6 +50,7 @@ export function Input({
         value={value ?? ""}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         readOnly={readOnly}
         disabled={disabled}
         style={{

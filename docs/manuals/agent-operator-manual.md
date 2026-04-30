@@ -96,6 +96,7 @@ After opening a PR:
 
 - Refresh GitHub checks until they finish.
 - If checks fail, inspect logs, fix the branch, and rerun.
+- Web coverage in CI uses `npm run coverage`; keep it aligned with the forced Vitest exit reporter so the coverage job can finish and then enforce thresholds.
 - If checks pass and branch protection allows it, merge the PR using the repo's normal merge strategy.
 - Verify the default branch contains the merged commit.
 

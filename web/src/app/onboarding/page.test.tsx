@@ -150,6 +150,10 @@ describe("OnboardingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
     await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
 
+    fireEvent.change(screen.getByPlaceholderText("e.g. Our household"), {
+      target: { value: "My Family" },
+    });
+
     // Step 2 → 3 (create household)
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
     await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
@@ -193,9 +197,17 @@ describe("OnboardingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
     await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
 
+    fireEvent.change(screen.getByPlaceholderText("e.g. Our household"), {
+      target: { value: "My Family" },
+    });
+
     // Step 2 → 3 (creates household)
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
     await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+
+    fireEvent.change(screen.getByPlaceholderText("Your full name"), {
+      target: { value: "Alice Parent" },
+    });
 
     // Step 3 → 4 (add self as member)
     fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
@@ -248,7 +260,7 @@ describe("OnboardingPage", () => {
     await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
 
     // On step 2 (household name), type a name into the input
-    const nameInput = screen.getByPlaceholderText("e.g. The Smiths");
+    const nameInput = screen.getByPlaceholderText("e.g. Our household");
     fireEvent.change(nameInput, { target: { value: "The Typers" } });
 
     // Step 2 → 3 (creates household)
@@ -266,5 +278,126 @@ describe("OnboardingPage", () => {
     expect(hhCall).toBeTruthy();
     expect(hhCall?.body?.name).toBe("The Typers");
     expect(hhCall?.body?.name).not.toBe("My Family");
+  });
+
+  it("requires household timezone and sends it when creating the household", async () => {
+    const capturedBodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const body = init?.body ? JSON.parse(init.body as string) : null;
+        capturedBodies.push({ url, body });
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: "hh-typed", name: "The Typers", timezone: "America/Los_Angeles" }),
+        };
+      })
+    );
+
+    renderOnboarding();
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. Our household"), {
+      target: { value: "The Typers" },
+    });
+    fireEvent.change(screen.getByLabelText("Household timezone"), {
+      target: { value: "America/Los_Angeles" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+
+    const hhCall = capturedBodies.find(
+      (c) =>
+        typeof (c as { url: string }).url === "string" &&
+        (c as { url: string }).url.includes("/households") &&
+        !(c as { url: string }).url.includes("/members")
+    ) as { url: string; body: Record<string, unknown> } | undefined;
+
+    expect(hhCall?.body?.timezone).toBe("America/Los_Angeles");
+  });
+
+  it("adds family adults, children, and pets as real member requests", async () => {
+    mockUseAuth.mockReturnValue({
+      status: "authenticated",
+      account: { id: "acct-uuid-123", email: "user@test.com" },
+      household: null,
+      member: null,
+      token: "tok",
+      signIn: vi.fn(),
+      acceptToken: vi.fn(),
+      pinLogin: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    const capturedBodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const body = init?.body ? JSON.parse(init.body as string) : null;
+        capturedBodies.push({ url, body });
+        if (typeof url === "string" && url.includes("/households") && !url.includes("/members")) {
+          return { ok: true, status: 201, json: async () => ({ id: "hh-1", name: "Real Household" }) };
+        }
+        return { ok: true, status: 201, json: async () => ({ id: `member-${capturedBodies.length}` }) };
+      })
+    );
+
+    renderOnboarding();
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 2 \/ 7/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 3 \/ 7/)).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText("e.g. Our household"), {
+      target: { value: "Real Household" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText("Your full name"), {
+      target: { value: "Jordan Parent" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 5 \/ 7/)).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Family member name"), {
+      target: { value: "Avery" },
+    });
+    fireEvent.change(screen.getByLabelText("Family member role"), {
+      target: { value: "child" },
+    });
+    fireEvent.change(screen.getByLabelText("Optional child PIN"), {
+      target: { value: "2468" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add family member" }));
+
+    fireEvent.change(screen.getByLabelText("Family member name"), {
+      target: { value: "Scout" },
+    });
+    fireEvent.change(screen.getByLabelText("Family member role"), {
+      target: { value: "pet" },
+    });
+    expect(screen.queryByLabelText("Optional child PIN")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add family member" }));
+
+    fireEvent.click(screen.getByLabelText("My roster includes everyone who should appear on Tidyboard."));
+    fireEvent.click(screen.getByRole("button", { name: /common\.next/i }));
+    await waitFor(() => expect(screen.getByText(/Step 6 \/ 7/)).toBeTruthy());
+
+    const memberBodies = capturedBodies
+      .filter((c) => typeof (c as { url: string }).url === "string" && (c as { url: string }).url.includes("/members"))
+      .map((c) => (c as { body: Record<string, unknown> }).body);
+
+    expect(memberBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Jordan Parent", role: "admin", age_group: "adult", account_id: "acct-uuid-123" }),
+        expect.objectContaining({ name: "Avery", role: "child", age_group: "child", pin: "2468" }),
+        expect.objectContaining({ name: "Scout", role: "pet", age_group: "pet" }),
+      ])
+    );
+    expect(memberBodies.find((body) => body.name === "Scout")).not.toHaveProperty("pin");
   });
 });

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -38,6 +39,11 @@ func (s *MemberService) List(ctx context.Context, householdID uuid.UUID) ([]*mod
 
 // Create adds a new member to a household.
 func (s *MemberService) Create(ctx context.Context, householdID uuid.UUID, req model.CreateMemberRequest) (*model.Member, error) {
+	req, err := normalizeCreateMemberRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
 	var pinHash *string
 	if req.PIN != nil {
 		h, err := s.auth.HashPIN(*req.PIN)
@@ -89,6 +95,31 @@ func (s *MemberService) Get(ctx context.Context, householdID, memberID uuid.UUID
 
 // Update patches member fields.
 func (s *MemberService) Update(ctx context.Context, householdID, memberID uuid.UUID, req model.UpdateMemberRequest) (*model.Member, error) {
+	req, err := normalizeUpdateMemberRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	if req.Role != nil || req.PIN != nil {
+		existing, err := s.q.GetMember(ctx, query.GetMemberParams{ID: memberID, HouseholdID: householdID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, fmt.Errorf("fetching member: %w", err)
+		}
+		targetRole := existing.Role
+		if req.Role != nil {
+			targetRole = *req.Role
+		}
+		if targetRole == "pet" && (req.PIN != nil || existing.PinHash != nil || (existing.AccountID != nil && existing.AccountID.Valid)) {
+			return nil, ErrForbidden
+		}
+		if targetRole == "pet" && req.AgeGroup == nil {
+			ageGroup := "pet"
+			req.AgeGroup = &ageGroup
+		}
+	}
+
 	var pinHash *string
 	if req.PIN != nil {
 		h, err := s.auth.HashPIN(*req.PIN)
@@ -134,6 +165,82 @@ func (s *MemberService) Delete(ctx context.Context, householdID, memberID uuid.U
 		return fmt.Errorf("deleting member: %w", err)
 	}
 	return nil
+}
+
+func normalizeCreateMemberRequest(req model.CreateMemberRequest) (model.CreateMemberRequest, error) {
+	req.Name = strings.TrimSpace(req.Name)
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	req.Role = normalizeRole(req.Role)
+	req.AgeGroup = normalizeAgeGroup(req.Role, req.AgeGroup)
+	if req.DisplayName == "" {
+		req.DisplayName = req.Name
+	}
+	if req.Color == "" {
+		req.Color = "#4A90E2"
+	}
+	if req.Role == "pet" {
+		if req.PIN != nil || req.AccountID != nil {
+			return req, ErrForbidden
+		}
+		req.AgeGroup = "pet"
+	}
+	return req, nil
+}
+
+func normalizeUpdateMemberRequest(req model.UpdateMemberRequest) (model.UpdateMemberRequest, error) {
+	if req.Role != nil {
+		role := normalizeRole(*req.Role)
+		req.Role = &role
+		if role == "pet" && req.PIN != nil {
+			return req, ErrForbidden
+		}
+		if role == "pet" && req.AgeGroup == nil {
+			ageGroup := "pet"
+			req.AgeGroup = &ageGroup
+		}
+	}
+	if req.AgeGroup != nil && req.Role != nil {
+		ageGroup := normalizeAgeGroup(*req.Role, *req.AgeGroup)
+		req.AgeGroup = &ageGroup
+	}
+	return req, nil
+}
+
+func normalizeRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "adult", "parent", "owner":
+		return "admin"
+	case "child", "kid":
+		return "child"
+	case "pet":
+		return "pet"
+	case "guest":
+		return "guest"
+	case "admin":
+		return "admin"
+	default:
+		return "member"
+	}
+}
+
+func normalizeAgeGroup(role, ageGroup string) string {
+	normalized := strings.ToLower(strings.TrimSpace(ageGroup))
+	if role == "pet" {
+		return "pet"
+	}
+	if role == "child" && normalized == "" {
+		return "child"
+	}
+	switch normalized {
+	case "toddler", "child", "tween", "teen", "adult":
+		return normalized
+	default:
+		return "adult"
+	}
+}
+
+func canPINLoginMember(role string) bool {
+	return role == "child"
 }
 
 // memberToModel converts a query.Member to model.Member.

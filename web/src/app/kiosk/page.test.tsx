@@ -64,6 +64,16 @@ const MOCK_MEMBERS = [
     stars: 5,
     streak: 3,
   },
+  {
+    id: "m3",
+    name: "Scout",
+    full: "Scout",
+    role: "pet",
+    color: "#8B5CF6",
+    initial: "S",
+    stars: 0,
+    streak: 0,
+  },
 ];
 
 vi.mock("@/lib/api/hooks", () => ({
@@ -142,13 +152,15 @@ describe("KioskPage", () => {
     expect(screen.getByText("Who's using Tidyboard?")).toBeTruthy();
   });
 
-  it("member picker renders a tile for each member", () => {
+  it("member picker renders a tile for each PIN-eligible member", () => {
     renderKiosk();
     fireEvent.click(screen.getByTestId("lock-screen"));
     expect(screen.getByTestId("member-tile-m1")).toBeTruthy();
     expect(screen.getByTestId("member-tile-m2")).toBeTruthy();
+    expect(screen.queryByTestId("member-tile-m3")).toBeNull();
     expect(screen.getByText("Sarah")).toBeTruthy();
     expect(screen.getByText("Jackson")).toBeTruthy();
+    expect(screen.queryByText("Scout")).toBeNull();
   });
 
   it("clicking a member tile opens PIN modal", () => {

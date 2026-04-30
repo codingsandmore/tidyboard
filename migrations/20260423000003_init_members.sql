@@ -10,9 +10,9 @@ CREATE TABLE members (
     color                    TEXT        NOT NULL DEFAULT '#4A90E2',
     avatar_url               TEXT        NOT NULL DEFAULT '',
     role                     TEXT        NOT NULL DEFAULT 'member'
-                                         CHECK (role IN ('owner','admin','member','child','guest')),
+                                         CHECK (role IN ('owner','admin','member','child','guest','pet')),
     age_group                TEXT        NOT NULL DEFAULT 'adult'
-                                         CHECK (age_group IN ('toddler','child','tween','teen','adult')),
+                                         CHECK (age_group IN ('toddler','child','tween','teen','adult','pet')),
     pin_hash                 TEXT,                          -- bcrypt hash, nullable
     emergency_info           JSONB       NOT NULL DEFAULT '{}',
     notification_preferences JSONB       NOT NULL DEFAULT '{}',

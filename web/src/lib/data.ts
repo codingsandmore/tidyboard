@@ -1,13 +1,15 @@
 // Sample data — the Smith family, per the brief
 // Matches specs/design/data.jsx
 
-export type Role = "adult" | "child";
+export type Role = "adult" | "child" | "pet";
 
 export type Member = {
   id: string;
   name: string;
   full: string;
   role: Role;
+  display_name?: string;
+  age_group?: "adult" | "child" | "pet" | "toddler" | "tween" | "teen";
   color: string;
   initial: string;
   stars: number;
