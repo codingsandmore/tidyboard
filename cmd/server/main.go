@@ -338,6 +338,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/households/{id}/join-requests", inviteHandler.ListJoinRequests)
 
 		// Members (nested under household).
+		r.Get("/v1/households/current/members", memberHandler.ListCurrent)
 		r.Get("/v1/households/{id}/members", memberHandler.List)
 		r.Post("/v1/households/{id}/members", memberHandler.Create)
 		r.Get("/v1/households/{id}/members/{memberID}", memberHandler.Get)

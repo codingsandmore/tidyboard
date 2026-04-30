@@ -31,7 +31,8 @@ const (
 //   - Cognito (production): look up account by (oidc_provider="cognito",
 //     oidc_subject=Identity.Subject). If absent, create the row using
 //     Identity.Email. Then look up the user's earliest household membership;
-//     if absent, leave household/member/role empty (user is mid-onboarding).
+//     if absent, create a real starter household and adult member for the
+//     account so dashboard endpoints have valid tenant context immediately.
 //   - Test stub: if the token contains the legacy account_id/household_id/
 //     member_id/role claims (Identity.Test*), trust them directly. Lets
 //     existing testutil.MakeJWT integration tests keep working without
@@ -150,10 +151,73 @@ func resolveContext(ctx context.Context, q *query.Queries, id *auth.Identity) (
 		return acc.ID, pm.HouseholdID, pm.ID, pm.Role, nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Logged in, no membership yet — onboarding will create one.
-		return acc.ID, uuid.Nil, uuid.Nil, "", nil
+		// First real login for this account: create an empty tenant instead of
+		// letting dashboard calls fall into invalid/missing household context.
+		householdID, memberID, role, err = createStarterMembership(ctx, q, acc.ID)
+		if err != nil {
+			return uuid.Nil, uuid.Nil, uuid.Nil, "", err
+		}
+		return acc.ID, householdID, memberID, role, nil
 	}
 	return uuid.Nil, uuid.Nil, uuid.Nil, "", err
+}
+
+func createStarterMembership(ctx context.Context, q *query.Queries, accountID uuid.UUID) (
+	householdID, memberID uuid.UUID, role string, err error,
+) {
+	accountIDArg := uuid.NullUUID{UUID: accountID, Valid: true}
+	err = q.WithAccountLock(ctx, accountID, func(txq *query.Queries) error {
+		if pm, lookupErr := txq.GetPrimaryMemberByAccount(ctx, &accountIDArg); lookupErr == nil {
+			householdID = pm.HouseholdID
+			memberID = pm.ID
+			role = pm.Role
+			return nil
+		} else if !errors.Is(lookupErr, pgx.ErrNoRows) {
+			return lookupErr
+		}
+
+		hh, err := txq.CreateHousehold(ctx, query.CreateHouseholdParams{
+			ID:         uuid.New(),
+			Name:       "My household",
+			Timezone:   "UTC",
+			Settings:   []byte("{}"),
+			CreatedBy:  accountID,
+			InviteCode: uuid.New().String(),
+		})
+		if err != nil {
+			return err
+		}
+
+		member, err := txq.CreateMember(ctx, query.CreateMemberParams{
+			ID:                      uuid.New(),
+			HouseholdID:             hh.ID,
+			AccountID:               &accountIDArg,
+			Name:                    "Me",
+			DisplayName:             "Me",
+			Color:                   "#3B82F6",
+			AvatarUrl:               "",
+			Role:                    "admin",
+			AgeGroup:                "adult",
+			PinHash:                 nil,
+			EmergencyInfo:           []byte("{}"),
+			NotificationPreferences: []byte("{}"),
+		})
+		if err != nil {
+			return err
+		}
+
+		householdID = hh.ID
+		memberID = member.ID
+		role = member.Role
+		return nil
+	})
+	if err != nil {
+		if pm, lookupErr := q.GetPrimaryMemberByAccount(ctx, &accountIDArg); lookupErr == nil {
+			return pm.HouseholdID, pm.ID, pm.Role, nil
+		}
+		return uuid.Nil, uuid.Nil, "", err
+	}
+	return householdID, memberID, role, nil
 }
 
 // AccountIDFromCtx extracts the account UUID from context (set by Auth middleware).

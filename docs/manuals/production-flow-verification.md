@@ -13,7 +13,7 @@ Use this checklist to verify the real family flow after changes to onboarding, k
 
 After deployment, verify these with a real account:
 
-- Unauthenticated users land on sign-in, and authenticated incomplete households land on onboarding.
+- Unauthenticated users land on sign-in, and authenticated accounts with no household receive a real starter household/member instead of demo data or invalid household context.
 - A household roster includes adults, children with optional PINs, and at least one pet.
 - `/dashboard/kiosk` opens as a full-screen dashboard without phone, tablet, scene, or preview framing.
 - Calendar rows or cards open the event detail view for the selected event.

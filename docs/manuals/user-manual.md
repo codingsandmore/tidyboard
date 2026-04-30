@@ -4,11 +4,11 @@ This manual explains how a family uses Tidyboard in production. Production use s
 
 ## Account And Onboarding
 
-Sign in with the configured account provider. After sign-in, Tidyboard checks whether your account belongs to a completed household.
+Sign in with the configured account provider. After sign-in, Tidyboard checks whether your account belongs to a real household.
 
-If you are not signed in, Tidyboard sends you to sign-in. If you are signed in but the household, member profile, or setup is incomplete, Tidyboard sends you to onboarding. Completed households reach the dashboard.
+If you are not signed in, Tidyboard sends you to sign-in. If your signed-in account does not belong to a household yet, Tidyboard creates a real starter household and adult administrator member for that account so production routes have valid household context immediately. This is not demo data; it is persisted account data that can be edited in Settings and expanded through onboarding and member management.
 
-Onboarding is where you create the household and define the family roster. It requires a household name, household timezone, the signed-in adult's member profile, and a reviewed roster before the dashboard opens. The signed-in adult becomes an administrator for the household, and completion is based on persisted household and member data, not temporary screen state.
+Onboarding and Settings are where you refine the household and define the family roster. A complete setup includes a household name, household timezone, the signed-in adult's member profile, and a reviewed roster. The signed-in adult is an administrator for the household, and completion is based on persisted household and member data, not temporary screen state.
 
 The family roster should include:
 
@@ -20,7 +20,7 @@ Children can optionally receive a 4-6 digit kiosk PIN. Pets are first-class hous
 
 ## Home And Kiosk Dashboard
 
-The home dashboard is the family command center. It shows household activity from the signed-in account and the selected household. If the account is signed in but the household or member profile is incomplete, Tidyboard returns to onboarding instead of showing placeholder data.
+The home dashboard is the family command center. It shows household activity from the signed-in account and the selected household. If the account has no household yet, Tidyboard creates a real starter household/member during authenticated login so dashboard requests use valid household context instead of placeholder data.
 
 Kiosk mode is intended for a shared tablet or wall display. `/dashboard/kiosk` and the kiosk entry render a true full-screen dashboard; they are not phone frames, tablet frames, scene previews, or static preview chrome. The kiosk uses the household's live members, calendar events, routines, lists, meal plan, recipes, and weather. If a section has no household data yet, it shows an empty state that tells the family what to add next. It should not invent events, meals, names, stars, chores, or schedules.
 
@@ -90,7 +90,7 @@ Settings are where adults manage household details, family members, display pref
 
 If you see a sign-in screen, sign in with the real account provider.
 
-If you are redirected to onboarding, the account is authenticated but the household setup is incomplete.
+If your household opens with only a starter adult profile, finish setup by editing household details and adding the rest of the family roster in onboarding or Settings.
 
 If chores, wallet, or rewards ask for a member, select or unlock the family member who is using the device.
 
@@ -100,7 +100,7 @@ If a shopping list cannot be generated, add the missing meal plan, recipe, or pa
 
 After a production deployment, verify the real family flow with a real account:
 
-- Sign-in and onboarding gates route unauthenticated users to sign-in and incomplete households to onboarding.
+- Sign-in routes unauthenticated users to sign-in and creates a real starter household/member for signed-in accounts that have no household yet.
 - A household can be completed with adults, children, and at least one pet in the roster.
 - The kiosk dashboard opens as a full-screen route with live household data and no preview frame.
 - Calendar events open their detail view from event rows or cards.
