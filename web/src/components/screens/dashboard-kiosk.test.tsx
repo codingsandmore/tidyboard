@@ -28,6 +28,16 @@ const liveMembers: Member[] = [
     stars: 0,
     streak: 0,
   },
+  {
+    id: "scout",
+    name: "Scout",
+    full: "Scout",
+    role: "pet",
+    color: "#8B5CF6",
+    initial: "S",
+    stars: 0,
+    streak: 0,
+  },
 ];
 
 const liveEvents: TBDEvent[] = [
@@ -198,6 +208,8 @@ describe("DashKiosk", () => {
     renderWithQuery(<DashKiosk />);
     expect(screen.getAllByText("Alex").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Mira").length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("dashboard-member-scout")).toBeNull();
+    expect(screen.queryByText("Scout")).toBeNull();
     expect(screen.queryByText("Dad")).toBeNull();
     expect(screen.queryByText("Mom")).toBeNull();
   });

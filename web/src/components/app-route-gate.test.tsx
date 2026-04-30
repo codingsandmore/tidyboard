@@ -9,8 +9,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/auth-gate", () => ({
-  AuthGate: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="auth-gate">{children}</div>
+  AuthGate: ({
+    children,
+    requireMemberProfile = true,
+  }: {
+    children: React.ReactNode;
+    requireMemberProfile?: boolean;
+  }) => (
+    <div data-require-member-profile={String(requireMemberProfile)} data-testid="auth-gate">{children}</div>
   ),
 }));
 
@@ -39,5 +45,13 @@ describe("AppRouteGate", () => {
   it("leaves explicit preview routes public", () => {
     renderAt("/recipes/preview-detail");
     expect(screen.queryByTestId("auth-gate")).toBeNull();
+  });
+
+  it("lets wallet and chores handle missing member context themselves", () => {
+    renderAt("/wallet");
+    expect(screen.getByTestId("auth-gate").getAttribute("data-require-member-profile")).toBe("false");
+
+    renderAt("/chores");
+    expect(screen.getAllByTestId("auth-gate")[1].getAttribute("data-require-member-profile")).toBe("false");
   });
 });

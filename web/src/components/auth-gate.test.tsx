@@ -122,6 +122,62 @@ describe("AuthGate", () => {
     expect(screen.queryByText("protected content")).toBeNull();
   });
 
+  it("redirects authenticated household accounts without a member profile by default", async () => {
+    localStorage.setItem("tb-auth-token", "valid-token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-1",
+          household_id: "hh-1",
+          member_id: null,
+          role: "adult",
+        }),
+      })
+    );
+
+    renderGate(<span>protected content</span>);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/onboarding");
+    });
+    expect(screen.queryByText("protected content")).toBeNull();
+  });
+
+  it("can allow authenticated household accounts through without a member profile when requested", async () => {
+    localStorage.setItem("tb-auth-token", "valid-token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-1",
+          household_id: "hh-1",
+          member_id: null,
+          role: "adult",
+        }),
+      })
+    );
+
+    render(
+      <AuthProvider>
+        <AuthGate requireMemberProfile={false}>
+          <span>member chooser content</span>
+        </AuthGate>
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("member chooser content")).toBeTruthy();
+    });
+    expect(pushMock).not.toHaveBeenCalledWith("/onboarding");
+  });
+
   it("can allow authenticated accounts through before onboarding when requested", async () => {
     localStorage.setItem("tb-auth-token", "valid-token");
 

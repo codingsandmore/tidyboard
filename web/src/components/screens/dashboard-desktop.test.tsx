@@ -12,7 +12,21 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/api/hooks", () => ({
-  useMembers: () => ({ data: TBD.members }),
+  useMembers: () => ({
+    data: [
+      ...TBD.members,
+      {
+        id: "scout",
+        name: "Scout",
+        full: "Scout",
+        role: "pet",
+        color: "#8B5CF6",
+        initial: "S",
+        stars: 0,
+        streak: 0,
+      },
+    ],
+  }),
   useEvents: () => ({ data: TBD.events }),
   useRedemptions: () => ({ data: [] }),
   useAdHocTasks: () => ({ data: [] }),
@@ -72,6 +86,12 @@ describe("DashDesktop", () => {
     renderWithQuery(<DashDesktop />);
     expect(screen.getByText("Dad")).toBeTruthy();
     expect(screen.getByText("Mom")).toBeTruthy();
+  });
+
+  it("does not offer pets as active wallet or chores members", () => {
+    renderWithQuery(<DashDesktop />);
+    expect(screen.queryByTestId("member-tile-scout")).toBeNull();
+    expect(screen.queryByText("Scout")).toBeNull();
   });
 
   it("shows events in the main list", () => {

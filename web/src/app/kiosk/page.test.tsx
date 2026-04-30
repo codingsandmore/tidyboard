@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth/auth-store";
 // ── Router mock ────────────────────────────────────────────────────────────
 
 const pushMock = vi.fn();
+const searchParamsState = vi.hoisted(() => ({ value: "" }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -17,7 +18,7 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
   }),
   usePathname: () => "/kiosk",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(searchParamsState.value),
   notFound: vi.fn(),
 }));
 
@@ -119,6 +120,7 @@ beforeEach(() => {
   pushMock.mockClear();
   pinLoginMock.mockClear();
   setActiveMemberMock.mockClear();
+  searchParamsState.value = "";
 });
 
 afterEach(() => {
@@ -261,6 +263,22 @@ describe("KioskPage", () => {
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/");
+    });
+  });
+
+  it("redirects to a safe return target after successful pin unlock", async () => {
+    searchParamsState.value = "member=m2&returnTo=%2Fwallet";
+    pinLoginMock.mockResolvedValue(undefined);
+    renderKiosk();
+
+    fireEvent.click(screen.getByText("1"));
+    fireEvent.click(screen.getByText("2"));
+    fireEvent.click(screen.getByText("3"));
+    fireEvent.click(screen.getByText("4"));
+    fireEvent.submit(screen.getByTestId("pin-form"));
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/wallet");
     });
   });
 });

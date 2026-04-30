@@ -28,6 +28,10 @@ type LockState = "lock" | "members" | "pin";
 function KioskInner() {
   const searchParams = useSearchParams();
   const preSelectId = searchParams.get("member");
+  const requestedReturnTo = searchParams.get("returnTo");
+  const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+    ? requestedReturnTo
+    : "/";
   const { data: members } = useMembers();
 
   const [state, setState] = useState<LockState>("lock");
@@ -54,7 +58,7 @@ function KioskInner() {
   }
 
   function handlePinSuccess() {
-    router.push("/");
+    router.push(returnTo);
   }
 
   function handleBack() {

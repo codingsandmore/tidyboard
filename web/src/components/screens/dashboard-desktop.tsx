@@ -29,6 +29,7 @@ export function DashDesktop() {
   const { data: pendingAdHoc } = useAdHocTasks(isAdmin ? { status: "pending" } : undefined);
   const pendingCount = (pendingRedemptions?.length ?? 0) + (pendingAdHoc?.length ?? 0);
   const members = apiMembers ?? [];
+  const activeMemberTargets = members.filter((member) => member.role !== "pet");
   const events = apiEvents ?? [];
 
   /** Toggle: clicking the already-active member clears the filter. */
@@ -110,7 +111,7 @@ export function DashDesktop() {
             The Smith Family
           </div>
         </div>
-        {members.map((m) => {
+        {activeMemberTargets.map((m) => {
           const isActive = activeMember?.id === m.id;
           return (
             <div

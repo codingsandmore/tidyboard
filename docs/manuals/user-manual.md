@@ -38,6 +38,8 @@ Some areas need to know which family member is active:
 
 If a signed-in account has no active member where one is required, Tidyboard should guide the family to select or unlock a member instead of showing a generic sign-in page.
 
+Wallet and chores use this member-context flow directly. Adults can select their own profile and continue. Children are sent through kiosk PIN unlock and then returned to the wallet or chores page. Pets are shown in planning and care areas only; they are not wallet, rewards, allowance, chores, or PIN targets.
+
 ## Calendar
 
 The calendar shows real household events. Calendar items open a detail view where the family can inspect the event title, start and end times, location, notes, repeat rule, and assigned family members, and when permitted edit or delete it.
