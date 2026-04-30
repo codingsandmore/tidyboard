@@ -59,6 +59,7 @@ function makeStubWebSocket() {
 const mockAuthState = {
   status: "authenticated" as "authenticated" | "unauthenticated" | "loading",
   token: "test-token",
+  household: { id: "hh-1" } as { id: string } | null,
 };
 
 vi.mock("@/lib/auth/auth-store", () => ({
@@ -96,6 +97,7 @@ beforeEach(() => {
   lastStubWS = null;
   mockAuthState.status = "authenticated";
   mockAuthState.token = "test-token";
+  mockAuthState.household = { id: "hh-1" };
   vi.stubGlobal("WebSocket", vi.fn().mockImplementation(makeStubWebSocket));
 });
 
@@ -124,6 +126,16 @@ describe("WSProvider — connection lifecycle", () => {
   it("stays 'idle' when not authenticated", async () => {
     mockAuthState.status = "unauthenticated";
     mockAuthState.token = null as unknown as string;
+
+    renderWithWS(<WSDisplay />);
+
+    await act(async () => {});
+    expect(screen.getByTestId("ws-status").textContent).toBe("idle");
+    expect(vi.mocked(global.WebSocket)).not.toHaveBeenCalled();
+  });
+
+  it("stays 'idle' for authenticated accounts that have not finished onboarding", async () => {
+    mockAuthState.household = null;
 
     renderWithWS(<WSDisplay />);
 

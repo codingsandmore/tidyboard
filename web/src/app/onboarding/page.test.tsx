@@ -71,6 +71,7 @@ beforeEach(() => {
     signIn: vi.fn(),
     acceptToken: vi.fn(),
     pinLogin: vi.fn(),
+    refresh: vi.fn(),
     logout: vi.fn(),
   });
 });
@@ -159,8 +160,9 @@ describe("OnboardingPage", () => {
     await waitFor(() => expect(screen.getByText(/Step 4 \/ 7/)).toBeTruthy());
   });
 
-  it("step 3 add-self request body includes account_id from auth context", async () => {
+  it("step 3 add-self request body includes account_id from auth context and refreshes auth", async () => {
     // Arrange: authenticated user with a known account id.
+    const refresh = vi.fn().mockResolvedValue(true);
     mockUseAuth.mockReturnValue({
       status: "authenticated",
       account: { id: "acct-uuid-123", email: "user@test.com" },
@@ -170,6 +172,7 @@ describe("OnboardingPage", () => {
       signIn: vi.fn(),
       acceptToken: vi.fn(),
       pinLogin: vi.fn(),
+      refresh,
       logout: vi.fn(),
     });
 
@@ -220,6 +223,7 @@ describe("OnboardingPage", () => {
 
     expect(memberCall).toBeTruthy();
     expect(memberCall?.body?.account_id).toBe("acct-uuid-123");
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("back button goes back one step", async () => {
@@ -331,6 +335,7 @@ describe("OnboardingPage", () => {
       signIn: vi.fn(),
       acceptToken: vi.fn(),
       pinLogin: vi.fn(),
+      refresh: vi.fn(),
       logout: vi.fn(),
     });
 
