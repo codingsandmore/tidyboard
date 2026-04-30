@@ -1,18 +1,40 @@
 import React from "react";
 import "@testing-library/jest-dom/vitest";
+import { timeoutManager } from "@tanstack/react-query";
+
+timeoutManager.setTimeoutProvider({
+  setTimeout(callback, delay) {
+    const timer = globalThis.setTimeout(callback, delay);
+    if (typeof timer === "object" && "unref" in timer) {
+      timer.unref();
+    }
+    return timer;
+  },
+  clearTimeout: globalThis.clearTimeout,
+  setInterval(callback, delay) {
+    const timer = globalThis.setInterval(callback, delay);
+    if (typeof timer === "object" && "unref" in timer) {
+      timer.unref();
+    }
+    return timer;
+  },
+  clearInterval: globalThis.clearInterval,
+});
 
 // Default fetch mock — returns 200 with empty JSON so tests that don't care
 // about network don't hang on unresolved promises.
 // Individual tests can override with vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(...)).
-vi.stubGlobal(
-  "fetch",
-  vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    json: async () => ({}),
-  })
-);
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({}),
+    })
+  );
+});
 
 // Mock next/font/google — returns simple objects
 vi.mock("next/font/google", () => ({

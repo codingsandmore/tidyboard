@@ -1,15 +1,18 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useState } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
+// TBD import: TBD.week used only in isApiFallbackMode() path; CalAgenda static group fixtures
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
-import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
+import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
@@ -54,7 +57,7 @@ const ViewTabs = ({ value, onChange }: { value: View; onChange: (v: View) => voi
   );
 };
 
-export function CalDay({ dark = false }: { dark?: boolean }) {
+export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewChange?: (v: View) => void }) {
   const t = useTranslations("calendar");
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
@@ -63,10 +66,36 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
   const border = dark ? TB.dBorder : TB.border;
   const bsoft = dark ? TB.dBorderSoft : TB.borderSoft;
 
+  const [date, setDate] = useState<Date>(() => new Date());
+  const today = new Date();
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const headerLabel = date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const subLabel = isSameDay(date, today) ? t("today") : date.toLocaleDateString();
+  const shiftDay = (delta: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + delta);
+    setDate(next);
+  };
+
+  const dateRange = (() => {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+    return { start: start.toISOString(), end: end.toISOString() };
+  })();
+
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const { data: apiEvents } = useEvents(dateRange);
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
 
   const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
   const startH = 7;
@@ -98,6 +127,10 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-day-prev"
+            onClick={() => shiftDay(-1)}
             style={{
               background: "transparent",
               border: "none",
@@ -109,12 +142,20 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
             <Icon name="chevronL" size={20} />
           </button>
           <div>
-            <H as="h2" style={{ fontSize: 20, color: tc }}>
-              Thursday, April 22
-            </H>
-            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>{t("today")} · {t("eventsCount", { count: 7 })}</div>
+            <div data-testid="calendar-day-heading">
+              <H as="h2" style={{ fontSize: 20, color: tc }}>
+                {headerLabel}
+              </H>
+            </div>
+            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>
+              {subLabel} · {t("eventsCount", { count: events.length })}
+            </div>
           </div>
           <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-day-next"
+            onClick={() => shiftDay(1)}
             style={{
               background: "transparent",
               border: "none",
@@ -126,7 +167,7 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
             <Icon name="chevronR" size={20} />
           </button>
         </div>
-        <ViewTabs value="Day" onChange={() => {}} />
+        <ViewTabs value="Day" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
         <div
@@ -271,8 +312,101 @@ export function CalDay({ dark = false }: { dark?: boolean }) {
   );
 }
 
-export function CalWeek() {
+// Day-of-week keys in order (index 0 = Sunday)
+const DOW_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+type DowKey = (typeof DOW_KEYS)[number];
+
+/** Parse an HH:mm or ISO string into fractional hours (e.g. "09:30" → 9.5) */
+function toFractionalHours(timeStr: string): number {
+  if (!timeStr) return 0;
+  // ISO datetime string
+  if (timeStr.includes("T")) {
+    const d = new Date(timeStr);
+    return d.getHours() + d.getMinutes() / 60;
+  }
+  // HH:mm
+  const [h, m] = timeStr.split(":").map(Number);
+  return (h ?? 0) + (m ?? 0) / 60;
+}
+
+export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay()); // back up to Sunday
+    return d;
+  });
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+  const headerLabel = sameMonth
+    ? `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.getDate()}, ${weekEnd.getFullYear()}`
+    : `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${weekEnd.getFullYear()}`;
+  const shiftWeek = (delta: number) => {
+    const next = new Date(weekStart);
+    next.setDate(next.getDate() + delta * 7);
+    next.setHours(0, 0, 0, 0);
+    setWeekStart(next);
+  };
+
+  const { data: apiEvents } = useEvents({
+    start: weekStart.toISOString(),
+    end: weekEnd.toISOString(),
+  });
+
+  // Build a map from day-of-week index (0=Sun…6=Sat) to events for that day.
+  // In fallback mode we reuse TBD.week instead of deriving from the flat list.
+  const today = new Date();
+
+  // Build 7 columns: one per day of the current week
+  const columns = DOW_KEYS.map((dowKey, dowIndex) => {
+    const colDate = new Date(weekStart);
+    colDate.setDate(weekStart.getDate() + dowIndex);
+    const dateNum = colDate.getDate();
+    const isToday =
+      colDate.getFullYear() === today.getFullYear() &&
+      colDate.getMonth() === today.getMonth() &&
+      colDate.getDate() === today.getDate();
+
+    // Derive events for this column
+    let colEvents: TBDEvent[];
+    if (isApiFallbackMode()) {
+      // In fallback mode keep using TBD.week fixture for visual fidelity
+      const tbdDay = TBD.week[dowIndex];
+      colEvents = tbdDay
+        ? tbdDay.items.map((it, i) => ({
+            id: `tbd-${dowKey}-${i}`,
+            title: it.t,
+            start: `${Math.floor(it.h)}:${(it.h % 1) * 60 === 0 ? "00" : "30"}`,
+            end: `${Math.floor(it.h) + 1}:00`,
+            members: it.m === "all" ? [] : [it.m],
+          }))
+        : [];
+    } else {
+      // Derive from real API events: match events whose start date falls on this column's date
+      colEvents = (apiEvents ?? [])
+        .filter((e) => {
+          const evStart = e.start_time ?? (e.start?.includes("T") ? e.start : null);
+          if (evStart) {
+            const d = new Date(evStart);
+            return (
+              d.getFullYear() === colDate.getFullYear() &&
+              d.getMonth() === colDate.getMonth() &&
+              d.getDate() === colDate.getDate()
+            );
+          }
+          // Legacy HH:mm events have no date — skip them in live mode
+          return false;
+        })
+        .sort((a, b) => toFractionalHours(a.start_time ?? a.start) - toFractionalHours(b.start_time ?? b.start));
+    }
+
+    return { dowKey, dowIndex, colDate, dateNum, isToday, colEvents };
+  });
+
   return (
     <div
       style={{
@@ -296,10 +430,32 @@ export function CalWeek() {
           background: TB.surface,
         }}
       >
-        <H as="h2" style={{ fontSize: 20 }}>
-          Apr 19 – 25, 2026
-        </H>
-        <ViewTabs value="Week" onChange={() => {}} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-week-prev"
+            onClick={() => shiftWeek(-1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronL" size={20} />
+          </button>
+          <div data-testid="calendar-week-heading">
+            <H as="h2" style={{ fontSize: 20 }}>
+              {headerLabel}
+            </H>
+          </div>
+          <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-week-next"
+            onClick={() => shiftWeek(1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronR" size={20} />
+          </button>
+        </div>
+        <ViewTabs value="Week" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
@@ -310,112 +466,125 @@ export function CalWeek() {
           overflow: "hidden",
         }}
       >
-        {TBD.week.map((d) => {
-          const isToday = d.day === "Thu";
-          const dayKeyMap: Record<string, "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat"> = {
-            Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat",
-          };
-          const dayKey = dayKeyMap[d.day] ?? "mon";
-          return (
+        {columns.map(({ dowKey, colDate, dateNum, isToday, colEvents }) => (
+          <div
+            key={dowKey}
+            style={{
+              borderLeft: `1px solid ${TB.borderSoft}`,
+              display: "flex",
+              flexDirection: "column",
+              background: isToday ? TB.primary + "08" : TB.surface,
+            }}
+          >
             <div
-              key={d.day}
               style={{
-                borderLeft: `1px solid ${TB.borderSoft}`,
+                padding: "10px 10px",
+                borderBottom: `1px solid ${TB.borderSoft}`,
                 display: "flex",
-                flexDirection: "column",
-                background: isToday ? TB.primary + "08" : TB.surface,
+                alignItems: "baseline",
+                gap: 6,
+                background: isToday ? TB.primary + "15" : TB.bg2,
               }}
             >
               <div
                 style={{
-                  padding: "10px 10px",
-                  borderBottom: `1px solid ${TB.borderSoft}`,
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 6,
-                  background: isToday ? TB.primary + "15" : TB.bg2,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: isToday ? TB.primary : TB.text2,
+                  letterSpacing: "0.08em",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: isToday ? TB.primary : TB.text2,
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  {t(`weekDays.${dayKey}`)}
-                </div>
-                <div
-                  style={{
-                    fontFamily: TB.fontDisplay,
-                    fontSize: 20,
-                    fontWeight: 500,
-                    color: isToday ? TB.primary : TB.text,
-                    marginLeft: "auto",
-                  }}
-                >
-                  {d.date}
-                </div>
+                {t(`weekDays.${dowKey}`)}
               </div>
               <div
                 style={{
-                  flex: 1,
-                  padding: 6,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 3,
-                  overflow: "hidden",
+                  fontFamily: TB.fontDisplay,
+                  fontSize: 20,
+                  fontWeight: 500,
+                  color: isToday ? TB.primary : TB.text,
+                  marginLeft: "auto",
                 }}
               >
-                {d.items.map((it, j) => {
-                  const m = it.m === "all" ? null : getMember(it.m);
-                  const c = m ? m.color : TB.primary;
-                  const mins = (it.h % 1) * 60;
-                  return (
-                    <div
-                      key={j}
-                      style={{
-                        padding: "4px 6px",
-                        background: c + "1A",
-                        borderLeft: `2.5px solid ${c}`,
-                        borderRadius: 4,
-                        fontSize: 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: TB.fontMono,
-                          color: TB.text2,
-                          fontSize: 9,
-                        }}
-                      >
-                        {Math.floor(it.h)}:{mins ? "30" : "00"} {it.h < 12 ? "a" : "p"}
-                      </div>
-                      <div style={{ fontWeight: 600, marginTop: 1, color: TB.text }}>
-                        {it.t}
-                      </div>
-                    </div>
-                  );
-                })}
+                {dateNum}
               </div>
             </div>
-          );
-        })}
+            <div
+              style={{
+                flex: 1,
+                padding: 6,
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+                overflow: "hidden",
+              }}
+            >
+              {colEvents.map((ev) => {
+                const memberIds = ev.members ?? [];
+                const firstMember = memberIds.length > 0 ? getMember(memberIds[0]) : null;
+                const c = firstMember ? firstMember.color : TB.primary;
+                const startH = toFractionalHours(ev.start_time ?? ev.start);
+                const mins = Math.round((startH % 1) * 60);
+                return (
+                  <div
+                    key={ev.id}
+                    style={{
+                      padding: "4px 6px",
+                      background: c + "1A",
+                      borderLeft: `2.5px solid ${c}`,
+                      borderRadius: 4,
+                      fontSize: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: TB.fontMono,
+                        color: TB.text2,
+                        fontSize: 9,
+                      }}
+                    >
+                      {Math.floor(startH)}:{String(mins).padStart(2, "0")} {startH < 12 ? "a" : "p"}
+                    </div>
+                    <div style={{ fontWeight: 600, marginTop: 1, color: TB.text }}>
+                      {ev.title}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-export function CalMonth() {
+export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
-  const month = "April 2026";
-  const offset = 3;
-  const days: { d: number; cur: boolean }[] = [];
+  const [anchor, setAnchor] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const today = new Date();
+  const month = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const firstWeekday = anchor.getDay();
+  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const days: { d: number; cur: boolean; date: Date }[] = [];
   for (let i = 0; i < 35; i++) {
-    const d = i - offset + 1;
-    days.push({ d, cur: d >= 1 && d <= 30 });
+    const dayNum = i - firstWeekday + 1;
+    const cur = dayNum >= 1 && dayNum <= daysInMonth;
+    const date = new Date(anchor);
+    date.setDate(dayNum);
+    days.push({ d: dayNum, cur, date });
   }
+  const shiftMonth = (delta: number) => {
+    const next = new Date(anchor);
+    next.setMonth(next.getMonth() + delta);
+    setAnchor(next);
+  };
+  const isTodayMonth =
+    today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth();
   const evMap: Record<number, { c: string }[]> = {
     19: [{ c: "#3B82F6" }, { c: "#F59E0B" }],
     20: [{ c: "#EF4444" }, { c: "#22C55E" }],
@@ -457,10 +626,32 @@ export function CalMonth() {
           background: TB.surface,
         }}
       >
-        <H as="h2" style={{ fontSize: 20 }}>
-          {month}
-        </H>
-        <ViewTabs value="Month" onChange={() => {}} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            aria-label={t("previousDay")}
+            data-testid="calendar-month-prev"
+            onClick={() => shiftMonth(-1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronL" size={20} />
+          </button>
+          <div data-testid="calendar-month-heading">
+            <H as="h2" style={{ fontSize: 20 }}>
+              {month}
+            </H>
+          </div>
+          <button
+            type="button"
+            aria-label={t("nextDay")}
+            data-testid="calendar-month-next"
+            onClick={() => shiftMonth(1)}
+            style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: TB.text2 }}
+          >
+            <Icon name="chevronR" size={20} />
+          </button>
+        </div>
+        <ViewTabs value="Month" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
@@ -494,14 +685,22 @@ export function CalMonth() {
         }}
       >
         {days.map((day, i) => {
-          const isToday = day.cur && day.d === 22;
+          const isToday =
+            day.cur &&
+            isTodayMonth &&
+            day.d === today.getDate();
           const evs = day.cur ? evMap[day.d] ?? [] : [];
-          const dispNum =
-            day.d > 0 && day.d <= 31
-              ? day.d > 30 && !day.cur
-                ? day.d - 30
-                : day.d
-              : 31 + day.d;
+          // Spillover days at the start/end of the visible 5-week grid show
+          // the right-edge day-of-month from the adjacent month.
+          let dispNum: number;
+          if (day.cur) {
+            dispNum = day.d;
+          } else if (day.d <= 0) {
+            const prev = new Date(anchor.getFullYear(), anchor.getMonth(), 0);
+            dispNum = prev.getDate() + day.d;
+          } else {
+            dispNum = day.d - daysInMonth;
+          }
           return (
             <div
               key={i}
@@ -551,7 +750,7 @@ export function CalMonth() {
   );
 }
 
-export function CalAgenda() {
+export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
   const t = useTranslations("calendar");
   const today = new Date();
   const start = today.toISOString().slice(0, 10);
@@ -559,14 +758,12 @@ export function CalAgenda() {
   endDate.setDate(endDate.getDate() + 7);
   const end = endDate.toISOString().slice(0, 10);
 
+  const [query, setQuery] = useState("");
   const { data: apiEvents } = useEvents({ start, end });
 
-  // Fallback to TBD sample events when API data is unavailable
-  const todayEvents: TBDEvent[] = (apiEvents && apiEvents.length > 0)
-    ? apiEvents
-    : TBD.events.slice(0, 5);
+  const todayEvents: TBDEvent[] = apiEvents ?? [];
 
-  const groups: { label: string; items: TBDEvent[] }[] = [
+  const allGroups: { label: string; items: TBDEvent[] }[] = [
     { label: `${t("today").toUpperCase()} · THURSDAY, APR 22`, items: todayEvents },
     {
       label: "TOMORROW · FRIDAY, APR 23",
@@ -612,6 +809,19 @@ export function CalAgenda() {
     },
   ];
 
+  const q = query.trim().toLowerCase();
+  const groups = q
+    ? allGroups
+        .map((g) => ({
+          label: g.label,
+          items: g.items.filter(
+            (e) =>
+              e.title.toLowerCase().includes(q) ||
+              (e.location ?? "").toLowerCase().includes(q)
+          ),
+        }))
+        .filter((g) => g.items.length > 0)
+    : allGroups;
 
   return (
     <div
@@ -639,7 +849,7 @@ export function CalAgenda() {
         <H as="h2" style={{ fontSize: 20 }}>
           {t("agenda")}
         </H>
-        <ViewTabs value="Agenda" onChange={() => {}} />
+        <ViewTabs value="Agenda" onChange={(v) => onViewChange?.(v)} />
       </div>
       <div
         style={{
@@ -649,8 +859,8 @@ export function CalAgenda() {
         }}
       >
         <Input
-          value=""
-          onChange={() => {}}
+          value={query}
+          onChange={setQuery}
           placeholder={t("searchPlaceholder")}
           icon="search"
         />
@@ -670,6 +880,11 @@ export function CalAgenda() {
               {group.label}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {group.items.length === 0 && (
+                <div style={{ fontSize: 13, color: TB.text2, padding: "8px 0" }}>
+                  {t("noEventsYet")}
+                </div>
+              )}
               {group.items.map((e) => {
                 const ms = getMembers(e.members);
                 return (
@@ -719,11 +934,146 @@ const Row = ({
   </div>
 );
 
-export function EventModal() {
+// Formats a Date to "YYYY-MM-DDThh:mm" for datetime-local inputs
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export type EventFormData = {
+  id?: string;
+  title?: string;
+  start?: string;
+  end?: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  description?: string;
+  members?: string[];
+  recurrence_rule?: string;
+};
+
+export type EventModalProps = {
+  event?: EventFormData;
+  onClose: () => void;
+};
+
+export function EventModal({ event, onClose }: EventModalProps) {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const { data: apiMembers } = useMembers();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
+  const { data: allEvents } = useEvents();
+  const members = apiMembers ?? [];
+
+  const now = new Date();
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
+  // Resolve the initial start/end from either ISO start_time or legacy "HH:mm" start
+  const resolveStart = (): string => {
+    if (event?.start_time) return toDatetimeLocal(new Date(event.start_time));
+    if (event?.start && event.start.includes("T")) return toDatetimeLocal(new Date(event.start));
+    return toDatetimeLocal(now);
+  };
+  const resolveEnd = (): string => {
+    if (event?.end_time) return toDatetimeLocal(new Date(event.end_time));
+    if (event?.end && event.end.includes("T")) return toDatetimeLocal(new Date(event.end));
+    return toDatetimeLocal(oneHourLater);
+  };
+
+  const [title, setTitle] = useState(event?.title ?? "");
+  const [startTime, setStartTime] = useState(resolveStart);
+  const [endTime, setEndTime] = useState(resolveEnd);
+  const [location, setLocation] = useState(event?.location ?? "");
+  const [description, setDescription] = useState(event?.description ?? "");
+  const [recurrence, setRecurrence] = useState<string>(event?.recurrence_rule ?? "");
+  const [error, setError] = useState("");
+
+  const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
+  const deleteEvent = useDeleteEvent();
+
+  const isEdit = Boolean(event?.id);
+  const busy = createEvent.isPending || updateEvent.isPending || deleteEvent.isPending;
+
+  // Real conflict detection: any other event whose [start, end) overlaps the
+  // event being edited. The current event itself is excluded by id. Returns
+  // up to 3 conflicts so the warning stays compact.
+  const conflicts = (() => {
+    if (!startTime || !endTime || !allEvents) return [];
+    const draftStart = new Date(startTime).getTime();
+    const draftEnd = new Date(endTime).getTime();
+    if (!Number.isFinite(draftStart) || !Number.isFinite(draftEnd) || draftEnd <= draftStart) {
+      return [];
+    }
+    return allEvents
+      .filter((e) => {
+        if (event?.id && e.id === event.id) return false;
+        const startStr = e.start_time ?? (e.start && e.start.includes("T") ? e.start : null);
+        const endStr = e.end_time ?? (e.end && e.end.includes("T") ? e.end : null);
+        if (!startStr || !endStr) return false;
+        const s = new Date(startStr).getTime();
+        const en = new Date(endStr).getTime();
+        if (!Number.isFinite(s) || !Number.isFinite(en)) return false;
+        return s < draftEnd && en > draftStart;
+      })
+      .slice(0, 3);
+  })();
+
+  const handleSave = () => {
+    if (!title.trim()) {
+      setError(t("titleRequired") || "Title is required");
+      return;
+    }
+    setError("");
+    const start_time = new Date(startTime).toISOString();
+    const end_time = new Date(endTime).toISOString();
+
+    if (isEdit && event?.id) {
+      updateEvent.mutate(
+        {
+          id: event.id,
+          title: title.trim(),
+          start_time,
+          end_time,
+          location,
+          description,
+          recurrence_rule: recurrence,
+        },
+        { onSuccess: onClose }
+      );
+    } else {
+      createEvent.mutate(
+        {
+          title: title.trim(),
+          start_time,
+          end_time,
+          location,
+          description,
+          ...(recurrence ? { recurrence_rule: recurrence } : {}),
+        },
+        { onSuccess: onClose }
+      );
+    }
+  };
+
+  const handleDelete = () => {
+    if (!event?.id) return;
+    deleteEvent.mutate(event.id, { onSuccess: onClose });
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    padding: "6px 0",
+    border: "none",
+    borderBottom: `1px solid ${TB.border}`,
+    fontFamily: TB.fontBody,
+    fontSize: 13,
+    color: TB.text,
+    background: "transparent",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
   return (
     <div
       style={{
@@ -747,13 +1097,11 @@ export function EventModal() {
           overflow: "auto",
         }}
       >
+        {/* drag handle */}
         <div
           style={{
             padding: "16px 20px",
             borderBottom: `1px solid ${TB.borderSoft}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
           }}
         >
           <div
@@ -766,10 +1114,38 @@ export function EventModal() {
             }}
           />
         </div>
+
         <div style={{ padding: 20 }}>
+          {/* Conflict warning — real time-overlap detection */}
+          {conflicts.length > 0 && (
+            <div
+              data-testid="event-conflict-warning"
+              role="alert"
+              style={{
+                marginBottom: 12,
+                padding: "10px 12px",
+                background: TB.warning + "18",
+                border: `1px solid ${TB.warning}`,
+                borderRadius: 8,
+                fontSize: 12,
+                color: TB.text,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, color: TB.warning }}>
+                {conflicts.length === 1
+                  ? `Conflicts with "${conflicts[0].title}"`
+                  : `Conflicts with ${conflicts.length} other events`}
+              </div>
+              <div style={{ color: TB.text2 }}>
+                {conflicts.map((c) => c.title).join(" · ")}
+              </div>
+            </div>
+          )}
+          {/* Title */}
           <Input
-            value="Dentist — Jackson"
-            onChange={() => {}}
+            value={title}
+            onChange={(v) => setTitle(v)}
+            placeholder="Event title"
             style={{
               height: 54,
               fontSize: 20,
@@ -779,7 +1155,11 @@ export function EventModal() {
               fontFamily: TB.fontDisplay,
             }}
           />
+          {error && (
+            <div style={{ fontSize: 12, color: TB.destructive, marginTop: 4 }}>{error}</div>
+          )}
 
+          {/* Time fields */}
           <div
             style={{
               marginTop: 16,
@@ -792,120 +1172,83 @@ export function EventModal() {
             }}
           >
             <Row icon="clock" label={t("start")}>
-              <span style={{ fontFamily: TB.fontMono, fontSize: 13 }}>
-                Thu, Apr 22 · 9:00 AM
-              </span>
+              <input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                style={inputStyle}
+              />
             </Row>
             <Row icon="clock" label={t("end")}>
-              <span style={{ fontFamily: TB.fontMono, fontSize: 13 }}>
-                Thu, Apr 22 · 10:00 AM
-              </span>
+              <input
+                type="datetime-local"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                style={inputStyle}
+              />
             </Row>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "4px 12px",
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 20,
-                  borderRadius: 9999,
-                  background: TB.border,
-                  padding: 2,
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                  }}
-                />
-              </div>
-              <div style={{ fontSize: 13 }}>{t("allDay")}</div>
-            </div>
           </div>
 
+          {/* Repeat — sets recurrence_rule. Yearly is intended for birthdays
+              and anniversaries; backend already accepts the field. */}
           <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: TB.text2,
-                marginBottom: 8,
-                letterSpacing: "0.04em",
-              }}
-            >
-              {t("assignedTo")}
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              {members.map((m) => {
-                const sel = ["mom", "jackson"].includes(m.id);
-                return (
-                  <div
-                    key={m.id}
-                    style={{ textAlign: "center", opacity: sel ? 1 : 0.35 }}
-                  >
-                    <Avatar member={m} size={44} selected={sel} />
+            <Row icon="clock" label={t("repeat")}>
+              <select
+                data-testid="event-recurrence"
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value)}
+                style={{ ...inputStyle, padding: "6px 0", appearance: "auto" }}
+              >
+                <option value="">{t("doesNotRepeat")}</option>
+                <option value="FREQ=DAILY">Daily</option>
+                <option value="FREQ=WEEKLY">Weekly</option>
+                <option value="FREQ=MONTHLY">Monthly</option>
+                <option value="FREQ=YEARLY">Yearly (birthday / anniversary)</option>
+              </select>
+            </Row>
+          </div>
+
+          {/* Location */}
+          <div style={{ marginTop: 14 }}>
+            <Row icon="mapPin" label={t("location")}>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Add location"
+                style={inputStyle}
+              />
+            </Row>
+          </div>
+
+          {/* Members (display only — no assignment API on create yet) */}
+          {members.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: TB.text2,
+                  marginBottom: 8,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {t("assignedTo")}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {members.map((m) => (
+                  <div key={m.id} style={{ textAlign: "center", opacity: 0.5 }}>
+                    <Avatar member={m} size={44} selected={false} />
                     <div style={{ fontSize: 10, marginTop: 4, color: TB.text2 }}>
                       {m.name}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            <Row icon="mapPin" label={t("location")}>
-              <span style={{ fontSize: 13 }}>Dr. Patel, Market St</span>
-            </Row>
-            <Row icon="calendar" label={t("calendarLabel")}>
-              <span style={{ fontSize: 13 }}>Family · Google</span>
-            </Row>
-            <Row icon="bell" label={t("reminder")}>
-              <span style={{ fontSize: 13 }}>{t("reminderBefore")}</span>
-            </Row>
-            <Row icon="arrowR" label={t("repeat")}>
-              <span style={{ fontSize: 13, color: TB.text2 }}>{t("doesNotRepeat")}</span>
-            </Row>
-          </div>
-
-          <div
-            style={{
-              marginTop: 14,
-              padding: "10px 12px",
-              background: TB.warning + "18",
-              border: `1px solid ${TB.warning}40`,
-              borderRadius: 8,
-              display: "flex",
-              gap: 10,
-              alignItems: "flex-start",
-            }}
-          >
-            <Icon name="bell" size={16} color={TB.warning} />
-            <div style={{ fontSize: 12, color: "#92400E" }}>
-              <div style={{ fontWeight: 600 }}>
-                {t("conflict")}
+                ))}
               </div>
-              <div style={{ marginTop: 2 }}>{t("conflictHint")}</div>
             </div>
-          </div>
+          )}
 
+          {/* Notes / description */}
           <div style={{ marginTop: 14 }}>
             <div
               style={{
@@ -917,20 +1260,29 @@ export function EventModal() {
             >
               {t("notes")}
             </div>
-            <div
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add notes…"
+              rows={3}
               style={{
+                width: "100%",
                 padding: "10px 12px",
                 border: `1px solid ${TB.border}`,
                 borderRadius: 6,
                 fontSize: 13,
-                color: TB.text2,
-                minHeight: 60,
+                color: TB.text,
+                background: TB.bg,
+                fontFamily: TB.fontBody,
+                resize: "vertical",
+                outline: "none",
+                boxSizing: "border-box",
               }}
-            >
-              Bring Jackson&apos;s insurance card. Parking validated — bring ticket.
-            </div>
+            />
           </div>
         </div>
+
+        {/* Footer */}
         <div
           style={{
             padding: 14,
@@ -940,15 +1292,24 @@ export function EventModal() {
             alignItems: "center",
           }}
         >
-          <Btn kind="ghost" size="md" icon="trash" style={{ color: TB.destructive }}>
-            {tCommon("delete")}
-          </Btn>
+          {isEdit && (
+            <Btn
+              kind="ghost"
+              size="md"
+              icon="trash"
+              style={{ color: TB.destructive }}
+              onClick={handleDelete}
+              disabled={busy}
+            >
+              {tCommon("delete")}
+            </Btn>
+          )}
           <div style={{ flex: 1 }} />
-          <Btn kind="secondary" size="md">
+          <Btn kind="secondary" size="md" onClick={onClose} disabled={busy}>
             {tCommon("cancel")}
           </Btn>
-          <Btn kind="primary" size="md">
-            {tCommon("save")}
+          <Btn kind="primary" size="md" onClick={handleSave} disabled={busy}>
+            {busy ? "…" : tCommon("save")}
           </Btn>
         </div>
       </div>

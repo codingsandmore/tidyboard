@@ -50,11 +50,11 @@ describe("fallback.recipe", () => {
 });
 
 describe("fallback.lists", () => {
-  it("returns non-empty list", () => {
+  it("returns empty array when not in fallback mode", () => {
+    // isApiFallbackMode() is false in test env; fixture data must not leak
     const lists = fallback.lists();
-    expect(lists.length).toBeGreaterThan(0);
-    expect(lists[0]).toHaveProperty("id");
-    expect(lists[0]).toHaveProperty("items");
+    expect(Array.isArray(lists)).toBe(true);
+    expect(lists).toHaveLength(0);
   });
 });
 
@@ -71,20 +71,31 @@ describe("fallback.list", () => {
 });
 
 describe("fallback.shopping", () => {
-  it("returns shopping object with categories", () => {
+  it("returns empty shopping object when not in fallback mode", () => {
+    // isApiFallbackMode() is false in test env; fixture data must not leak
     const s = fallback.shopping();
     expect(s).toHaveProperty("categories");
-    expect(s.categories.length).toBeGreaterThan(0);
+    expect(s).toHaveProperty("weekOf");
+    expect(s).toHaveProperty("fromRecipes");
+    expect(s.categories).toHaveLength(0);
   });
 });
 
 describe("fallback.routines", () => {
-  it("returns array with at least one routine", () => {
+  it("returns array with at least one routine in ApiRoutine shape", () => {
     const routines = fallback.routines();
     expect(Array.isArray(routines)).toBe(true);
     expect(routines.length).toBeGreaterThan(0);
-    expect(routines[0]).toHaveProperty("member");
-    expect(routines[0]).toHaveProperty("steps");
+    const r = routines[0] as unknown as Record<string, unknown>;
+    // Must use the ApiRoutine shape (member_id, steps with est_minutes/icon).
+    // The legacy `member` object on data.ts/Routine does not exist anymore —
+    // the screens consume the API shape and would crash otherwise.
+    expect(r).toHaveProperty("member_id");
+    expect(r).toHaveProperty("steps");
+    const steps = r.steps as Array<Record<string, unknown>>;
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps[0]).toHaveProperty("est_minutes");
+    expect(steps[0]).toHaveProperty("icon");
   });
 });
 

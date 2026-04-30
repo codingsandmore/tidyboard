@@ -1,7 +1,31 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBD } from "@/lib/data";
 import { Equity, EquityScales, Settings, Race, arc } from "./equity";
+
+const mockPush = vi.fn();
+const mockLogout = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => ({ get: () => null }),
+  usePathname: () => "/",
+}));
+
+vi.mock("@/lib/auth/auth-store", () => ({
+  useAuth: () => ({ logout: mockLogout, member: null, household: null, status: "authenticated", account: null }),
+}));
+
+vi.mock("@/lib/api/hooks", () => ({
+  useEquity: () => ({ data: TBD.equity }),
+  useRace: () => ({ data: TBD.race }),
+  // New equity engine hooks — return undefined so the component falls back to stub data
+  useEquityDashboard: () => ({ data: undefined }),
+  useRebalanceSuggestions: () => ({ data: undefined }),
+  // Members hook — return undefined so the component falls back to TBD.members
+  useMembers: () => ({ data: undefined }),
+}));
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -111,5 +135,35 @@ describe("Race", () => {
     renderWithQuery(<Race />);
     expect(screen.getByText("Jackson")).toBeTruthy();
     expect(screen.getByText("Emma")).toBeTruthy();
+  });
+});
+
+describe("Settings — wired buttons", () => {
+  beforeEach(() => {
+    mockPush.mockClear();
+    mockLogout.mockClear();
+  });
+
+  it("Sign Out calls logout and navigates to /login", () => {
+    renderWithQuery(<Settings />);
+    fireEvent.click(screen.getByText("Sign out"));
+    expect(mockLogout).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith("/login");
+  });
+
+  it("Delete Household button is rendered as a disabled control (no confirm/alert flow)", () => {
+    // The endpoint isn't implemented yet, so the button is intentionally
+    // disabled — clicking it must NOT pop a confirm or alert dialog.
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    renderWithQuery(<Settings />);
+    const btn = screen.getByText("Delete household…").closest("button");
+    expect(btn).not.toBeNull();
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn!);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+    alertSpy.mockRestore();
   });
 });

@@ -12,6 +12,8 @@ export function Input({
   icon,
   full = true,
   error,
+  readOnly,
+  disabled,
   style,
 }: {
   value?: string;
@@ -21,6 +23,8 @@ export function Input({
   icon?: IconName;
   full?: boolean;
   error?: boolean;
+  readOnly?: boolean;
+  disabled?: boolean;
   style?: CSSProperties;
 }) {
   return (
@@ -44,6 +48,8 @@ export function Input({
         value={value ?? ""}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}
+        readOnly={readOnly}
+        disabled={disabled}
         style={{
           width: "100%",
           height: 44,
@@ -51,15 +57,17 @@ export function Input({
           fontFamily: TB.fontBody,
           fontSize: 14,
           color: TB.text,
-          background: TB.surface,
+          background: readOnly || disabled ? TB.bg2 : TB.surface,
           border: `1px solid ${error ? TB.destructive : TB.border}`,
           borderRadius: TB.r.sm,
           outline: "none",
           transition: "border-color .1s, box-shadow .1s",
           boxSizing: "border-box",
+          cursor: disabled ? "not-allowed" : readOnly ? "default" : "text",
           ...style,
         }}
         onFocus={(e) => {
+          if (readOnly || disabled) return;
           e.target.style.borderColor = TB.primary;
           e.target.style.boxShadow = `0 0 0 3px ${TB.primary}22`;
         }}

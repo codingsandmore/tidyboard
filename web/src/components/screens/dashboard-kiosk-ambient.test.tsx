@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TBD } from "@/lib/data";
 import { DashKioskAmbient } from "./dashboard-kiosk-ambient";
+
+vi.mock("@/lib/api/hooks", () => ({
+  useMembers: () => ({ data: TBD.members }),
+  useEvents: () => ({ data: TBD.events }),
+}));
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

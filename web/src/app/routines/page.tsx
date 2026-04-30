@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { TB } from "@/lib/tokens";
-import { getMember } from "@/lib/data";
 import { Avatar } from "@/components/ui/avatar";
 import { RoutineKid } from "@/components/screens/routine";
 import { useTheme } from "@/components/theme-provider";
-import { useRoutines } from "@/lib/api/hooks";
+import { useRoutines, useMembers } from "@/lib/api/hooks";
 
 export default function RoutinesPage() {
   const { data: routines } = useRoutines();
-  const memberId = routines?.[0]?.member ?? "jackson";
-  const member = getMember(memberId);
+  const { data: members } = useMembers();
+  const firstRoutine = routines?.[0];
+  const member = firstRoutine?.member_id
+    ? members?.find((m) => m.id === firstRoutine.member_id)
+    : undefined;
   const { theme } = useTheme();
   const dark = theme === "dark";
 

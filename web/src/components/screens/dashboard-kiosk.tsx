@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMember, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { H } from "@/components/ui/heading";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useWeather } from "@/lib/weather/use-weather";
+import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
 const KIOSK_TABS = [
@@ -24,12 +27,15 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
   const tRecipe = useTranslations("recipe");
-  const [sel, setSel] = useState("jackson");
+  const [sel, setSel] = useState<string | null>(null);
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
-  const selMember = members.find((m) => m.id === sel) ?? getMember(sel);
+  const { lockKiosk, status, activeMember, setActiveMember } = useAuth();
+  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const { data: weather } = useWeather();
+  const router = useRouter();
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
+  const selMember = members.find((m) => m.id === sel) ?? members[0];
   const bg = dark ? TB.dBg : TB.bg;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
@@ -94,9 +100,11 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
                 color: tc,
               }}
             >
-              72°
+              {weather ? `${weather.tempNow}°` : "—"}
             </div>
-            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>{t("partlySunny")}</div>
+            <div style={{ fontSize: 12, color: tc2, marginTop: 2 }}>
+              {weather ? weather.label : t("partlySunny")}
+            </div>
           </div>
           <div
             style={{
@@ -111,6 +119,27 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
           >
             <Icon name="sun" size={28} color={TB.warning} />
           </div>
+          {status === "authenticated" && (
+            <button
+              data-testid="kiosk-lock-btn"
+              onClick={() => { lockKiosk(); router.push("/kiosk"); }}
+              title="Lock screen"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: dark ? "rgba(255,255,255,0.08)" : TB.bg2,
+                border: `1px solid ${border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="lock" size={20} color={tc2} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -127,61 +156,77 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             background: dark ? TB.dBg : TB.bg,
           }}
         >
-          {members.map((m) => (
-            <div
-              key={m.id}
-              onClick={() => setSel(m.id)}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-                cursor: "pointer",
-              }}
-            >
-              <Avatar member={m} size={62} selected={sel === m.id} />
+          {members.map((m) => {
+            const isSelected = sel === m.id;
+            return (
               <div
+                key={m.id}
+                data-testid={`dashboard-member-${m.id}`}
+                onClick={() => {
+                  if (isSelected) {
+                    setSel(null);
+                    setActiveMember(null);
+                  } else {
+                    setSel(m.id);
+                    setActiveMember({ id: m.id, name: m.name, role: m.role === "child" ? "child" : "adult" });
+                    // Trigger PIN login for the selected member
+                    router.push(`/kiosk?member=${m.id}`);
+                  }
+                }}
                 style={{
-                  fontSize: 12,
-                  fontWeight: sel === m.id ? 600 : 450,
-                  color: sel === m.id ? tc : tc2,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  cursor: "pointer",
                 }}
               >
-                {m.name}
+                <Avatar member={m} size={62} selected={isSelected} />
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: isSelected ? 600 : 450,
+                    color: isSelected ? tc : tc2,
+                  }}
+                >
+                  {m.name}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ flex: 1 }} />
-          <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>{selMember.name}</div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <Icon name="star" size={16} color={TB.warning} />
-              <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
-                {selMember.stars}
+          {selMember && (
+            <Card pad={12} dark={dark} style={{ width: 96, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: tc2, marginBottom: 4 }}>{selMember.name}</div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Icon name="star" size={16} color={TB.warning} />
+                <div style={{ fontFamily: TB.fontDisplay, fontSize: 20, fontWeight: 600 }}>
+                  {selMember.stars}
+                </div>
               </div>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 6,
-              }}
-            >
-              <Icon name="flame" size={14} color="#F97316" />
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#F97316" }}>
-                {t("streak", { n: selMember.streak })}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 6,
+                }}
+              >
+                <Icon name="flame" size={14} color="#F97316" />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F97316" }}>
+                  {t("streak", { n: selMember.streak })}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
 
         <div style={{ flex: 1, padding: 28, overflow: "auto" }}>
@@ -201,6 +246,11 @@ export function DashKiosk({ dark = false }: { dark?: boolean }) {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {events.length === 0 && (
+              <div style={{ padding: "24px 0", textAlign: "center", color: tc2, fontSize: 14 }}>
+                {t("noEvents")}
+              </div>
+            )}
             {events.map((e) => {
               const ms = getMembers(e.members);
               const accent = ms.length > 1 ? TB.primary : ms[0].color;

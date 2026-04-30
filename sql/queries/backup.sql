@@ -29,3 +29,9 @@ RETURNING *;
 SELECT * FROM backup_records
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
+
+-- name: UpdateBackupS3Key :one
+UPDATE backup_records
+SET s3_key = sqlc.narg(s3_key), updated_at = NOW()
+WHERE id = $1
+RETURNING *;

@@ -1,20 +1,19 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { TB } from "@/lib/tokens";
 import { TYPE, type TypeName } from "@/lib/tokens";
 
-export function H({
-  as = "h1",
-  children,
-  style,
-}: {
+type HProps = {
   as?: TypeName | "h1" | "h2" | "h3";
   children?: ReactNode;
   style?: CSSProperties;
-}) {
+} & Omit<HTMLAttributes<HTMLElement>, "style" | "children">;
+
+export function H({ as = "h1", children, style, ...rest }: HProps) {
   const spec = TYPE[as as TypeName] ?? TYPE.h1;
   const Tag = /^h[1-3]$/.test(as) ? (as as "h1" | "h2" | "h3") : "div";
   return (
     <Tag
+      {...rest}
       style={{
         fontFamily: spec.font,
         fontSize: spec.size,

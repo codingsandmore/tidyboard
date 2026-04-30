@@ -152,7 +152,7 @@ func (q *Queries) UpdateBackupRecord(ctx context.Context, arg UpdateBackupRecord
 
 const updateBackupS3Key = `-- name: UpdateBackupS3Key :one
 UPDATE backup_records
-SET s3_key = $2
+SET s3_key = $2, updated_at = NOW()
 WHERE id = $1
 RETURNING id, created_at, type, destination, file_path, size_bytes, checksum_sha256, schema_version, status, s3_key
 `

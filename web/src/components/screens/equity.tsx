@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { TBD, getMember, type Member } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -7,8 +8,10 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEquity, useRace } from "@/lib/api/hooks";
+import { useEquity, useEquityDashboard, useRebalanceSuggestions, useRace, useMembers } from "@/lib/api/hooks";
+import type { ApiEquityDashboard, ApiRebalanceSuggestion } from "@/lib/api/types";
 import { useTranslations } from "next-intl";
+import { useAuth } from "@/lib/auth/auth-store";
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -101,19 +104,79 @@ const Ring = ({
   );
 };
 
+// ── Backend → legacy shape adapter ───────────────────────────────────────────
+
+function adaptDashboard(api: ApiEquityDashboard, members: Member[]) {
+  // Build member id → Member lookup
+  const memberById: Record<string, Member> = {};
+  for (const m of members) memberById[m.id] = m;
+
+  // adults array: map ApiMemberEquity → EquityAdult-like shape
+  const adults = api.members.map((me) => ({
+    id: me.member_id,
+    total: Math.round(me.total_minutes / 60 * 10) / 10,
+    cognitive: Math.round(me.cognitive_minutes / 60 * 10) / 10,
+    physical: Math.round(me.physical_minutes / 60 * 10) / 10,
+    personalHrs: 0,
+    personalGoal: 5,
+    load: me.load_status as "green" | "yellow" | "red",
+    loadPct: Math.round(me.load_pct),
+  }));
+
+  // domainList: map ApiDomainSummary → Domain-like shape
+  const domainList = api.domain_list.map((d) => ({
+    name: d.name,
+    owner: d.owner_member_id ?? "",
+    hours: Math.round(d.total_minutes / 60 * 10) / 10,
+    tasks: d.task_count,
+  }));
+
+  // trend: convert per-member minutes map to weekly points
+  // We use the first 2 members (sorted) as "mom" / "dad" slots
+  const sortedMemberIds = api.members.map((m) => m.member_id).sort();
+  const [id0, id1] = sortedMemberIds;
+  const trend = api.trend.map((tp, i) => ({
+    w: i === api.trend.length - 1 ? "This" : `W-${api.trend.length - 1 - i}`,
+    mom: Math.round((tp.minutes[id0] ?? 0) / 60 * 10) / 10,
+    dad: Math.round((tp.minutes[id1] ?? 0) / 60 * 10) / 10,
+  }));
+
+  return { period: `${api.from} – ${api.to}`, domains: api.domain_list.length, adults, domainList, trend };
+}
+
 // ─── Equity (full dashboard, desktop) ────────────────────────────────────────
 
 export function Equity({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("equity");
-  const { data: equityData } = useEquity("This Week");
+  // Try live backend first; fall back to stub data
+  const { data: liveData } = useEquityDashboard();
+  const { data: stubData } = useEquity("This Week");
+  const { data: suggestions } = useRebalanceSuggestions();
+
+  const { data: membersData } = useMembers();
+  const allMembers: Member[] = membersData ?? (TBD.members as Member[]);
+  const equityData = liveData
+    ? adaptDashboard(liveData, allMembers)
+    : stubData ?? null;
+
+  const adults = allMembers.filter((m) => m.role === "adult");
+
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
-  const eq = equityData ?? TBD.equity;
-  const mom = getMember("mom");
-  const dad = getMember("dad");
+
+  if (!equityData) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("householdBalance")}</H>
+        <div style={{ fontSize: 14, color: tc2 }}>{t("noEquityData")}</div>
+      </div>
+    );
+  }
+
+  const eq = equityData;
 
   return (
     <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, padding: 24, boxSizing: "border-box", overflow: "auto" }}>
@@ -152,15 +215,22 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           <div style={{ fontSize: 13, fontWeight: 600, color: tc2, marginBottom: 12 }}>{t("domainOwnership")}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <svg width="140" height="140" viewBox="-70 -70 140 140">
-              <path d={arc(0, 0.58, 60)} fill={mom.color} />
-              <path d={arc(0.58, 1, 60)} fill={dad.color} />
+              {adults.map((m, i) => {
+                const slice = 1 / Math.max(adults.length, 1);
+                return <path key={m.id} d={arc(i * slice, (i + 1) * slice, 60)} fill={m.color} />;
+              })}
               <circle r="38" fill={surf} />
-              <text x="0" y="-2" textAnchor="middle" fontFamily={TB.fontDisplay} fontWeight="600" fontSize="22" fill={tc}>12</text>
+              <text x="0" y="-2" textAnchor="middle" fontFamily={TB.fontDisplay} fontWeight="600" fontSize="22" fill={tc}>{eq.domains}</text>
               <text x="0" y="14" textAnchor="middle" fontSize="9" fill={tc2}>DOMAINS</text>
             </svg>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-              <LegendRow color={mom.color} label="Mom" value="7 domains · 58%" dark={dark} />
-              <LegendRow color={dad.color} label="Dad" value="5 domains · 42%" dark={dark} />
+              {adults.map((m) => {
+                const a = eq.adults.find((x) => x.id === m.id);
+                const pct = a ? a.loadPct : 0;
+                return (
+                  <LegendRow key={m.id} color={m.color} label={m.name} value={`${pct}%`} dark={dark} />
+                );
+              })}
             </div>
           </div>
         </Card>
@@ -168,18 +238,37 @@ export function Equity({ dark = false }: { dark?: boolean }) {
         {/* Load status */}
         <Card dark={dark} pad={20}>
           <div style={{ fontSize: 13, fontWeight: 600, color: tc2, marginBottom: 12 }}>{t("loadIndicator")}</div>
-          <LoadRow member={mom} status="yellow" label={t("watch")} detail="Carrying 58% this week" dark={dark} />
-          <div style={{ height: 1, background: border, margin: "12px 0" }} />
-          <LoadRow member={dad} status="green" label={t("balanced")} detail="On track" dark={dark} />
-          <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600, cursor: "pointer" }}>{t("suggestRebalance")}</div>
+          {adults.map((m, i) => {
+            const a = eq.adults.find((x) => x.id === m.id);
+            const status: "green" | "yellow" | "red" = a?.load ?? "green";
+            const statusLabel = status === "green" ? t("balanced") : status === "yellow" ? t("watch") : t("overloaded");
+            const detail = a ? `${a.loadPct}% load this week` : "No data";
+            return (
+              <div key={m.id}>
+                {i > 0 && <div style={{ height: 1, background: border, margin: "12px 0" }} />}
+                <LoadRow member={m} status={status} label={statusLabel} detail={detail} dark={dark} />
+              </div>
+            );
+          })}
+          {suggestions && suggestions.length > 0 ? (
+            <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600 }}>
+              {suggestions[0].reason}
+            </div>
+          ) : (
+            <div style={{ marginTop: 14, fontSize: 11, color: TB.primary, fontWeight: 600, cursor: "pointer" }}>{t("suggestRebalance")}</div>
+          )}
         </Card>
 
         {/* Personal time */}
         <Card dark={dark} pad={20}>
           <div style={{ fontSize: 13, fontWeight: 600, color: tc2, marginBottom: 12 }}>{t("personalTime")}</div>
           <div style={{ display: "flex", gap: 20, alignItems: "center", justifyContent: "space-around" }}>
-            <Ring member={mom} value={2} goal={5} dark={dark} />
-            <Ring member={dad} value={6} goal={5} dark={dark} />
+            {adults.map((m) => {
+              const a = eq.adults.find((x) => x.id === m.id);
+              return (
+                <Ring key={m.id} member={m} value={a?.personalHrs ?? 0} goal={a?.personalGoal ?? 5} dark={dark} />
+              );
+            })}
           </div>
         </Card>
       </div>
@@ -187,9 +276,10 @@ export function Equity({ dark = false }: { dark?: boolean }) {
       {/* Time balance */}
       <Card dark={dark} pad={20} style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: tc2, marginBottom: 16 }}>{t("timeBalance")}</div>
-        {([mom, dad] as Member[]).map((m) => {
-          const a = eq.adults.find((x) => x.id === m.id)!;
+        {adults.map((m) => {
+          const a = eq.adults.find((x) => x.id === m.id);
           const max = 24;
+          if (!a) return null;
           return (
             <div key={m.id} style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
@@ -224,33 +314,31 @@ export function Equity({ dark = false }: { dark?: boolean }) {
             {[0, 10, 20, 30].map((y) => (
               <text key={y} x="4" y={14 + y * 4} fontSize="9" fill={tc2} fontFamily={TB.fontMono}>{30 - y}h</text>
             ))}
-            {/* Mom line */}
-            <polyline
-              points={eq.trend.map((trend, i) => `${40 + i * 85},${130 - trend.mom * 4}`).join(" ")}
-              fill="none"
-              stroke={mom.color}
-              strokeWidth="2.5"
-            />
-            {eq.trend.map((trend, i) => (
-              <circle key={i} cx={40 + i * 85} cy={130 - trend.mom * 4} r="4" fill={mom.color} />
-            ))}
-            {/* Dad line */}
-            <polyline
-              points={eq.trend.map((trend, i) => `${40 + i * 85},${130 - trend.dad * 4}`).join(" ")}
-              fill="none"
-              stroke={dad.color}
-              strokeWidth="2.5"
-            />
-            {eq.trend.map((trend, i) => (
-              <circle key={i} cx={40 + i * 85} cy={130 - trend.dad * 4} r="4" fill={dad.color} />
-            ))}
+            {adults.map((m, mi) => {
+              // trend stores hours keyed by sorted member index (mom/dad slots)
+              const key = mi === 0 ? "mom" : "dad";
+              return (
+                <g key={m.id}>
+                  <polyline
+                    points={eq.trend.map((tp, i) => `${40 + i * 85},${130 - (tp[key as keyof typeof tp] as number) * 4}`).join(" ")}
+                    fill="none"
+                    stroke={m.color}
+                    strokeWidth="2.5"
+                  />
+                  {eq.trend.map((tp, i) => (
+                    <circle key={i} cx={40 + i * 85} cy={130 - (tp[key as keyof typeof tp] as number) * 4} r="4" fill={m.color} />
+                  ))}
+                </g>
+              );
+            })}
             {eq.trend.map((trend, i) => (
               <text key={i} x={40 + i * 85} y={152} fontSize="10" fill={tc2} textAnchor="middle" fontFamily={TB.fontMono}>{trend.w}</text>
             ))}
           </svg>
           <div style={{ display: "flex", gap: 14, justifyContent: "center", fontSize: 12, marginTop: 8 }}>
-            <LegendDot color={mom.color} label="Mom" />
-            <LegendDot color={dad.color} label="Dad" />
+            {adults.map((m) => (
+              <LegendDot key={m.id} color={m.color} label={m.name} />
+            ))}
           </div>
         </Card>
 
@@ -290,9 +378,24 @@ export function Equity({ dark = false }: { dark?: boolean }) {
 
 export function EquityScales() {
   const t = useTranslations("equity");
-  const mom = getMember("mom");
-  const dad = getMember("dad");
-  const tilt = (18 - 14) * 1.5; // mom heavier → tilts her side down
+  const { data: membersData } = useMembers();
+  const { data: liveData } = useEquityDashboard();
+  const { data: stubData } = useEquity("This Week");
+
+  const allMembers: Member[] = membersData ?? (TBD.members as Member[]);
+  const adults = allMembers.filter((m) => m.role === "adult");
+
+  // Resolve equity adults from live API or stub fallback
+  const equityAdults = liveData
+    ? adaptDashboard(liveData, allMembers).adults
+    : stubData?.adults ?? TBD.equity.adults;
+
+  // Use first two adults for the two-pan scale visualization
+  const left = adults[0];
+  const right = adults[1];
+  const leftHours = left ? Math.round((equityAdults.find((a) => a.id === left.id)?.total ?? 0)) : 0;
+  const rightHours = right ? Math.round((equityAdults.find((a) => a.id === right.id)?.total ?? 0)) : 0;
+  const tilt = (leftHours - rightHours) * 1.5;
 
   return (
     <div style={{ width: "100%", height: "100%", background: TB.bg, color: TB.text, fontFamily: TB.fontBody, padding: 32, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -308,22 +411,26 @@ export function EquityScales() {
           {/* beam */}
           <g transform={`rotate(${tilt} 200 60)`}>
             <rect x="60" y="56" width="280" height="8" fill="#44403C" rx="2" />
-            {/* Mom pan */}
-            <g>
-              <line x1="90" y1="60" x2="90" y2="100" stroke="#44403C" strokeWidth="2" />
-              <ellipse cx="90" cy="110" rx="60" ry="10" fill={mom.color} opacity="0.18" />
-              <rect x="30" y="100" width="120" height="20" rx="6" fill={mom.color} opacity="0.7" />
-              <text x="90" y="135" textAnchor="middle" fontFamily={TB.fontDisplay} fontSize="24" fontWeight="600" fill={mom.color}>18h</text>
-              <text x="90" y="152" textAnchor="middle" fontSize="11" fill={TB.text2}>Mom</text>
-            </g>
-            {/* Dad pan */}
-            <g>
-              <line x1="310" y1="60" x2="310" y2="100" stroke="#44403C" strokeWidth="2" />
-              <ellipse cx="310" cy="110" rx="48" ry="8" fill={dad.color} opacity="0.18" />
-              <rect x="262" y="102" width="96" height="16" rx="5" fill={dad.color} opacity="0.7" />
-              <text x="310" y="135" textAnchor="middle" fontFamily={TB.fontDisplay} fontSize="24" fontWeight="600" fill={dad.color}>14h</text>
-              <text x="310" y="152" textAnchor="middle" fontSize="11" fill={TB.text2}>Dad</text>
-            </g>
+            {/* Left pan */}
+            {left && (
+              <g>
+                <line x1="90" y1="60" x2="90" y2="100" stroke="#44403C" strokeWidth="2" />
+                <ellipse cx="90" cy="110" rx="60" ry="10" fill={left.color} opacity="0.18" />
+                <rect x="30" y="100" width="120" height="20" rx="6" fill={left.color} opacity="0.7" />
+                <text x="90" y="135" textAnchor="middle" fontFamily={TB.fontDisplay} fontSize="24" fontWeight="600" fill={left.color}>{leftHours}h</text>
+                <text x="90" y="152" textAnchor="middle" fontSize="11" fill={TB.text2}>{left.name}</text>
+              </g>
+            )}
+            {/* Right pan */}
+            {right && (
+              <g>
+                <line x1="310" y1="60" x2="310" y2="100" stroke="#44403C" strokeWidth="2" />
+                <ellipse cx="310" cy="110" rx="48" ry="8" fill={right.color} opacity="0.18" />
+                <rect x="262" y="102" width="96" height="16" rx="5" fill={right.color} opacity="0.7" />
+                <text x="310" y="135" textAnchor="middle" fontFamily={TB.fontDisplay} fontSize="24" fontWeight="600" fill={right.color}>{rightHours}h</text>
+                <text x="310" y="152" textAnchor="middle" fontSize="11" fill={TB.text2}>{right.name}</text>
+              </g>
+            )}
           </g>
         </svg>
         <div style={{ position: "absolute", bottom: 20, left: 0, right: 0, textAlign: "center" }}>
@@ -334,8 +441,8 @@ export function EquityScales() {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {([mom, dad] as Member[]).map((m) => {
-          const a = TBD.equity.adults.find((x) => x.id === m.id)!;
+        {adults.map((m) => {
+          const a = equityAdults.find((x) => x.id === m.id);
           return (
             <Card key={m.id} pad={14}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -344,15 +451,15 @@ export function EquityScales() {
               </div>
               <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12, color: TB.text2 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a.cognitive}h</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a?.cognitive ?? 0}h</div>
                   {t("cognitive")}
                 </div>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a.physical}h</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a?.physical ?? 0}h</div>
                   {t("physical")}
                 </div>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a.personalHrs}h</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: TB.text, fontFamily: TB.fontDisplay }}>{a?.personalHrs ?? 0}h</div>
                   {t("personal")}
                 </div>
               </div>
@@ -369,6 +476,18 @@ export function EquityScales() {
 export function Settings() {
   const t = useTranslations("settings");
   const tNav = useTranslations("nav");
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  function handleSignOut() {
+    logout();
+    router.push("/login");
+  }
+
+  // Household deletion endpoint isn't shipped yet (tracked in
+  // BACKEND_STATUS.md). The button is rendered as visibly disabled so users
+  // aren't tempted to click an action that wouldn't take effect.
+  const deleteEnabled = false;
   const groups: { name: string; icon: IconName; desc: string }[] = [
     { name: t("groups.household"), icon: "home", desc: t("groups.householdDesc") },
     { name: t("groups.members"), icon: "users", desc: t("groups.membersDesc") },
@@ -400,8 +519,9 @@ export function Settings() {
 
         <Card pad={0}>
           {groups.map((g, i) => (
-            <div
+            <a
               key={g.name}
+              href={`/settings#${g.name.toLowerCase().replace(/\s+/g, "-")}`}
               style={{
                 padding: 14,
                 display: "flex",
@@ -409,6 +529,8 @@ export function Settings() {
                 gap: 14,
                 borderBottom: i < groups.length - 1 ? `1px solid ${TB.borderSoft}` : "none",
                 cursor: "pointer",
+                textDecoration: "none",
+                color: "inherit",
               }}
             >
               <Icon name={g.icon} size={18} color={TB.text2} />
@@ -417,15 +539,32 @@ export function Settings() {
                 <div style={{ fontSize: 12, color: TB.text2 }}>{g.desc}</div>
               </div>
               <Icon name="chevronR" size={16} color={TB.muted} />
-            </div>
+            </a>
           ))}
         </Card>
 
         <div style={{ marginTop: 18 }}>
-          <Btn kind="secondary" full>{t("signOut")}</Btn>
-          <div style={{ marginTop: 10, padding: "10px 14px", color: TB.destructive, textAlign: "center", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+          <Btn kind="secondary" full onClick={handleSignOut}>{t("signOut")}</Btn>
+          <button
+            type="button"
+            disabled={!deleteEnabled}
+            title="Household deletion is planned for v0.2"
+            style={{
+              marginTop: 10,
+              padding: "10px 14px",
+              color: TB.destructive,
+              textAlign: "center",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: deleteEnabled ? "pointer" : "not-allowed",
+              opacity: deleteEnabled ? 1 : 0.45,
+              background: "transparent",
+              border: "none",
+              width: "100%",
+            }}
+          >
             {t("deleteHousehold")}
-          </div>
+          </button>
         </div>
       </div>
     </div>
@@ -437,7 +576,16 @@ export function Settings() {
 export function Race() {
   const t = useTranslations("race");
   const { data: apiRace } = useRace();
-  const r = apiRace ?? TBD.race;
+
+  if (!apiRace) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #FFF7ED 0%, #FEF3C7 100%)", fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: TB.text2, fontSize: 20 }}>{t("noRaceActive")}</H>
+      </div>
+    );
+  }
+
+  const r = apiRace;
 
   return (
     <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #FFF7ED 0%, #FEF3C7 100%)", fontFamily: TB.fontBody, padding: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>

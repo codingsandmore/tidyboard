@@ -117,6 +117,33 @@ func (q *Queries) GetAccountByID(ctx context.Context, id uuid.UUID) (Account, er
 	return i, err
 }
 
+const getAccountByOIDC = `-- name: GetAccountByOIDC :one
+SELECT id, email, password_hash, oidc_provider, oidc_subject, is_active, created_at, updated_at FROM accounts
+WHERE oidc_provider = $1 AND oidc_subject = $2
+LIMIT 1
+`
+
+type GetAccountByOIDCParams struct {
+	OidcProvider *string `json:"oidc_provider"`
+	OidcSubject  *string `json:"oidc_subject"`
+}
+
+func (q *Queries) GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByOIDC, arg.OidcProvider, arg.OidcSubject)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.OidcProvider,
+		&i.OidcSubject,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateAccount = `-- name: UpdateAccount :one
 UPDATE accounts
 SET

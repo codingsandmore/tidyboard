@@ -26,15 +26,15 @@ variable "environment" {
   default     = "prod"
 }
 
-# ── Domain ────────────────────────────────────────────────────────────────────
+# ── Domain + Route 53 ─────────────────────────────────────────────────────────
 
 variable "domain_name" {
-  description = "Root domain name for the deployment, e.g. tidyboard.example.com. Required for TLS certificates."
+  description = "Apex domain for the deployment, e.g. tidyboard.org. Caddy on the EC2 obtains a Let's Encrypt cert for this + www."
   type        = string
 }
 
 variable "create_route53_records" {
-  description = "When true, create Route 53 DNS records pointing to CloudFront and the ALB. Set to false if you manage DNS externally."
+  description = "When true, create Route 53 A records for the apex and www pointing at the EC2 EIP. Set to false if you manage DNS externally."
   type        = bool
   default     = false
 }
@@ -60,25 +60,25 @@ variable "db_port" {
 }
 
 variable "db_security_group_id" {
-  description = "Security group attached to the existing RDS instance (ingress 5432 allowed from Tidyboard ECS)."
+  description = "Security group attached to the existing RDS instance. An ingress rule on 5432 is added referencing the Tidyboard EC2 SG."
   type        = string
   default     = "sg-001c4c1a130b6ab42"
 }
 
 variable "existing_vpc_id" {
-  description = "VPC hosting the shared Postgres. Tidyboard ECS runs in this VPC instead of creating a new one."
+  description = "VPC hosting the shared Postgres. The Tidyboard EC2 runs in an additively-added public subnet inside this VPC."
   type        = string
   default     = "vpc-0c41d6012793ea910"
 }
 
 variable "db_name" {
-  description = "PostgreSQL database name inside the shared instance."
+  description = "PostgreSQL database name inside the shared instance. NOTE: the cutly-db RDS MasterUsername + DBName are both 'cutlist' (the instance identifier is 'cutly-db', but that's not the DB name)."
   type        = string
-  default     = "cutly"
+  default     = "cutlist"
 }
 
 variable "db_username" {
-  description = "PostgreSQL role for Tidyboard (created by bootstrap-db.sh)."
+  description = "PostgreSQL role that Tidyboard connects as (created by bootstrap-db.sql)."
   type        = string
   default     = "tidyboard"
 }
@@ -89,78 +89,39 @@ variable "db_schema" {
   default     = "tidyboard"
 }
 
-# ── ECS desired task counts ───────────────────────────────────────────────────
+# ── EC2 ───────────────────────────────────────────────────────────────────────
 
-variable "ecs_desired_count_server" {
-  description = "Desired number of Go server ECS tasks."
-  type        = number
-  default     = 1
+variable "ssh_key_name" {
+  description = "Name of the EC2 key pair. Create it in the AWS console and save the private key locally before running apply."
+  type        = string
 }
 
-variable "ecs_desired_count_web" {
-  description = "Desired number of Next.js web ECS tasks."
-  type        = number
-  default     = 1
+variable "admin_ssh_cidr" {
+  description = "CIDR block allowed to reach port 22. Default 0.0.0.0/0 for convenience; narrow to your IP in production."
+  type        = string
+  default     = "0.0.0.0/0"
 }
 
-variable "ecs_desired_count_sync" {
-  description = "Desired number of Python sync-worker ECS tasks."
-  type        = number
-  default     = 1
+variable "ec2_instance_type" {
+  description = "EC2 instance type. t4g.small (~$14/mo on-demand) is the Path C baseline."
+  type        = string
+  default     = "t4g.small"
 }
 
-variable "ecs_desired_count_scraper" {
-  description = "Desired number of Python recipe-scraper ECS tasks."
+variable "ec2_volume_size_gb" {
+  description = "Root EBS volume size in GB."
   type        = number
-  default     = 1
+  default     = 30
 }
 
-# ── Container CPU / memory ────────────────────────────────────────────────────
-
-variable "server_cpu" {
-  description = "CPU units for the Go server task (1024 = 1 vCPU)."
-  type        = number
-  default     = 512
+variable "repo_url" {
+  description = "Git repo cloned into /opt/tidyboard during cloud-init. Private repo — the EC2 needs a deploy key (not yet wired here)."
+  type        = string
+  default     = "git@github.com:codingsandmore/tidyboard.git"
 }
 
-variable "server_memory" {
-  description = "Memory (MiB) for the Go server task."
-  type        = number
-  default     = 1024
-}
-
-variable "web_cpu" {
-  description = "CPU units for the Next.js web task."
-  type        = number
-  default     = 512
-}
-
-variable "web_memory" {
-  description = "Memory (MiB) for the Next.js web task."
-  type        = number
-  default     = 1024
-}
-
-variable "sync_cpu" {
-  description = "CPU units for the sync-worker task."
-  type        = number
-  default     = 256
-}
-
-variable "sync_memory" {
-  description = "Memory (MiB) for the sync-worker task."
-  type        = number
-  default     = 512
-}
-
-variable "scraper_cpu" {
-  description = "CPU units for the recipe-scraper task."
-  type        = number
-  default     = 256
-}
-
-variable "scraper_memory" {
-  description = "Memory (MiB) for the recipe-scraper task."
-  type        = number
-  default     = 512
+variable "repo_branch" {
+  description = "Git branch to check out during cloud-init."
+  type        = string
+  default     = "main"
 }

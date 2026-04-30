@@ -75,6 +75,59 @@ locals {
   )
 }
 
+# ── Additive public subnet in existing VPC ───────────────────────────────────
+# cutly-db's VPC is pure-private (no IGW, subnets have MapPublicIpOnLaunch=false).
+# The Tidyboard EC2 needs a public IP + internet for Let's Encrypt TLS, so we
+# add an IGW + a new /24 public subnet in this existing VPC without touching
+# the private subnets cutly-db lives in. Set add_public_to_existing = false if
+# the existing VPC already has a public path.
+
+resource "aws_internet_gateway" "existing_vpc" {
+  count = (!var.create_new_vpc && var.add_public_to_existing) ? 1 : 0
+
+  vpc_id = var.existing_vpc_id
+
+  tags = {
+    Name = "${local.name_prefix}-igw"
+  }
+}
+
+resource "aws_subnet" "public_add" {
+  count = (!var.create_new_vpc && var.add_public_to_existing) ? 1 : 0
+
+  vpc_id                  = var.existing_vpc_id
+  cidr_block              = var.existing_vpc_public_cidr
+  availability_zone       = var.existing_vpc_public_az
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${local.name_prefix}-public-${var.existing_vpc_public_az}"
+    Tier = "public"
+  }
+}
+
+resource "aws_route_table" "public_add" {
+  count = (!var.create_new_vpc && var.add_public_to_existing) ? 1 : 0
+
+  vpc_id = var.existing_vpc_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.existing_vpc[0].id
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-public-rt"
+  }
+}
+
+resource "aws_route_table_association" "public_add" {
+  count = (!var.create_new_vpc && var.add_public_to_existing) ? 1 : 0
+
+  subnet_id      = aws_subnet.public_add[0].id
+  route_table_id = aws_route_table.public_add[0].id
+}
+
 # ── New VPC resources (create_new_vpc = true only) ────────────────────────────
 
 data "aws_availability_zones" "available" {
