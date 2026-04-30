@@ -4045,11 +4045,3 @@ Add a project memory note: `Plan B shipped; points + rewards live on tidyboard.o
 2. **Inline Execution** — execute tasks in this session using executing-plans, batch execution with checkpoints.
 
 **Which approach?**
-
-
-
-
-
-
-
-
