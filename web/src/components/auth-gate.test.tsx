@@ -49,6 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -83,7 +84,7 @@ describe("AuthGate", () => {
         json: async () => ({
           account_id: "acct-1",
           household_id: "hh-1",
-          member_id: null,
+          member_id: "member-1",
           role: "adult",
         }),
       })
@@ -94,6 +95,72 @@ describe("AuthGate", () => {
     await waitFor(() => {
       expect(screen.getByText("protected content")).toBeTruthy();
     });
+  });
+
+  it("redirects authenticated accounts without household onboarding to /onboarding", async () => {
+    localStorage.setItem("tb-auth-token", "valid-token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-1",
+          household_id: null,
+          member_id: null,
+          role: "adult",
+        }),
+      })
+    );
+
+    renderGate(<span>protected content</span>);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/onboarding");
+    });
+    expect(screen.queryByText("protected content")).toBeNull();
+  });
+
+  it("can allow authenticated accounts through before onboarding when requested", async () => {
+    localStorage.setItem("tb-auth-token", "valid-token");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          account_id: "acct-1",
+          household_id: null,
+          member_id: null,
+          role: "adult",
+        }),
+      })
+    );
+
+    render(
+      <AuthProvider>
+        <AuthGate requireOnboarding={false}>
+          <span>onboarding content</span>
+        </AuthGate>
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("onboarding content")).toBeTruthy();
+    });
+  });
+
+  it("does not authenticate as a demo family when fallback API mode is enabled", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+
+    renderGate(<span>protected content</span>);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith("/login");
+    });
+    expect(screen.queryByText("protected content")).toBeNull();
   });
 
   it("shows loading skeleton while status is loading", () => {

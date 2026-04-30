@@ -7,6 +7,7 @@ import { ApiProvider } from "@/lib/api/provider";
 import { AuthProvider } from "@/lib/auth/auth-store";
 import { WSProvider } from "@/lib/ws/ws-provider";
 import { I18nProvider } from "@/i18n/provider";
+import { AppRouteGate } from "@/components/app-route-gate";
 
 // Variable fonts — no `weight` option means the full axis is loaded, so
 // arbitrary values like 450 / 550 / 650 from the design tokens interpolate
@@ -105,7 +106,9 @@ export default async function RootLayout({
           <ThemeProvider>
             <ApiProvider>
               <AuthProvider>
-                <WSProvider>{children}</WSProvider>
+                <WSProvider>
+                  <AppRouteGate>{children}</AppRouteGate>
+                </WSProvider>
               </AuthProvider>
             </ApiProvider>
           </ThemeProvider>

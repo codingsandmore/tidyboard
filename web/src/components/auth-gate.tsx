@@ -5,23 +5,36 @@
  *
  * - status === 'loading'         → renders a loading skeleton
  * - status === 'unauthenticated' → redirects to /login
- * - status === 'authenticated'   → renders children
+ * - status === 'authenticated'   → requires household/member by default
  */
 
 import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-store";
 import { TB } from "@/lib/tokens";
 
-export function AuthGate({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
+interface AuthGateProps {
+  children: ReactNode;
+  requireOnboarding?: boolean;
+}
+
+export function AuthGate({ children, requireOnboarding = true }: AuthGateProps) {
+  const { status, account, household, member } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const hasCompletedOnboarding = Boolean(account && household && member);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login");
+      const returnTo = pathname && pathname !== "/" ? `?returnTo=${encodeURIComponent(pathname)}` : "";
+      router.push(`/login${returnTo}`);
+      return;
     }
-  }, [status, router]);
+
+    if (status === "authenticated" && requireOnboarding && !hasCompletedOnboarding) {
+      router.push("/onboarding");
+    }
+  }, [hasCompletedOnboarding, pathname, requireOnboarding, status, router]);
 
   if (status === "loading") {
     return (
@@ -45,6 +58,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (status === "unauthenticated") {
     // Redirect is handled in useEffect; render nothing while navigating
+    return null;
+  }
+
+  if (requireOnboarding && !hasCompletedOnboarding) {
     return null;
   }
 

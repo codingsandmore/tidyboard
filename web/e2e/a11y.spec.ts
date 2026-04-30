@@ -1,7 +1,7 @@
 import { test, expect, gotoAndWait, screenshot } from "./fixtures";
 import AxeBuilder from "@axe-core/playwright";
 
-const A11Y_ROUTES = ["/", "/calendar", "/routines", "/lists", "/shopping", "/settings"];
+const A11Y_ROUTES = ["/login", "/onboarding", "/preview", "/lock", "/settings/preview"];
 
 test.describe("Accessibility — axe-core scans", () => {
   for (const route of A11Y_ROUTES) {
@@ -25,8 +25,8 @@ test.describe("Accessibility — axe-core scans", () => {
     });
   }
 
-  test("/ — focus ring visible on interactive elements (screenshot)", async ({ page }) => {
-    await gotoAndWait(page, "/");
+  test("/login — focus ring visible on interactive elements (screenshot)", async ({ page }) => {
+    await gotoAndWait(page, "/login");
 
     // Tab to the first focusable element
     await page.keyboard.press("Tab");

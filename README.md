@@ -68,6 +68,11 @@ Next.js Frontend  ──────────────────►  Go 
                                          sessions)       recipe-scraper :8082
 ```
 
+## Documentation
+
+- [Agent Operator Manual](docs/manuals/agent-operator-manual.md) - issue, PR, CI, merge, deploy, and documentation workflow for Codex agents.
+- [User Manual](docs/manuals/user-manual.md) - family-facing setup and usage guide for production Tidyboard.
+
 | Component | Tech | Port |
 |---|---|---|
 | Web frontend | Next.js 16, TypeScript, Tailwind CSS | 3000 |
