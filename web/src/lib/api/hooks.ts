@@ -133,6 +133,22 @@ async function withFallback<T>(
   }
 }
 
+/** Production surfaces that must never show sample data use this helper. */
+async function withoutSampleFallback<T>(
+  apiFn: () => Promise<T>,
+  emptyValue: T
+): Promise<T> {
+  if (isApiFallbackMode()) return emptyValue;
+  try {
+    return await apiFn();
+  } catch (err) {
+    if (isApiError(err) && (err.status === 401 || err.status === 403)) {
+      throw err;
+    }
+    return emptyValue;
+  }
+}
+
 // ── Read hooks ─────────────────────────────────────────────────────────────
 
 export function useEvents(opts?: { start?: string; end?: string; memberId?: string }) {
@@ -153,6 +169,24 @@ export function useEvents(opts?: { start?: string; end?: string; memberId?: stri
   });
 }
 
+export function useLiveEvents(opts?: { start?: string; end?: string; memberId?: string }) {
+  return useQuery<TBDEvent[]>({
+    queryKey: ["live-only", ...qk.events(opts)] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        () => {
+          const qs = new URLSearchParams();
+          if (opts?.start) qs.set("start", opts.start);
+          if (opts?.end) qs.set("end", opts.end);
+          if (opts?.memberId) qs.set("member_id", opts.memberId);
+          const suffix = qs.toString() ? `?${qs.toString()}` : "";
+          return api.get<TBDEvent[]>(`/v1/events${suffix}`);
+        },
+        []
+      ),
+  });
+}
+
 export function useMembers() {
   return useQuery<Member[]>({
     queryKey: qk.members(),
@@ -164,6 +198,17 @@ export function useMembers() {
   });
 }
 
+export function useLiveMembers() {
+  return useQuery<Member[]>({
+    queryKey: ["live-only", ...qk.members()] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        () => api.get<Member[]>("/v1/households/current/members"),
+        []
+      ),
+  });
+}
+
 export function useRecipes() {
   return useQuery<Recipe[]>({
     queryKey: qk.recipes(),
@@ -171,6 +216,17 @@ export function useRecipes() {
       withFallback(
         () => api.get<Recipe[]>("/v1/recipes"),
         () => fallback.recipes()
+      ),
+  });
+}
+
+export function useLiveRecipes() {
+  return useQuery<Recipe[]>({
+    queryKey: ["live-only", ...qk.recipes()] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        () => api.get<Recipe[]>("/v1/recipes"),
+        []
       ),
   });
 }
@@ -194,6 +250,17 @@ export function useLists() {
       withFallback(
         () => api.get<FamilyList[]>("/v1/lists"),
         () => fallback.lists()
+      ),
+  });
+}
+
+export function useLiveLists() {
+  return useQuery<FamilyList[]>({
+    queryKey: ["live-only", ...qk.lists()] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        () => api.get<FamilyList[]>("/v1/lists"),
+        []
       ),
   });
 }
@@ -234,6 +301,23 @@ export function useRoutines(params?: { member_id?: string; time_slot?: string })
           return api.get<ApiRoutine[]>(`/v1/routines${suffix}`);
         },
         () => fallback.routines() as unknown as ApiRoutine[]
+      ),
+  });
+}
+
+export function useLiveRoutines(params?: { member_id?: string; time_slot?: string }) {
+  return useQuery<ApiRoutine[]>({
+    queryKey: ["live-only", ...qk.routines(params)] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        () => {
+          const qs = new URLSearchParams();
+          if (params?.member_id) qs.set("member_id", params.member_id);
+          if (params?.time_slot) qs.set("time_slot", params.time_slot);
+          const suffix = qs.toString() ? `?${qs.toString()}` : "";
+          return api.get<ApiRoutine[]>(`/v1/routines${suffix}`);
+        },
+        []
       ),
   });
 }
@@ -624,6 +708,16 @@ function entriesToMealPlan(entries: MealPlanEntry[], from: string): MealPlan {
   return { weekOf, rows: [...MEAL_PLAN_ROWS], grid };
 }
 
+function emptyMealPlan(from: string): MealPlan {
+  return {
+    weekOf: weekMonday(new Date(from)),
+    rows: [...MEAL_PLAN_ROWS],
+    grid: Array.from({ length: MEAL_PLAN_ROWS.length }, () =>
+      Array(7).fill(null)
+    ),
+  };
+}
+
 export function useMealPlan(weekOf?: string) {
   // Derive from/to: default to current ISO week Mon–Sun
   const from = weekOf ?? weekMonday(new Date());
@@ -642,6 +736,27 @@ export function useMealPlan(weekOf?: string) {
           return entriesToMealPlan(entries, from);
         },
         () => fallback.mealPlan()
+      ),
+  });
+}
+
+export function useLiveMealPlan(weekOf?: string) {
+  const from = weekOf ?? weekMonday(new Date());
+  const toDate = new Date(from);
+  toDate.setUTCDate(toDate.getUTCDate() + 6);
+  const to = toDate.toISOString().slice(0, 10);
+
+  return useQuery<MealPlan>({
+    queryKey: ["live-only", ...qk.mealPlan(from)] as const,
+    queryFn: () =>
+      withoutSampleFallback(
+        async () => {
+          const entries = await api.get<MealPlanEntry[]>(
+            `/v1/meal-plan?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+          );
+          return entriesToMealPlan(entries, from);
+        },
+        emptyMealPlan(from)
       ),
   });
 }

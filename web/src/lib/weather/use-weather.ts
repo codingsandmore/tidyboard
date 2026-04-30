@@ -83,15 +83,26 @@ async function fetchWeather(lat: number, lon: number): Promise<WeatherSnapshot> 
 // the fallback for any caller that doesn't pass coords.
 const DEFAULT_COORDS = { lat: 37.8716, lon: -122.273 };
 
-export function useWeather(coords?: { lat: number; lon: number }) {
-  const { lat, lon } = coords ?? DEFAULT_COORDS;
+export function useWeather(
+  coords?: { lat: number; lon: number },
+  opts?: { enabled?: boolean }
+) {
+  const enabled = opts?.enabled ?? true;
+  const effectiveCoords = coords ?? (enabled ? DEFAULT_COORDS : undefined);
+  const { lat, lon } = effectiveCoords ?? { lat: 0, lon: 0 };
   return useQuery<WeatherSnapshot>({
     queryKey: ["weather", lat, lon],
-    queryFn: () => fetchWeather(lat, lon),
+    queryFn: () => {
+      if (!effectiveCoords) {
+        throw new Error("weather coordinates unavailable");
+      }
+      return fetchWeather(lat, lon);
+    },
     // 15 minute cache — weather doesn't move that fast and we don't want to
     // hammer Open-Meteo on every dashboard render.
     staleTime: 15 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     retry: 1,
+    enabled,
   });
 }
