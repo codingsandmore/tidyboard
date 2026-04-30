@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
 import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
 // TBD import: TBD.week used only in isApiFallbackMode() path; CalAgenda static group fixtures
@@ -57,7 +57,15 @@ const ViewTabs = ({ value, onChange }: { value: View; onChange: (v: View) => voi
   );
 };
 
-export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewChange?: (v: View) => void }) {
+export function CalDay({
+  dark = false,
+  onViewChange,
+  onEventOpen,
+}: {
+  dark?: boolean;
+  onViewChange?: (v: View) => void;
+  onEventOpen?: (event: TBDEvent) => void;
+}) {
   const t = useTranslations("calendar");
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
@@ -271,6 +279,15 @@ export function CalDay({ dark = false, onViewChange }: { dark?: boolean; onViewC
                   return (
                     <div
                       key={e.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onEventOpen?.(e)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          onEventOpen?.(e);
+                        }
+                      }}
                       style={{
                         position: "absolute",
                         top: `${top}%`,
@@ -329,7 +346,13 @@ function toFractionalHours(timeStr: string): number {
   return (h ?? 0) + (m ?? 0) / 60;
 }
 
-export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
+export function CalWeek({
+  onViewChange,
+  onEventOpen,
+}: {
+  onViewChange?: (v: View) => void;
+  onEventOpen?: (event: TBDEvent) => void;
+} = {}) {
   const t = useTranslations("calendar");
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const d = new Date();
@@ -527,12 +550,22 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
                 return (
                   <div
                     key={ev.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onEventOpen?.(ev)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onEventOpen?.(ev);
+                      }
+                    }}
                     style={{
                       padding: "4px 6px",
                       background: c + "1A",
                       borderLeft: `2.5px solid ${c}`,
                       borderRadius: 4,
                       fontSize: 10,
+                      cursor: "pointer",
                     }}
                   >
                     <div
@@ -558,7 +591,13 @@ export function CalWeek({ onViewChange }: { onViewChange?: (v: View) => void } =
   );
 }
 
-export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
+export function CalMonth({
+  onViewChange,
+  onEventOpen,
+}: {
+  onViewChange?: (v: View) => void;
+  onEventOpen?: (event: TBDEvent) => void;
+} = {}) {
   const t = useTranslations("calendar");
   const [anchor, setAnchor] = useState<Date>(() => {
     const d = new Date();
@@ -570,8 +609,17 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
   const month = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const firstWeekday = anchor.getDay();
   const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const visibleCells = Math.max(35, Math.ceil((firstWeekday + daysInMonth) / 7) * 7);
+  const rangeStart = new Date(anchor);
+  rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  rangeEnd.setHours(23, 59, 59, 999);
+  const { data: apiEvents } = useEvents({
+    start: rangeStart.toISOString(),
+    end: rangeEnd.toISOString(),
+  });
   const days: { d: number; cur: boolean; date: Date }[] = [];
-  for (let i = 0; i < 35; i++) {
+  for (let i = 0; i < visibleCells; i++) {
     const dayNum = i - firstWeekday + 1;
     const cur = dayNum >= 1 && dayNum <= daysInMonth;
     const date = new Date(anchor);
@@ -601,6 +649,25 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
     17: [{ c: "#3B82F6" }],
     28: [{ c: "#EF4444" }, { c: "#F59E0B" }],
     30: [{ c: "#3B82F6" }],
+  };
+  const eventsForDay = (date: Date) => {
+    if (isApiFallbackMode()) return [];
+    return (apiEvents ?? [])
+      .filter((event) => {
+        const startValue = event.start_time ?? (event.start?.includes("T") ? event.start : null);
+        if (!startValue) return false;
+        const eventDate = new Date(startValue);
+        return (
+          eventDate.getFullYear() === date.getFullYear() &&
+          eventDate.getMonth() === date.getMonth() &&
+          eventDate.getDate() === date.getDate()
+        );
+      })
+      .sort((a, b) => {
+        const aStart = a.start_time ?? (a.start?.includes("T") ? a.start : "");
+        const bStart = b.start_time ?? (b.start?.includes("T") ? b.start : "");
+        return new Date(aStart).getTime() - new Date(bStart).getTime();
+      });
   };
 
   return (
@@ -681,7 +748,7 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
           flex: 1,
           display: "grid",
           gridTemplateColumns: "repeat(7,1fr)",
-          gridTemplateRows: "repeat(5,1fr)",
+          gridTemplateRows: `repeat(${visibleCells / 7},1fr)`,
         }}
       >
         {days.map((day, i) => {
@@ -689,7 +756,8 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
             day.cur &&
             isTodayMonth &&
             day.d === today.getDate();
-          const evs = day.cur ? evMap[day.d] ?? [] : [];
+          const dotEvents = day.cur ? evMap[day.d] ?? [] : [];
+          const dayEvents = day.cur ? eventsForDay(day.date) : [];
           // Spillover days at the start/end of the visible 5-week grid show
           // the right-edge day-of-month from the adjacent month.
           let dispNum: number;
@@ -729,19 +797,54 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
               >
                 {dispNum}
               </div>
-              <div style={{ display: "flex", gap: 3, marginTop: 6, flexWrap: "wrap" }}>
-                {evs.slice(0, 4).map((e, j) => (
-                  <div
-                    key={j}
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: e.c,
-                    }}
-                  />
-                ))}
-              </div>
+              {isApiFallbackMode() ? (
+                <div style={{ display: "flex", gap: 3, marginTop: 6, flexWrap: "wrap" }}>
+                  {dotEvents.slice(0, 4).map((e, j) => (
+                    <div
+                      key={j}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: e.c,
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                  {dayEvents.slice(0, 3).map((event) => {
+                    const member = event.members?.[0] ? getMember(event.members[0]) : undefined;
+                    const accent = member?.color ?? TB.primary;
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => onEventOpen?.(event)}
+                        style={{
+                          border: "none",
+                          borderLeft: `2px solid ${accent}`,
+                          borderRadius: 4,
+                          background: accent + "14",
+                          color: TB.text,
+                          cursor: "pointer",
+                          fontFamily: TB.fontBody,
+                          fontSize: 10,
+                          fontWeight: 550,
+                          overflow: "hidden",
+                          padding: "3px 5px",
+                          textAlign: "left",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          width: "100%",
+                        }}
+                      >
+                        {event.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -750,7 +853,13 @@ export function CalMonth({ onViewChange }: { onViewChange?: (v: View) => void } 
   );
 }
 
-export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void } = {}) {
+export function CalAgenda({
+  onViewChange,
+  onEventOpen,
+}: {
+  onViewChange?: (v: View) => void;
+  onEventOpen?: (event: TBDEvent) => void;
+} = {}) {
   const t = useTranslations("calendar");
   const today = new Date();
   const start = today.toISOString().slice(0, 10);
@@ -891,7 +1000,16 @@ export function CalAgenda({ onViewChange }: { onViewChange?: (v: View) => void }
                   <Card
                     key={e.id}
                     pad={12}
-                    style={{ display: "flex", alignItems: "center", gap: 14 }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onEventOpen?.(e)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault();
+                        onEventOpen?.(e);
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}
                   >
                     <StackedAvatars members={ms} size={32} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -987,6 +1105,26 @@ export function EventModal({ event, onClose }: EventModalProps) {
   const [description, setDescription] = useState(event?.description ?? "");
   const [recurrence, setRecurrence] = useState<string>(event?.recurrence_rule ?? "");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setTitle(event?.title ?? "");
+    setStartTime(resolveStart());
+    setEndTime(resolveEnd());
+    setLocation(event?.location ?? "");
+    setDescription(event?.description ?? "");
+    setRecurrence(event?.recurrence_rule ?? "");
+    setError("");
+  }, [
+    event?.id,
+    event?.title,
+    event?.start,
+    event?.end,
+    event?.start_time,
+    event?.end_time,
+    event?.location,
+    event?.description,
+    event?.recurrence_rule,
+  ]);
 
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
@@ -1236,14 +1374,22 @@ export function EventModal({ event, onClose }: EventModalProps) {
                 {t("assignedTo")}
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                {members.map((m) => (
-                  <div key={m.id} style={{ textAlign: "center", opacity: 0.5 }}>
-                    <Avatar member={m} size={44} selected={false} />
-                    <div style={{ fontSize: 10, marginTop: 4, color: TB.text2 }}>
-                      {m.name}
+                {members.map((m) => {
+                  const selected = event?.members?.includes(m.id) ?? false;
+                  return (
+                    <div
+                      key={m.id}
+                      data-testid={`event-member-${m.id}`}
+                      data-selected={selected ? "true" : "false"}
+                      style={{ textAlign: "center", opacity: selected ? 1 : 0.35 }}
+                    >
+                      <Avatar member={m} size={44} selected={selected} />
+                      <div style={{ fontSize: 10, marginTop: 4, color: TB.text2 }}>
+                        {m.name}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

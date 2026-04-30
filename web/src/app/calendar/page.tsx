@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { CalAgenda, CalDay, CalMonth, CalWeek, EventModal } from "@/components/screens/calendar";
 import type { EventFormData } from "@/components/screens/calendar";
+import { useLiveEvent } from "@/lib/api/hooks";
 import { useTheme } from "@/components/theme-provider";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
 
 export default function CalendarPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<View>(() => {
     const v = searchParams.get("view");
@@ -18,6 +20,9 @@ export default function CalendarPage() {
     return "Day";
   });
   const [modalEvent, setModalEvent] = useState<EventFormData | null>(null);
+  const newParam = searchParams.get("new");
+  const eventId = searchParams.get("event") ?? undefined;
+  const { data: eventFromQuery } = useLiveEvent(eventId);
   const { theme } = useTheme();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
@@ -25,10 +30,23 @@ export default function CalendarPage() {
 
   // Open new-event modal when navigated here with ?new=event
   useEffect(() => {
-    if (searchParams.get("new") === "event") {
+    if (newParam === "event") {
       setModalEvent({});
     }
-  }, [searchParams]);
+  }, [newParam]);
+
+  useEffect(() => {
+    if (eventFromQuery) {
+      setModalEvent(eventFromQuery);
+    }
+  }, [eventFromQuery]);
+
+  const openEvent = (event: EventFormData) => {
+    setModalEvent(event);
+    if (event.id) {
+      router.push(`/calendar?event=${encodeURIComponent(event.id)}`);
+    }
+  };
 
   return (
     <div
@@ -126,10 +144,10 @@ export default function CalendarPage() {
       </div>
 
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {view === "Day" && <CalDay dark={dark} onViewChange={setView} />}
-        {view === "Week" && <CalWeek onViewChange={setView} />}
-        {view === "Month" && <CalMonth onViewChange={setView} />}
-        {view === "Agenda" && <CalAgenda onViewChange={setView} />}
+        {view === "Day" && <CalDay dark={dark} onViewChange={setView} onEventOpen={openEvent} />}
+        {view === "Week" && <CalWeek onViewChange={setView} onEventOpen={openEvent} />}
+        {view === "Month" && <CalMonth onViewChange={setView} onEventOpen={openEvent} />}
+        {view === "Agenda" && <CalAgenda onViewChange={setView} onEventOpen={openEvent} />}
         {modalEvent !== null && (
           <div
             onClick={(e) => {

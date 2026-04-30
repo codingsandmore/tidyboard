@@ -8,11 +8,13 @@ import { Card } from "@/components/ui/card";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
 import { useAuth } from "@/lib/auth/auth-store";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 export function DashPhone() {
   const tNav = useTranslations("nav");
   const tDash = useTranslations("dashboard");
+  const router = useRouter();
   const { data: apiMembers } = useMembers();
   const { activeMember } = useAuth();
   const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
@@ -85,10 +87,20 @@ export function DashPhone() {
               <Card
                 key={e.id}
                 pad={0}
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/calendar?event=${encodeURIComponent(e.id)}`)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    router.push(`/calendar?event=${encodeURIComponent(e.id)}`);
+                  }
+                }}
                 style={{
                   overflow: "hidden",
                   display: "flex",
                   alignItems: "stretch",
+                  cursor: "pointer",
                 }}
               >
                 <div style={{ width: 3, background: accent }} />

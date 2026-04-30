@@ -73,6 +73,7 @@ import type {
 export const qk = {
   events: (opts?: { start?: string; end?: string; memberId?: string }) =>
     ["events", opts] as const,
+  event: (id: string) => ["events", id] as const,
   members: () => ["members"] as const,
   recipes: () => ["recipes"] as const,
   recipe: (id: string) => ["recipes", id] as const,
@@ -184,6 +185,20 @@ export function useLiveEvents(opts?: { start?: string; end?: string; memberId?: 
         },
         []
       ),
+  });
+}
+
+export function useLiveEvent(id?: string) {
+  return useQuery<TBDEvent | undefined>({
+    queryKey: qk.event(id ?? ""),
+    queryFn: () => {
+      if (!id) return Promise.resolve(undefined);
+      return withoutSampleFallback(
+        () => api.get<TBDEvent>(`/v1/events/${id}`),
+        undefined
+      );
+    },
+    enabled: Boolean(id),
   });
 }
 

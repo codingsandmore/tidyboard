@@ -126,7 +126,7 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/calendar/day", CalDayPage);
   smokeWithQuery("/calendar/day-dark", CalDayDarkPage);
   smokeWithQuery("/calendar/week", CalWeekPage);
-  smoke("/calendar/month", CalMonthPage);
+  smokeWithQuery("/calendar/month", CalMonthPage);
   smokeWithQuery("/calendar/agenda", CalAgendaPage);
 
   smokeWithQuery("/routines", RoutinesPage);

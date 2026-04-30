@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { TB } from "@/lib/tokens";
 
 export function Card({
@@ -8,16 +8,17 @@ export function Card({
   onClick,
   elevated = false,
   dark = false,
-}: {
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
   children?: ReactNode;
   pad?: number;
   style?: CSSProperties;
-  onClick?: () => void;
   elevated?: boolean;
   dark?: boolean;
 }) {
   return (
     <div
+      {...props}
       onClick={onClick}
       style={{
         background: dark ? TB.dElevated : TB.surface,

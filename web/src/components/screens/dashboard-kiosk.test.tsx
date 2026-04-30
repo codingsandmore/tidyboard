@@ -260,6 +260,12 @@ describe("DashKiosk", () => {
     expect(screen.queryByText("Mira robotics")).toBeNull();
   });
 
+  it("clicking an event opens the calendar detail route for that event", () => {
+    renderWithQuery(<DashKiosk />);
+    fireEvent.click(screen.getByText("Alex dentist"));
+    expect(mockPush).toHaveBeenCalledWith("/calendar?event=alex-event");
+  });
+
   it("renders in dark mode without static preview content", () => {
     renderWithQuery(<DashKiosk dark />);
     expect(screen.queryByText("10:34")).toBeNull();

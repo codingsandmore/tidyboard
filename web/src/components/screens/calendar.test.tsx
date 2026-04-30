@@ -2,18 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TBD } from "@/lib/data";
+import type { TBDEvent } from "@/lib/data";
 import { CalDay, CalWeek, CalMonth, CalAgenda, EventModal } from "./calendar";
 
 // ── Shared mutation mocks ──────────────────────────────────────────────────
 
 const mutateFn = vi.fn();
+let mockEvents: TBDEvent[] = TBD.events;
 function mockMutation() {
   return { mutate: mutateFn, isPending: false };
 }
 
 vi.mock("@/lib/api/hooks", () => ({
   useMembers: () => ({ data: TBD.members }),
-  useEvents: (_range?: unknown) => ({ data: TBD.events }),
+  useEvents: (_range?: unknown) => ({ data: mockEvents }),
   useCreateEvent: () => mockMutation(),
   useUpdateEvent: () => mockMutation(),
   useDeleteEvent: () => mockMutation(),
@@ -21,6 +23,7 @@ vi.mock("@/lib/api/hooks", () => ({
 
 beforeEach(() => {
   mutateFn.mockReset();
+  mockEvents = TBD.events;
 });
 
 function createWrapper() {
@@ -72,6 +75,15 @@ describe("CalDay", () => {
     fireEvent.click(screen.getByTestId("calendar-day-prev"));
     expect(heading.textContent).toEqual(initial);
   });
+
+  it("calls onEventOpen with the clicked day event", () => {
+    const onEventOpen = vi.fn();
+    renderWithQuery(<CalDay onEventOpen={onEventOpen} />);
+    fireEvent.click(screen.getByText("Morning standup"));
+    expect(onEventOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "e1", title: "Morning standup" })
+    );
+  });
 });
 
 describe("CalDay (tab interaction)", () => {
@@ -119,11 +131,33 @@ describe("CalWeek", () => {
 
 describe("CalMonth", () => {
   it("renders without crashing", () => {
-    render(<CalMonth />);
+    renderWithQuery(<CalMonth />);
+  });
+
+  it("calls onEventOpen with the clicked month event", () => {
+    const onEventOpen = vi.fn();
+    const now = new Date();
+    mockEvents = [
+      {
+        id: "month-event",
+        title: "School conference",
+        start: "10:00",
+        end: "11:00",
+        start_time: new Date(now.getFullYear(), now.getMonth(), 10, 10, 0, 0).toISOString(),
+        end_time: new Date(now.getFullYear(), now.getMonth(), 10, 11, 0, 0).toISOString(),
+        members: ["dad"],
+        location: "Room 12",
+      },
+    ];
+    renderWithQuery(<CalMonth onEventOpen={onEventOpen} />);
+    fireEvent.click(screen.getByText("School conference"));
+    expect(onEventOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "month-event", title: "School conference" })
+    );
   });
 
   it("shows the current month heading dynamically", () => {
-    render(<CalMonth />);
+    renderWithQuery(<CalMonth />);
     const heading = screen.getByTestId("calendar-month-heading");
     expect(heading.textContent ?? "").toMatch(
       /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/
@@ -131,7 +165,7 @@ describe("CalMonth", () => {
   });
 
   it("Next/Previous month chevrons advance the heading", () => {
-    render(<CalMonth />);
+    renderWithQuery(<CalMonth />);
     const heading = screen.getByTestId("calendar-month-heading");
     const initial = heading.textContent ?? "";
     fireEvent.click(screen.getByTestId("calendar-month-next"));
@@ -141,7 +175,7 @@ describe("CalMonth", () => {
   });
 
   it("shows day-of-week headers", () => {
-    render(<CalMonth />);
+    renderWithQuery(<CalMonth />);
     expect(screen.getByText("SUN")).toBeTruthy();
     expect(screen.getByText("SAT")).toBeTruthy();
   });
@@ -167,6 +201,15 @@ describe("CalAgenda", () => {
   it("shows event titles", () => {
     renderWithQuery(<CalAgenda />);
     expect(screen.getByText("Morning standup")).toBeTruthy();
+  });
+
+  it("calls onEventOpen with the clicked agenda event", () => {
+    const onEventOpen = vi.fn();
+    renderWithQuery(<CalAgenda onEventOpen={onEventOpen} />);
+    fireEvent.click(screen.getByText("Morning standup"));
+    expect(onEventOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "e1", title: "Morning standup" })
+    );
   });
 });
 
@@ -239,6 +282,42 @@ describe("EventModal", () => {
     const event = { id: "evt-1", title: "Dentist", start_time: "2026-04-22T09:00:00Z", end_time: "2026-04-22T10:00:00Z" };
     renderWithQuery(<EventModal event={event} onClose={vi.fn()} />);
     expect(screen.getByText("Delete")).toBeTruthy();
+  });
+
+  it("edit mode shows only assigned members as selected", () => {
+    const event = {
+      id: "evt-1",
+      title: "Dentist",
+      start_time: "2026-04-22T09:00:00Z",
+      end_time: "2026-04-22T10:00:00Z",
+      members: ["dad"],
+    };
+    renderWithQuery(<EventModal event={event} onClose={vi.fn()} />);
+    expect(screen.getByTestId("event-member-dad")).toHaveAttribute("data-selected", "true");
+    expect(screen.getByTestId("event-member-mom")).toHaveAttribute("data-selected", "false");
+  });
+
+  it("updates edit fields when the event payload changes", () => {
+    const first = {
+      id: "evt-1",
+      title: "List title",
+      start_time: "2026-04-22T09:00:00Z",
+      end_time: "2026-04-22T10:00:00Z",
+      location: "Old place",
+      description: "Old notes",
+      members: ["dad"],
+    };
+    const updated = {
+      ...first,
+      title: "Fetched title",
+      location: "Real clinic",
+      description: "Bring insurance card.",
+    };
+    const { rerender } = renderWithQuery(<EventModal event={first} onClose={vi.fn()} />);
+    rerender(<EventModal event={updated} onClose={vi.fn()} />);
+    expect(screen.getByDisplayValue("Fetched title")).toBeTruthy();
+    expect(screen.getByDisplayValue("Real clinic")).toBeTruthy();
+    expect(screen.getByDisplayValue("Bring insurance card.")).toBeTruthy();
   });
 
   it("Delete button in edit mode calls deleteEvent mutation", () => {
