@@ -85,8 +85,7 @@ func setupWSBroadcastFixture(t *testing.T) (srv *httptest.Server, tokenA, tokenB
 	wsHandler := handler.NewWSHandler(bc, verifier, q)
 
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(verifier, q))
-	r.Post("/v1/events", eventHandler.Create)
+	r.With(middleware.Auth(verifier, q)).Post("/v1/events", eventHandler.Create)
 	r.Get("/v1/ws", wsHandler.ServeWS)
 
 	srv = httptest.NewServer(r)

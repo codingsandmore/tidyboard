@@ -35,7 +35,7 @@ func seedChoreTestFixture(t *testing.T, inviteCode string) (householdID, memberI
 	creatorAccountID := uuid.New()
 	_, err := pool.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		creatorAccountID, inviteCode+"-creator@example.com",
+		creatorAccountID, creatorAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
@@ -48,12 +48,12 @@ func seedChoreTestFixture(t *testing.T, inviteCode string) (householdID, memberI
 	memberAccountID := uuid.New()
 	_, err = pool.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		memberAccountID, inviteCode+"-child@example.com",
+		memberAccountID, memberAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx,
-		`INSERT INTO members (id, household_id, account_id, display_name, role) VALUES ($1, $2, $3, 'Kid', 'child')`,
+		`INSERT INTO members (id, household_id, account_id, name, display_name, role) VALUES ($1, $2, $3, 'Kid', 'Kid', 'child')`,
 		memberID, householdID, memberAccountID,
 	)
 	require.NoError(t, err)
@@ -66,9 +66,9 @@ func seedChoreTestFixture(t *testing.T, inviteCode string) (householdID, memberI
 		_, _ = pool.Exec(bgCtx, `DELETE FROM wallet_transactions WHERE member_id = $1`, memberID)
 		_, _ = pool.Exec(bgCtx, `DELETE FROM wallets WHERE member_id = $1`, memberID)
 		_, _ = pool.Exec(bgCtx, `DELETE FROM members WHERE id = $1`, memberID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 		_, _ = pool.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, memberAccountID)
 		_, _ = pool.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, creatorAccountID)
-		_, _ = pool.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 	})
 
 	// Seed $5/week allowance via UpsertAllowance.

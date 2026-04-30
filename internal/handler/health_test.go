@@ -54,5 +54,5 @@ func TestReadyHandler_NoPing(t *testing.T) {
 	var body map[string]any
 	err := json.Unmarshal(rec.Body.Bytes(), &body)
 	require.NoError(t, err)
-	assert.Equal(t, "ready", body["status"])
+	assert.Equal(t, "ok", body["status"])
 }
