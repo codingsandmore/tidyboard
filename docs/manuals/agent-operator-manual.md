@@ -96,6 +96,7 @@ After opening a PR:
 
 - Refresh GitHub checks until they finish.
 - If checks fail, inspect logs, fix the branch, and rerun.
+- Pin CI-installed tools to explicit versions; do not use floating `latest` versions for build, migration, or deploy helpers.
 - Web coverage in CI uses `npm run coverage` with a bounded timeout and forced Vitest exit reporter; keep both aligned so the coverage job can finish and then enforce thresholds when a report is produced.
 - If checks pass and branch protection allows it, merge the PR using the repo's normal merge strategy.
 - Verify the default branch contains the merged commit.
@@ -104,8 +105,9 @@ After opening a PR:
 
 When a merged change affects production behavior and tests pass:
 
-- Let the automatic deployment run when configured.
-- If manual EC2 verification is the current deployment path, verify the deployed commit or image.
+- Let the automatic EC2 deployment run after the `CI` workflow succeeds on
+  `main`; the production workflow must not deploy a failed main CI run.
+- If manual EC2 verification is needed, verify the deployed commit or image.
 - EC2 deploy prunes Docker build cache and unused images before rebuilds; do not add volume pruning unless production data storage has been explicitly moved and verified.
 - Smoke test `/health`, `/ready`, and affected app routes.
 - Record exact verification evidence in the PR or issue.
