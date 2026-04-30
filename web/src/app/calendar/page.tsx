@@ -1,20 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { CalAgenda, CalDay, CalMonth, CalWeek, EventModal } from "@/components/screens/calendar";
+import type { EventFormData } from "@/components/screens/calendar";
 import { useTheme } from "@/components/theme-provider";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
 
 export default function CalendarPage() {
-  const [view, setView] = useState<View>("Day");
-  const [modalOpen, setModalOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<View>(() => {
+    const v = searchParams.get("view");
+    if (v === "Day" || v === "Week" || v === "Month" || v === "Agenda") return v;
+    return "Day";
+  });
+  const [modalEvent, setModalEvent] = useState<EventFormData | null>(null);
   const { theme } = useTheme();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const dark = theme === "dark";
+
+  // Open new-event modal when navigated here with ?new=event
+  useEffect(() => {
+    if (searchParams.get("new") === "event") {
+      setModalEvent({});
+    }
+  }, [searchParams]);
 
   return (
     <div
@@ -94,7 +108,7 @@ export default function CalendarPage() {
           })}
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => setModalEvent({})}
           style={{
             padding: "6px 12px",
             borderRadius: 6,
@@ -112,39 +126,18 @@ export default function CalendarPage() {
       </div>
 
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {view === "Day" && <CalDay dark={dark} />}
-        {view === "Week" && <CalWeek />}
-        {view === "Month" && <CalMonth />}
-        {view === "Agenda" && <CalAgenda />}
-        {modalOpen && (
+        {view === "Day" && <CalDay dark={dark} onViewChange={setView} />}
+        {view === "Week" && <CalWeek onViewChange={setView} />}
+        {view === "Month" && <CalMonth onViewChange={setView} />}
+        {view === "Agenda" && <CalAgenda onViewChange={setView} />}
+        {modalEvent !== null && (
           <div
             onClick={(e) => {
-              if (e.target === e.currentTarget) setModalOpen(false);
+              if (e.target === e.currentTarget) setModalEvent(null);
             }}
             style={{ position: "absolute", inset: 0 }}
           >
-            <EventModal />
-            <button
-              onClick={() => setModalOpen(false)}
-              aria-label="Close event"
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                background: "rgba(0,0,0,0.4)",
-                color: "#fff",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 18,
-                lineHeight: 1,
-                zIndex: 10,
-              }}
-            >
-              ×
-            </button>
+            <EventModal event={modalEvent} onClose={() => setModalEvent(null)} />
           </div>
         )}
       </div>

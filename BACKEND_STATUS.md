@@ -37,7 +37,7 @@ All authenticated endpoints are now fully implemented against Postgres via sqlc-
 | Members | `GET /v1/households/:id/members/:memberID` | ✅ Working |
 | Members | `PATCH /v1/households/:id/members/:memberID` | ✅ Working |
 | Members | `DELETE /v1/households/:id/members/:memberID` | ✅ Working |
-| Events | `GET /v1/events` (with optional `?start=&end=` range filter) | ✅ Working — publishes `event.created/updated/deleted` to broadcaster |
+| Events | `GET /v1/events` (with optional `?start=&end=&member_id=` filter) | ✅ Working — `?member_id=<uuid>` filters to events where assigned_members contains that UUID; publishes `event.created/updated/deleted` to broadcaster |
 | Events | `POST /v1/events` | ✅ Working |
 | Events | `GET /v1/events/:id` | ✅ Working |
 | Events | `PATCH /v1/events/:id` | ✅ Working |
@@ -195,6 +195,77 @@ goose -dir migrations postgres "$DSN" up
 | `POST /v1/calendars/ical` | JWT | Body: `{name, url}` — creates ical_url calendar |
 | `POST /v1/calendars/:id/sync-ical` | JWT | Body: `{range_start, range_end}` — syncs iCal feed |
 
+## Shopping List Auto-Generation (2026-04-24)
+
+New migration `20260425000020_shopping.sql` adds three tables:
+- `shopping_lists` — one active list per household at a time
+- `shopping_list_items` — line items with aisle, amount, unit, source_recipes provenance
+- `pantry_staples` — recurring items always appended to generated lists
+
+**Aggregation logic** (`internal/service/shopping.go`):
+- Joins `meal_plan_entries → recipes → recipe_ingredients` for the date range
+- Aisle from `ingredient_canonical.category` via LEFT JOIN (falls back to `"other"`)
+- Same ingredient name (case-insensitive) + same unit → amounts summed
+- **V1 limitation**: different units for the same ingredient are kept as separate line items — no unit conversion (e.g. `1 lb butter` + `4 tbsp butter` stay separate). Noted here per spec instructions.
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `POST /v1/shopping/generate` | JWT | Body: `{date_from, date_to}` — deactivates old list, creates new one from meal plan |
+| `GET /v1/shopping/current` | JWT | Returns active list with items grouped by aisle |
+| `GET /v1/shopping/staples` | JWT | Lists pantry staples |
+| `POST /v1/shopping/staples` | JWT | Upsert staple: `{name, amount, unit, aisle}` |
+| `DELETE /v1/shopping/staples/:id` | JWT | Remove staple |
+| `GET /v1/ingredients/search?q=` | JWT | Full-text search against `ingredient_canonical` |
+
+**Frontend**: `useGenerateShoppingList()` hook added to `web/src/lib/api/hooks.ts`; "Generate shopping list" button on the MealPlan screen calls `POST /v1/shopping/generate` for the current ISO week and navigates to `/shopping` on success.
+
+## Household Equity Engine (2026-04-24)
+
+### Schema — migration `20260425000030_equity.sql`
+- `task_domains` — household task categories (12 system defaults seeded on first `GET /v1/equity/domains`)
+- `domain_ownerships` — exactly one owner per domain (UNIQUE on domain_id)
+- `equity_tasks` — recurring household tasks with `task_type` (cognitive|physical|both), `est_minutes`, `owner_member_id`
+- `task_logs` — time tracking per task per member (`is_cognitive`, `source` enum)
+
+### Equity engine API
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `GET /v1/equity?from=&to=` | JWT | Dashboard: per-member load%, cognitive/physical split, domain list, weekly trend. Default: last 30 days |
+| `GET /v1/equity/suggestions` | JWT | Heuristic rebalance: up to 2 task reassignments when most-burdened member >55% load |
+| `GET /v1/equity/domains` | JWT | Lists all task domains; seeds 12 defaults on first call |
+| `GET /v1/equity/tasks` | JWT | Lists non-archived tasks |
+| `POST /v1/equity/tasks` | JWT | Create task: `{domain_id, name, task_type, recurrence, est_minutes, owner_member_id, share_pct}` |
+| `PATCH /v1/equity/tasks/:id` | JWT | Partial update (assign, share, archive) |
+| `DELETE /v1/equity/tasks/:id` | JWT | Soft-deletes (sets `archived=true`) |
+| `POST /v1/equity/tasks/:id/log` | JWT | Log time: `{member_id, duration_minutes, is_cognitive, notes, source}` |
+
+### Design decisions / edge cases
+
+- **Members with zero time logged** are excluded from the `members[]` array in the dashboard response (no task_log rows → no aggregation row). Callers should treat absence as 0%.
+- **Load thresholds**: green <60%, yellow 60–70%, red ≥70%. These match the spec's configurable thresholds; they are currently hardcoded — make them household settings in a future iteration.
+- **Rebalance heuristic**: only fires when top-loaded member carries >55% of total logged time. Suggests the top-2 tasks by `est_minutes` to move to the least-loaded member. No ML.
+- **Cognitive vs physical**: per task-log entry (`is_cognitive` bool). The `task_type` column on `equity_tasks` is a default hint; actual tracking happens at log time.
+- **Domain seeding**: `SeedDefaultDomains` is idempotent — safe to call multiple times.
+
+**Frontend**: `useEquityDashboard()`, `useEquityTasks()`, `useEquityDomains()`, `useRebalanceSuggestions()`, `useCreateEquityTask()`, `useUpdateEquityTask()`, `useDeleteEquityTask()`, `useLogTaskTime()` hooks added to `web/src/lib/api/hooks.ts`. `equity.tsx` wires live data with graceful fallback to stub data.
+
+## Per-member event filter + RRULE expansion (2026-04-24)
+
+- `GET /v1/events?member_id=<uuid>` — filters to events where `assigned_members` contains the given UUID
+- RRULE server-side expansion: events with `recurrence_rule` are expanded to all occurrences within the requested `[start, end]` window using `github.com/teambition/rrule-go`
+  - Each occurrence is a synthetic `model.Event` with `is_recurrence_instance: true`
+  - `external_id` is set to `"<base-uuid>:<YYYY-MM-DD>"` for client de-duplication
+  - Editing a synthetic occurrence targets the base event ID (per-occurrence edit is v2)
+- Frontend: `useEvents(opts?)` accepts `{ memberId?, start?, end? }`, passes `?member_id=` through; DashKiosk/DashDesktop/DashPhone wire `activeMember.id`
+
+## Multi-household (2026-04-24)
+
+- **New endpoint**: `GET /v1/me/households` — returns all `[{id, name}]` households the authenticated account is a member of
+- **Frontend**: `auth-store.tsx` tracks `availableHouseholds[]`; fetched non-fatally after `/v1/auth/me`
+- **Settings UI**: `HouseholdSwitcherCard` shows a `<select>` dropdown when `availableHouseholds.length > 1`
+- **V2 gap**: selecting a different household currently shows an informational alert. Full switching requires the backend to accept an `X-Household-ID` header and the auth middleware to override the household context from the token — this is sealed (Cognito/middleware/OIDC zone). Tracked for v2.
+
 ## To do (next iteration)
 
 1. **PIN lockout counter** — store failed attempts in Redis or Postgres, enforce `cfg.Auth.PINMaxAttempts`
@@ -203,3 +274,84 @@ goose -dir migrations postgres "$DSN" up
 4. **Expand integration tests** — members, lists, WS client connect test with MemoryBroadcaster, admin audit endpoint
 5. **S3 backup upload** — implement real AWS S3 upload in `BackupService`
 6. **Audit for member/household mutations** — extend `MemberService` and `HouseholdService` to call `AuditService.Log`
+
+## Frontend Button Status (Phase F audit — 2026-04-24)
+
+All buttons audited across `web/src/components/screens/**` and `web/src/app/**`.
+
+### Wired in this phase
+
+| Button | Screen | Action |
+|---|---|---|
+| Search | `dashboard-desktop.tsx` | Navigates to `/calendar?view=Agenda` |
+| New Event | `dashboard-desktop.tsx` | Navigates to `/calendar/event?new=1` |
+| + Event | `dashboard-kiosk-columns.tsx` | Navigates to `/calendar/event?new=1` |
+| Recipe (chevron) | `dashboard-kiosk-ambient.tsx` | Navigates to `/recipes` |
+| Enter Manually | `recipes.tsx` RecipeImport | Navigates to `/recipes/import?manual=1` |
+| Start Cooking | `recipes.tsx` RecipeDetail | Navigates to `/recipes/${id}/cook` |
+| Discard | `recipes.tsx` RecipePreview | `window.confirm` then navigates to `/recipes` |
+| Save to Collection | `recipes.tsx` RecipePreview | Navigates to `/recipes` |
+| Copy Last Week | `recipes.tsx` MealPlan | Fetches last week's plan, upserts entries to current week |
+| Sign Out | `equity.tsx` Settings | Calls `logout()`, navigates to `/login` |
+| Delete Household | `equity.tsx` Settings | `window.confirm` then alert (backend endpoint missing — see below) |
+| Settings group rows | `equity.tsx` Settings | Navigates to `/settings` |
+| View tabs (Day/Week/Month/Agenda) | `calendar.tsx` CalDay/CalWeek/CalMonth/CalAgenda | Propagates `onViewChange` prop; calendar page wires to `setView` |
+
+### Disabled / coming soon (no backend)
+
+| Button | Screen | Reason | Behavior |
+|---|---|---|---|
+| Import from File | `recipes.tsx` RecipeImport | No file-upload endpoint in backend | `alert("File import coming soon…")` |
+| Delete Household | `equity.tsx` Settings | `DELETE /v1/households/:id` exists but no self-service UI flow | `window.confirm` → alert explaining to contact support |
+| Recipe "Enter Manually" destination | `/recipes/import?manual=1` | Route handles URL import only; `?manual=1` param not yet differentiated server-side | Navigates to import page (URL input shown) |
+
+---
+
+## Push Notifications (ntfy.sh)
+
+Tidyboard v1 supports push notifications via [ntfy.sh](https://ntfy.sh). The notification flow is:
+
+1. Member installs the **ntfy** mobile app (iOS / Android) or uses the web UI at ntfy.sh.
+2. Member subscribes to their chosen topic (e.g. `tidyboard-smith-8x2k9`).
+3. Member enters that topic in **Settings → Notifications** and saves.
+4. Tidyboard POSTs JSON to `https://ntfy.sh/<topic>` when relevant events occur.
+
+### Security notice (IMPORTANT for users)
+
+**The ntfy topic IS the credential.** ntfy.sh is a public service with no authentication on the subscriber side — anyone who knows a topic name can subscribe and receive those notifications. This means:
+
+- **Choose a long, random, non-guessable topic name.** Example: `tidyboard-smithfamily-x9k2m7q`. Do NOT use your family name alone.
+- A topic like `tidyboard-smith` is trivially guessable and should not be used.
+- Notification content is intentionally minimal (event title, list item text) — no secrets, passwords, or PINs are ever sent.
+- For self-hosted setups, you can point `notify.ntfy_server_url` at your own ntfy server for full privacy.
+
+### v1 events that trigger notifications
+
+| Event | Preference gate |
+|---|---|
+| Calendar event created | `events_enabled` |
+| List item added | `lists_enabled` |
+| Equity task created | `tasks_enabled` |
+| Equity task time logged | `tasks_enabled` |
+
+### Configuration (config.yaml)
+
+```yaml
+notifications:
+  ntfy_enabled: true
+  ntfy_server_url: https://ntfy.sh   # or your self-hosted URL
+  ntfy_topic_prefix: tidyboard-      # informational only; not used server-side
+```
+
+### API endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `PATCH` | `/v1/members/:id/notify` | JWT | Save ntfy_topic + preference flags for a member |
+| `POST` | `/v1/notify/test` | JWT | Send a test push to a member's configured topic |
+
+## Follow-ups / Known gaps
+
+### Dashboard member-filter (shipped 2026-04-24)
+
+`GET /v1/events?member_id=<uuid>` is now live. `useEvents({ memberId })` forwards it. All three dashboard variants (`DashDesktop`, `DashKiosk`, `DashPhone`) pass `activeMember?.id` from the auth-store.

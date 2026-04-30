@@ -2,6 +2,24 @@
 
 Google OAuth is used to connect a user's Google Calendar so events appear on the family dashboard.
 
+## Google Calendar OAuth (deferred)
+
+The home-rolled Google OAuth service (routes, `OAuthService`, `OAuthConfig`) was removed during Phase 2 cleanup because it duplicated Cognito and introduced unencrypted token storage. What remains in this file is the design record and the forward path.
+
+**Why the old flow is gone:**
+Cognito's federated Google IdP only requests `openid email profile` scopes. Those are sufficient for sign-in but do not grant access to the Calendar API. The bespoke OAuth service that used `https://www.googleapis.com/auth/calendar` (and the broader read/write scopes) was a separate flow layered on top of Cognito — it is now deleted.
+
+**Current status:**
+Onboarding step 5 (`ObCalendar`) exposes an iCal URL flow as the primary calendar-connection path. The "Connect Google Calendar" button stub is present in the UI but the server-side handler is gone. Attempting to hit `/v1/auth/oauth/google/start` returns 404.
+
+**Two forward paths when Calendar OAuth is re-added:**
+
+- **(a) Small server-side OAuth helper (recommended short-term):** Add a dedicated `/v1/calendars/google/connect` route that runs a standard Authorization Code + PKCE flow against Google's Calendar API scopes (`https://www.googleapis.com/auth/calendar.readonly` at minimum). This is an independent OAuth client — it is not the Cognito IdP. Store the resulting refresh token encrypted at rest (AES-GCM via KMS key). This is fully compatible with the existing Cognito-based auth middleware.
+
+- **(b) Second Cognito app client with broader Google scopes:** Configure a second Cognito app client (or a second Google IdP federation) that requests Calendar scopes at sign-in time. This is more integrated but couples calendar permissions to the authentication event and is harder to revoke selectively.
+
+Path (a) is preferred because Calendar access can be granted/revoked independently of account authentication and works for households whose primary IdP is not Google.
+
 ## Architecture
 
 ```

@@ -25,6 +25,24 @@ variable "existing_vpc_id" {
   default     = ""
 }
 
+variable "add_public_to_existing" {
+  description = "When true (default), add an IGW + a public subnet to the existing VPC so the Tidyboard EC2 can attach a public IP. cutly-db's existing private subnets are not touched."
+  type        = bool
+  default     = true
+}
+
+variable "existing_vpc_public_cidr" {
+  description = "CIDR block for the additive public subnet inside the existing VPC. Must not overlap with any existing subnets."
+  type        = string
+  default     = "10.0.10.0/24"
+}
+
+variable "existing_vpc_public_az" {
+  description = "Availability zone for the additive public subnet."
+  type        = string
+  default     = "us-east-1a"
+}
+
 variable "vpc_cidr" {
   description = "VPC CIDR block (only used when create_new_vpc = true)."
   type        = string

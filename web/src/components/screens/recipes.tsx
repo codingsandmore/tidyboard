@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { TBD } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { H } from "@/components/ui/heading";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
-import { useShopping, useToggleShoppingItem, useMealPlan, useRecipes, useRecipe, useImportRecipe } from "@/lib/api/hooks";
+import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe, useGenerateShoppingList } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -44,8 +45,26 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => (
 export function RecipeImport() {
   const t = useTranslations("recipe");
   const tCommon = useTranslations("common");
+  const router = useRouter();
   const [url, setUrl] = useState("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
   const importMutation = useImportRecipe();
+
+  function handleImport() {
+    if (!url.trim()) return;
+    setImportError(null);
+    setImportSuccess(false);
+    importMutation.mutate(url.trim(), {
+      onSuccess: () => {
+        setImportSuccess(true);
+        setUrl("");
+      },
+      onError: () => {
+        setImportError("Failed to import recipe. Check the URL and try again.");
+      },
+    });
+  }
 
   return (
     <div
@@ -101,12 +120,33 @@ export function RecipeImport() {
 
         <Input
           value={url}
-          onChange={(v) => setUrl(v)}
+          onChange={(v) => { setUrl(v); setImportError(null); setImportSuccess(false); }}
           style={{ height: 52, fontSize: 14 }}
         />
+        {importError && (
+          <div
+            data-testid="import-error"
+            style={{ marginTop: 8, fontSize: 12, color: TB.destructive }}
+          >
+            {importError}
+          </div>
+        )}
+        {importSuccess && (
+          <div
+            data-testid="import-success"
+            style={{ marginTop: 8, fontSize: 12, color: TB.success }}
+          >
+            {t("importRecipe")} — saved to your collection!
+          </div>
+        )}
         <div style={{ marginTop: 12 }}>
-          <Btn kind="primary" size="lg" full onClick={() => importMutation.mutate(url)}>
-            {t("importRecipe")}
+          <Btn
+            kind="primary"
+            size="lg"
+            full
+            onClick={handleImport}
+          >
+            {importMutation.isPending ? "Importing…" : t("importRecipe")}
           </Btn>
         </div>
 
@@ -126,10 +166,17 @@ export function RecipeImport() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <Btn kind="secondary" size="lg" full icon="pencil">
+          <Btn kind="secondary" size="lg" full icon="pencil" onClick={() => router.push("/recipes/import?manual=1")}>
             {t("enterManually")}
           </Btn>
-          <Btn kind="ghost" size="lg" full icon="list">
+          <Btn
+            kind="ghost"
+            size="lg"
+            full
+            icon="list"
+            disabled
+            title="File import (Paprika, JSON) — planned for v0.2"
+          >
             {t("importFromFile")}
           </Btn>
         </div>
@@ -179,17 +226,59 @@ export function RecipeImport() {
   );
 }
 
+// Parse a leading numeric token from an ingredient amount and rebuild it
+// scaled by `factor`. Handles: integers, decimals, fractions ("1/2"), and
+// mixed numbers ("2 1/4"). Anything we can't parse is returned untouched
+// so we never mangle a non-numeric amount string.
+export function scaleAmount(amt: string | undefined, factor: number): string {
+  if (!amt) return "";
+  if (factor === 1) return amt;
+  const m = amt.match(/^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)(.*)$/);
+  if (!m) return amt;
+  const [, numToken, rest] = m;
+  let value: number;
+  if (numToken.includes(" ")) {
+    const [whole, frac] = numToken.split(/\s+/);
+    const [n, d] = frac.split("/").map(Number);
+    value = Number(whole) + n / d;
+  } else if (numToken.includes("/")) {
+    const [n, d] = numToken.split("/").map(Number);
+    value = n / d;
+  } else {
+    value = Number(numToken);
+  }
+  const scaled = value * factor;
+  const rounded = Math.round(scaled * 100) / 100;
+  const display = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return `${display}${rest}`;
+}
+
 // ═══════ Recipe Detail ═══════
 export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean }) {
   const t = useTranslations("recipe");
-  const { data: apiRecipe } = useRecipe(id ?? TBD.recipes[0].id);
-  const r = apiRecipe ?? TBD.recipes[0];
+  const router = useRouter();
+  const { data: apiRecipe } = useRecipe(id ?? "");
+  const r = apiRecipe;
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
   const tc = dark ? TB.dText : TB.text;
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
   const [tab, setTab] = useState("ing");
+  const baseServes = r?.serves ?? 1;
+  const [servings, setServings] = useState<number>(baseServes);
+  useEffect(() => {
+    if (r?.serves) setServings(r.serves);
+  }, [r?.id, r?.serves]);
+  const scaleFactor = baseServes > 0 ? servings / baseServes : 1;
+
+  if (!r) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("noRecipeFound")}</H>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -346,19 +435,26 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
         >
           <div style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{t("servings")}</div>
           <button
+            type="button"
+            data-testid="serving-decrement"
+            aria-label="Decrease servings"
+            disabled={servings <= 1}
+            onClick={() => setServings((s) => Math.max(1, s - 1))}
             style={{
               width: 32,
               height: 32,
               borderRadius: 8,
               border: `1px solid ${border}`,
               background: dark ? TB.dBg : TB.surface,
-              cursor: "pointer",
+              cursor: servings <= 1 ? "not-allowed" : "pointer",
+              opacity: servings <= 1 ? 0.4 : 1,
               color: tc,
             }}
           >
             −
           </button>
           <div
+            data-testid="serving-count"
             style={{
               fontFamily: TB.fontDisplay,
               fontSize: 22,
@@ -367,9 +463,13 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
               textAlign: "center",
             }}
           >
-            {r.serves}
+            {servings}
           </div>
           <button
+            type="button"
+            data-testid="serving-increment"
+            aria-label="Increase servings"
+            onClick={() => setServings((s) => s + 1)}
             style={{
               width: 32,
               height: 32,
@@ -452,7 +552,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
                           marginRight: 8,
                         }}
                       >
-                        {ing.amt}
+                        {scaleAmount(ing.amt, scaleFactor)}
                       </span>
                     )}
                     <span style={{ fontSize: 14 }}>{ing.name}</span>
@@ -501,7 +601,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <Btn kind="primary" size="xl" full icon="play">
+          <Btn kind="primary" size="xl" full icon="play" onClick={() => r?.id && router.push(`/recipes/${r.id}/cook`)}>
             {t("startCooking")}
           </Btn>
         </div>
@@ -513,6 +613,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
 // ═══════ Recipe Preview (after import, before save) ═══════
 export function RecipePreview() {
   const t = useTranslations("recipe");
+  const router = useRouter();
   const r = TBD.recipes[0];
   return (
     <div
@@ -654,11 +755,11 @@ export function RecipePreview() {
           gap: 10,
         }}
       >
-        <Btn kind="ghost" size="md">
+        <Btn kind="ghost" size="md" onClick={() => { if (window.confirm("Discard this recipe?")) router.push("/recipes"); }}>
           {t("discard")}
         </Btn>
         <div style={{ flex: 1 }} />
-        <Btn kind="primary" size="md">
+        <Btn kind="primary" size="md" onClick={() => router.push("/recipes")}>
           {t("saveToCollection")}
         </Btn>
       </div>
@@ -667,12 +768,73 @@ export function RecipePreview() {
 }
 
 // ═══════ Meal Plan — weekly grid (tablet) ═══════
+
+interface MealSlot { rowIdx: number; colIdx: number; date: string; meal: string }
+
 export function MealPlan() {
   const t = useTranslations("recipe");
   const { data: apiMealPlan } = useMealPlan();
   const { data: apiRecipes } = useRecipes();
-  const mealPlan = apiMealPlan ?? TBD.mealPlan;
-  const recipes = apiRecipes && apiRecipes.length > 0 ? apiRecipes : TBD.recipes;
+  const upsertMealPlan = useUpsertMealPlanEntry();
+  const generateShopping = useGenerateShoppingList();
+  const mealPlan = apiMealPlan;
+  const recipes = apiRecipes ?? [];
+  const [generateStatus, setGenerateStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  // Fetch last week's meal plan so we can copy it
+  const lastWeekOf = mealPlan?.weekOf
+    ? (() => { const d = new Date(mealPlan.weekOf); d.setUTCDate(d.getUTCDate() - 7); return d.toISOString().slice(0, 10); })()
+    : undefined;
+  const { data: lastWeekPlan } = useMealPlan(lastWeekOf);
+
+  async function handleCopyLastWeek() {
+    if (!mealPlan?.weekOf || !lastWeekPlan?.grid) return;
+    setCopyStatus("loading");
+    const ROW_SLOTS_COPY = ["breakfast", "lunch", "dinner", "snack"] as const;
+    try {
+      for (let ri = 0; ri < lastWeekPlan.grid.length; ri++) {
+        const row = lastWeekPlan.grid[ri];
+        for (let ci = 0; ci < row.length; ci++) {
+          const recipeId = row[ci];
+          if (!recipeId) continue;
+          const d = new Date(mealPlan.weekOf);
+          d.setUTCDate(d.getUTCDate() + ci);
+          await upsertMealPlan.mutateAsync({ date: d.toISOString().slice(0, 10), slot: ROW_SLOTS_COPY[ri] ?? "dinner", recipeId });
+        }
+      }
+      setCopyStatus("ok");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch {
+      setCopyStatus("error");
+      setTimeout(() => setCopyStatus("idle"), 3000);
+    }
+  }
+
+  function handleGenerateShopping() {
+    if (!mealPlan?.weekOf) return;
+    const from = mealPlan.weekOf;
+    const toDate = new Date(from);
+    toDate.setUTCDate(toDate.getUTCDate() + 6);
+    const to = toDate.toISOString().slice(0, 10);
+    setGenerateStatus("loading");
+    generateShopping.mutate(
+      { dateFrom: from, dateTo: to },
+      {
+        onSuccess: () => {
+          setGenerateStatus("ok");
+          // Navigate to shopping list after a brief moment
+          setTimeout(() => {
+            window.location.href = "/shopping";
+          }, 600);
+        },
+        onError: () => {
+          setGenerateStatus("error");
+          setTimeout(() => setGenerateStatus("idle"), 3000);
+        },
+      }
+    );
+  }
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const emoji: Record<string, string> = {
     r1: "🍝",
@@ -684,6 +846,59 @@ export function MealPlan() {
     r7: "🥗",
     r8: "🧀",
   };
+
+  // Local grid state (optimistic)
+  const [localGrid, setLocalGrid] = useState<(string | null)[][]>([]);
+  const [pickerSlot, setPickerSlot] = useState<MealSlot | null>(null);
+
+  // Seed local grid from API data when it arrives
+  const [seededWeek, setSeededWeek] = useState<string | null>(null);
+  if (mealPlan && mealPlan.weekOf !== seededWeek) {
+    setSeededWeek(mealPlan.weekOf);
+    setLocalGrid(mealPlan.grid.map((row) => [...row]));
+  }
+
+  /** Compute the YYYY-MM-DD date for column colIdx (0=Mon) given the weekOf Monday. */
+  function colDate(weekOf: string, colIdx: number): string {
+    const d = new Date(weekOf);
+    d.setUTCDate(d.getUTCDate() + colIdx);
+    return d.toISOString().slice(0, 10);
+  }
+
+  const ROW_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
+
+  function openPicker(rowIdx: number, colIdx: number, date: string, meal: string) {
+    setPickerSlot({ rowIdx, colIdx, date, meal });
+  }
+
+  function pickRecipe(recipeId: string) {
+    if (!pickerSlot || !mealPlan) return;
+    const { rowIdx, colIdx } = pickerSlot;
+    // Optimistic local update
+    setLocalGrid((prev) => {
+      const next: (string | null)[][] = prev.map((row) => [...row]);
+      if (!next[rowIdx]) next[rowIdx] = [];
+      next[rowIdx][colIdx] = recipeId;
+      return next;
+    });
+    // Persist to backend
+    const date = colDate(mealPlan.weekOf, colIdx);
+    const slot = ROW_SLOTS[rowIdx] ?? "dinner";
+    upsertMealPlan.mutate({ date, slot, recipeId });
+    setPickerSlot(null);
+  }
+
+  function clearSlot(rowIdx: number, colIdx: number) {
+    setLocalGrid((prev) => {
+      const next: (string | null)[][] = prev.map((row) => [...row]);
+      if (!next[rowIdx]) next[rowIdx] = [];
+      next[rowIdx][colIdx] = null;
+      return next;
+    });
+  }
+
+  // Use localGrid if seeded, fall back to mealPlan.grid for first render
+  const displayGrid = localGrid.length > 0 ? localGrid : (mealPlan?.grid ?? []);
 
   const { keys } = useAIKeys();
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ok" | "error" | "unconfigured">("idle");
@@ -736,6 +951,15 @@ export function MealPlan() {
     } catch {
       showToast("AI request failed. Check your key in Settings.", "error");
     }
+  }
+
+  if (!mealPlan) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: TB.bg, color: TB.text, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: TB.text2, fontSize: 20 }}>{t("mealPlan")}</H>
+        <div style={{ fontSize: 14, color: TB.text2 }}>{t("noMealPlanYet")}</div>
+      </div>
+    );
   }
 
   return (
@@ -797,8 +1021,8 @@ export function MealPlan() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn kind="ghost" size="sm">
-            {t("copyLastWeek")}
+          <Btn kind="ghost" size="sm" onClick={handleCopyLastWeek} disabled={copyStatus === "loading"}>
+            {copyStatus === "loading" ? "Copying…" : copyStatus === "ok" ? "Copied!" : copyStatus === "error" ? "Error — retry" : t("copyLastWeek")}
           </Btn>
           <div data-testid="ai-suggest-btn">
             <Btn
@@ -810,8 +1034,20 @@ export function MealPlan() {
               {aiStatus === "loading" ? "Thinking…" : t("aiSuggest")}
             </Btn>
           </div>
-          <Btn kind="primary" size="sm" icon="list">
-            {t("generateShoppingList")}
+          <Btn
+            kind="primary"
+            size="sm"
+            icon="list"
+            onClick={handleGenerateShopping}
+            disabled={generateStatus === "loading"}
+          >
+            {generateStatus === "loading"
+              ? "Generating…"
+              : generateStatus === "ok"
+              ? "Done!"
+              : generateStatus === "error"
+              ? "Error — retry"
+              : t("generateShoppingList")}
           </Btn>
         </div>
       </div>
@@ -881,11 +1117,14 @@ export function MealPlan() {
               >
                 {rowLabel}
               </div>
-              {mealPlan.grid[ri].map((rid, ci) => {
+              {(displayGrid[ri] ?? []).map((rid: string | null, ci: number) => {
                 const recipe = rid ? recipes.find((rec) => rec.id === rid) : null;
+                const dateLabel = colDate(mealPlan.weekOf, ci);
                 return (
                   <div
                     key={ci}
+                    data-testid={`meal-cell-${ri}-${ci}`}
+                    onClick={() => openPicker(ri, ci, dateLabel, row)}
                     style={{
                       aspectRatio: "1",
                       background: recipe ? TB.surface : "transparent",
@@ -901,11 +1140,12 @@ export function MealPlan() {
                       justifyContent: "center",
                       gap: 4,
                       minHeight: 72,
+                      position: "relative",
                     }}
                   >
                     {recipe ? (
                       <>
-                        <div style={{ fontSize: 28 }}>{emoji[recipe.id]}</div>
+                        <div style={{ fontSize: 28 }}>{emoji[recipe.id] ?? "🍽️"}</div>
                         <div
                           style={{
                             fontSize: 9,
@@ -918,6 +1158,29 @@ export function MealPlan() {
                         >
                           {recipe.title.split(" ").slice(0, 2).join(" ")}
                         </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); clearSlot(ri, ci); }}
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            right: 2,
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            border: "none",
+                            background: TB.muted,
+                            color: "#fff",
+                            fontSize: 10,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
                       </>
                     ) : (
                       <Icon name="plus" size={18} color={TB.muted} />
@@ -930,6 +1193,86 @@ export function MealPlan() {
           })}
         </div>
       </div>
+
+      {/* Recipe picker modal */}
+      {pickerSlot && (
+        <div
+          data-testid="meal-picker"
+          onClick={() => setPickerSlot(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: TB.surface,
+              borderRadius: 16,
+              padding: 20,
+              width: 320,
+              maxHeight: "70vh",
+              overflow: "auto",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 12 }}>
+              Pick a recipe — {pickerSlot.meal}
+            </div>
+            {recipes.length === 0 && (
+              <div style={{ fontSize: 13, color: TB.muted }}>No recipes yet. Import one first.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {recipes.map((rec) => (
+                <button
+                  key={rec.id}
+                  data-testid={`pick-recipe-${rec.id}`}
+                  onClick={() => pickRecipe(rec.id)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: TB.r.md,
+                    border: `1px solid ${TB.border}`,
+                    background: TB.bg,
+                    color: TB.text,
+                    cursor: "pointer",
+                    fontFamily: TB.fontBody,
+                    fontSize: 13,
+                    textAlign: "left",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{emoji[rec.id] ?? "🍽️"}</span>
+                  <span>{rec.title}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPickerSlot(null)}
+              style={{
+                marginTop: 12,
+                padding: "6px 14px",
+                borderRadius: TB.r.md,
+                border: `1px solid ${TB.border}`,
+                background: "transparent",
+                color: TB.text2,
+                cursor: "pointer",
+                fontFamily: TB.fontBody,
+                fontSize: 13,
+                width: "100%",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -940,10 +1283,9 @@ export function ShoppingList() {
   const { data: shopping } = useShopping();
   const toggleMutation = useToggleShoppingItem();
 
-  // Initialize from fallback immediately so there is never an empty state.
-  // When API data arrives it will replace the fallback via the effect below.
+  // Initialize from API data or empty; re-seed when API data changes.
   const [categories, setCategories] = useState<ShoppingCategory[]>(() =>
-    TBD.shopping.categories.map((cat) => ({ ...cat, items: cat.items.map((it) => ({ ...it })) }))
+    shopping ? shopping.categories.map((cat) => ({ ...cat, items: cat.items.map((it) => ({ ...it })) })) : []
   );
 
   // When API data arrives (and differs from current), re-seed local state.
@@ -952,7 +1294,7 @@ export function ShoppingList() {
   if (incomingVersion && incomingVersion !== apiVersion) {
     setApiVersion(incomingVersion);
     setCategories(
-      (shopping?.categories ?? TBD.shopping.categories).map((cat) => ({
+      (shopping?.categories ?? []).map((cat) => ({
         ...cat,
         items: cat.items.map((it) => ({ ...it })),
       }))
@@ -978,8 +1320,8 @@ export function ShoppingList() {
     });
   };
 
-  const weekOf = shopping?.weekOf ?? TBD.shopping.weekOf;
-  const fromRecipes = shopping?.fromRecipes ?? TBD.shopping.fromRecipes;
+  const weekOf = shopping?.weekOf ?? "";
+  const fromRecipes = shopping?.fromRecipes ?? 0;
 
   return (
     <div
@@ -1015,6 +1357,11 @@ export function ShoppingList() {
         </div>
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "8px 0 100px" }}>
+        {categories.length === 0 && (
+          <div style={{ padding: "48px 20px", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+            {t("emptyShoppingList")}
+          </div>
+        )}
         {categories.map((cat, catIdx) => (
           <div key={cat.name} style={{ padding: "6px 20px" }}>
             <div

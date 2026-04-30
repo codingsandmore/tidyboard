@@ -31,7 +31,7 @@ INSERT INTO members (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW()
 )
-RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
 `
 
 type CreateMemberParams struct {
@@ -82,6 +82,7 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.NotificationPreferences,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NtfyTopic,
 	)
 	return i, err
 }
@@ -102,7 +103,7 @@ func (q *Queries) DeleteMember(ctx context.Context, arg DeleteMemberParams) erro
 }
 
 const getMember = `-- name: GetMember :one
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
 WHERE id = $1 AND household_id = $2
 LIMIT 1
 `
@@ -130,12 +131,13 @@ func (q *Queries) GetMember(ctx context.Context, arg GetMemberParams) (Member, e
 		&i.NotificationPreferences,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NtfyTopic,
 	)
 	return i, err
 }
 
 const getMemberByAccountAndHousehold = `-- name: GetMemberByAccountAndHousehold :one
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
 WHERE account_id = $1 AND household_id = $2
 LIMIT 1
 `
@@ -163,12 +165,37 @@ func (q *Queries) GetMemberByAccountAndHousehold(ctx context.Context, arg GetMem
 		&i.NotificationPreferences,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NtfyTopic,
 	)
 	return i, err
 }
 
+const getPrimaryMemberByAccount = `-- name: GetPrimaryMemberByAccount :one
+SELECT id, household_id, role FROM members
+WHERE account_id = $1
+ORDER BY created_at
+LIMIT 1
+`
+
+type GetPrimaryMemberByAccountRow struct {
+	ID          uuid.UUID `json:"id"`
+	HouseholdID uuid.UUID `json:"household_id"`
+	Role        string    `json:"role"`
+}
+
+// Returns the user's earliest-created membership; used by the auth middleware
+// to populate household + role context for users that belong to one or more
+// households. New users with no household yet get pgx.ErrNoRows here, which
+// the middleware treats as "valid login, no household yet".
+func (q *Queries) GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid.NullUUID) (GetPrimaryMemberByAccountRow, error) {
+	row := q.db.QueryRow(ctx, getPrimaryMemberByAccount, accountID)
+	var i GetPrimaryMemberByAccountRow
+	err := row.Scan(&i.ID, &i.HouseholdID, &i.Role)
+	return i, err
+}
+
 const listMembers = `-- name: ListMembers :many
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
 WHERE household_id = $1
 ORDER BY created_at ASC
 `
@@ -197,6 +224,7 @@ func (q *Queries) ListMembers(ctx context.Context, householdID uuid.UUID) ([]Mem
 			&i.NotificationPreferences,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.NtfyTopic,
 		); err != nil {
 			return nil, err
 		}
@@ -221,7 +249,7 @@ SET
     notification_preferences = COALESCE($10, notification_preferences),
     updated_at               = NOW()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
 `
 
 type UpdateMemberParams struct {
@@ -266,6 +294,52 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.NotificationPreferences,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NtfyTopic,
+	)
+	return i, err
+}
+
+const updateMemberNotify = `-- name: UpdateMemberNotify :one
+UPDATE members
+SET
+    ntfy_topic               = COALESCE($3, ntfy_topic),
+    notification_preferences = COALESCE($4, notification_preferences),
+    updated_at               = NOW()
+WHERE id = $1 AND household_id = $2
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
+`
+
+type UpdateMemberNotifyParams struct {
+	ID                      uuid.UUID `json:"id"`
+	HouseholdID             uuid.UUID `json:"household_id"`
+	NtfyTopic               *string   `json:"ntfy_topic"`
+	NotificationPreferences []byte    `json:"notification_preferences"`
+}
+
+func (q *Queries) UpdateMemberNotify(ctx context.Context, arg UpdateMemberNotifyParams) (Member, error) {
+	row := q.db.QueryRow(ctx, updateMemberNotify,
+		arg.ID,
+		arg.HouseholdID,
+		arg.NtfyTopic,
+		arg.NotificationPreferences,
+	)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.AccountID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Color,
+		&i.AvatarUrl,
+		&i.Role,
+		&i.AgeGroup,
+		&i.PinHash,
+		&i.EmergencyInfo,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.NtfyTopic,
 	)
 	return i, err
 }

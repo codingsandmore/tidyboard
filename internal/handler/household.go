@@ -22,6 +22,23 @@ func NewHouseholdHandler(svc *service.HouseholdService) *HouseholdHandler {
 	return &HouseholdHandler{svc: svc}
 }
 
+// ListMine handles GET /v1/me/households — returns all households the
+// authenticated account is a member of.
+func (h *HouseholdHandler) ListMine(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := middleware.AccountIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		return
+	}
+
+	households, err := h.svc.ListByAccount(r.Context(), accountID)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list households")
+		return
+	}
+	respond.JSON(w, http.StatusOK, households)
+}
+
 // Create handles POST /v1/households.
 func (h *HouseholdHandler) Create(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())

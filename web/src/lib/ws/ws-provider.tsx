@@ -134,6 +134,21 @@ export function WSProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ["shopping"] });
         return;
       }
+
+      if (t.startsWith("meal_plan.")) {
+        queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+        return;
+      }
+
+      if (t.startsWith("recipe_collection.")) {
+        queryClient.invalidateQueries({ queryKey: ["recipe-collections"] });
+        return;
+      }
+
+      if (t.startsWith("equity.")) {
+        queryClient.invalidateQueries({ queryKey: ["equity"] });
+        return;
+      }
     },
     [queryClient]
   );

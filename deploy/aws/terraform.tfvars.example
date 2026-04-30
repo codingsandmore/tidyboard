@@ -1,55 +1,53 @@
 # ── Copy this file to terraform.tfvars and fill in your values ────────────────
 # terraform.tfvars is git-ignored — never commit real values.
+#
+# Path C single-EC2 deployment (~$17/mo): one t4g.small running docker compose
+# + Caddy, reusing a shared RDS Postgres via schema isolation. No ALB, no ECS,
+# no CloudFront, no Aurora.
 
 # AWS named profile from ~/.aws/credentials
-# Create it with: aws configure --profile tidyboard
 aws_profile = "tidyboard"
 
-# AWS region for the deployment
+# AWS region. cutly-db lives in us-east-1, so keep the Tidyboard stack there too.
 aws_region = "us-east-1"
 
-# Short name used as a resource prefix (lowercase alphanumeric + hyphens only)
+# Short name used as a resource prefix.
 project = "tidyboard"
 
-# Environment label: prod, staging, or dev
+# Environment label (prod, staging, dev). Also determines the SSM path prefix
+# /tidyboard/<environment>/... where the runtime secrets are read from.
 environment = "prod"
 
-# Your registered domain name, e.g. "tidyboard.example.com"
-# An ACM certificate will be requested for this domain.
+# Public apex domain. Caddy on the EC2 obtains Let's Encrypt certs for this and www.
 domain_name = "tidyboard.example.com"
 
-# Set to true if your domain is managed by Route 53.
-# If false, terraform apply will output the DNS validation CNAME records
-# you need to add manually at your registrar / DNS provider.
+# Set to true if your domain is managed by Route 53 in the same AWS account;
+# apex + www A records will be created pointing at the EC2 EIP.
 create_route53_records = false
 
-# Required when create_route53_records = true.
-# Find it in the AWS Console → Route 53 → Hosted zones.
+# Required when create_route53_records = true. Find it in Route 53 → Hosted zones.
 # route53_zone_id = "Z1234567890ABC"
 
-# ── Database ──────────────────────────────────────────────────────────────────
-# Aurora Serverless v2 ACU range.
-# 0.5 ACU ≈ 0.5 vCPU + 1 GB RAM; minimum billable unit.
-# At 0.5 ACU with auto-pause disabled: ~$43/month base.
-db_min_capacity = 0.5
-db_max_capacity = 4
+# ── Database (shared cutly-db Postgres) ───────────────────────────────────────
+# These defaults reference the user's existing cutly-db instance; override for
+# a different shared DB. Tidyboard gets its own `tidyboard` role + schema —
+# see deploy/aws/scripts/bootstrap-db.sql.
+# db_host              = "cutly-db.c858qwm0sac7.us-east-1.rds.amazonaws.com"
+# db_port              = 5432
+# db_name              = "cutlist"    # the RDS DBName, not the instance identifier
+# db_username          = "tidyboard"
+# db_schema            = "tidyboard"
+# db_security_group_id = "sg-001c4c1a130b6ab42"
+# existing_vpc_id      = "vpc-0c41d6012793ea910"
 
-# ── ECS desired task counts ───────────────────────────────────────────────────
-# For a single-household deployment, 1 task per service is sufficient.
-# Set to 0 to stop a service without destroying its definition.
-ecs_desired_count_server  = 1
-ecs_desired_count_web     = 1
-ecs_desired_count_sync    = 1
-ecs_desired_count_scraper = 1
+# ── EC2 ───────────────────────────────────────────────────────────────────────
+# SSH key pair — create in AWS console first, download the .pem, then paste the
+# key name here.
+ssh_key_name = "tidyboard"
 
-# ── Container sizing ──────────────────────────────────────────────────────────
-# Fargate billing is per vCPU-second + GB-second.
-# 512 CPU + 1024 MB ≈ $0.50/day per task at us-east-1 on-demand rates.
-server_cpu    = 512
-server_memory = 1024
-web_cpu       = 512
-web_memory    = 1024
-sync_cpu      = 256
-sync_memory   = 512
-scraper_cpu   = 256
-scraper_memory = 512
+# Optional overrides (uncomment to change):
+# ec2_instance_type  = "t4g.small"
+# ec2_volume_size_gb = 30
+# admin_ssh_cidr     = "203.0.113.0/24"   # narrow to your IP in production
+# repo_url           = "git@github.com:codingsandmore/tidyboard.git"
+# repo_branch        = "main"

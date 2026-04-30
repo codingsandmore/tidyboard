@@ -20,10 +20,13 @@ type Event struct {
 	AllDay          bool            `json:"all_day"`
 	Location        string          `json:"location"`
 	RecurrenceRule  string          `json:"recurrence_rule"`
-	AssignedMembers []uuid.UUID     `json:"assigned_members"`
-	Reminders       json.RawMessage `json:"reminders,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	AssignedMembers      []uuid.UUID     `json:"assigned_members"`
+	Reminders            json.RawMessage `json:"reminders,omitempty"`
+	CreatedAt            time.Time       `json:"created_at"`
+	UpdatedAt            time.Time       `json:"updated_at"`
+	// IsRecurrenceInstance is true for synthetic events expanded from an RRULE.
+	// These are not stored in the DB; edits should target the base event ID.
+	IsRecurrenceInstance bool `json:"is_recurrence_instance,omitempty"`
 }
 
 // CreateEventRequest is the payload for POST /v1/events.

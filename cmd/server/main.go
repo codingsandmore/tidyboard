@@ -22,9 +22,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	robfigcron "github.com/robfig/cron/v3"
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/client"
 	"github.com/tidyboard/tidyboard/internal/config"
+	tidycron "github.com/tidyboard/tidyboard/internal/cron"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -123,13 +126,23 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	auditSvc := service.NewAuditService(q)
 	authSvc := service.NewAuthService(cfg.Auth, q)
 	householdSvc := service.NewHouseholdService(q)
+	inviteSvc := service.NewInviteService(q)
 	memberSvc := service.NewMemberService(q, authSvc)
-	eventSvc := service.NewEventService(q, bc, auditSvc)
-	listSvc := service.NewListService(q, bc, auditSvc)
+	notifySvc := service.NewNotifyService(cfg.Notify, q)
+	eventSvc := service.NewEventService(q, bc, auditSvc).WithNotify(notifySvc)
+	listSvc := service.NewListService(q, bc, auditSvc).WithNotify(notifySvc)
 	recipeSvc := service.NewRecipeService(q, recipeClient, storageSvc)
+	recipeCollectionSvc := service.NewRecipeCollectionService(q, bc)
+	mealPlanSvc := service.NewMealPlanService(q, bc)
+	shoppingSvc := service.NewShoppingService(q)
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
-	oauthSvc := service.NewOAuthService(cfg.Auth.OAuth, q)
+	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
+	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
+	walletSvc := service.NewWalletService(q, bc, auditSvc)
+	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
+	pointsSvc := service.NewPointsService(q, bc, auditSvc)
+	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -140,26 +153,60 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		}
 	}
 
+	// --- Cron scheduler ---
+	scheduler := robfigcron.New()
+	weekEndJob := tidycron.WeekEndBatch{Q: q, WS: walletSvc}
+	if _, err := scheduler.AddFunc("59 23 * * 0", func() {
+		ctx := context.Background()
+		if err := weekEndJob.Run(ctx); err != nil {
+			logger.Error("week-end batch failed", "err", err)
+		}
+	}); err != nil {
+		return fmt.Errorf("schedule week-end batch: %w", err)
+	}
+	scheduler.Start()
+	defer scheduler.Stop()
+
 	// --- Handlers ---
 	jwtSecret := cfg.Auth.JWTSecret
 	if jwtSecret == "" {
 		jwtSecret = os.Getenv("TIDYBOARD_AUTH_JWT_SECRET")
 	}
+	cfg.Auth.JWTSecret = jwtSecret // ensure verifier picks up env-supplied secret in dev/test
+
+	// Cognito-backed verifier in production; HMAC stub when CognitoUserPoolID
+	// is empty (tests + local dev). Initialisation hits the JWKS endpoint, so
+	// failure here means the network/config is wrong — fail fast.
+	verifier, err := auth.NewVerifier(context.Background(), cfg.Auth)
+	if err != nil {
+		slog.Error("auth: verifier init failed", "err", err)
+		os.Exit(1)
+	}
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	householdHandler := handler.NewHouseholdHandler(householdSvc)
+	inviteHandler := handler.NewInviteHandler(inviteSvc)
 	memberHandler := handler.NewMemberHandler(memberSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)
+	recipeCollectionHandler := handler.NewRecipeCollectionHandler(recipeCollectionSvc)
+	mealPlanHandler := handler.NewMealPlanHandler(mealPlanSvc)
+	shoppingHandler := handler.NewShoppingHandler(shoppingSvc)
 	syncHandler := handler.NewSyncHandler(syncSvc)
 	calendarHandler := handler.NewCalendarHandler(q, syncSvc)
-	wsHandler := handler.NewWSHandler(bc, jwtSecret)
+	wsHandler := handler.NewWSHandler(bc, verifier, q)
 	adminHandler := handler.NewAdminHandler(auditSvc, backupSvc)
 	billingHandler := handler.NewBillingHandler(billingSvc)
-	oauthHandler := handler.NewOAuthHandler(oauthSvc)
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
+	equityHandler := handler.NewEquityHandler(equitySvc)
+	notifyHandler := handler.NewNotifyHandler(notifySvc)
+	routineHandler := handler.NewRoutineHandler(routineSvc)
+	walletHandler := handler.NewWalletHandler(walletSvc, q)
+	choreHandler := handler.NewChoreHandler(choreSvc, q)
+	pointsHandler := handler.NewPointsHandler(pointsSvc)
+	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -245,22 +292,21 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	// Auth routes — rate-limited but unauthenticated.
+	// Email/password register + Google OAuth callback used to live here; both
+	// are owned by Cognito now (Hosted UI handles signup, Google federation,
+	// and the auth-code → token exchange). Only the kiosk PIN flow remains
+	// custom: a member-scoped JWT issued by AuthService.PINLogin.
 	r.Group(func(r chi.Router) {
 		r.Use(authLimiter.Middleware)
-		r.Post("/v1/auth/register", authHandler.Register)
-		r.Post("/v1/auth/login", authHandler.Login)
 		r.Post("/v1/auth/pin", authHandler.PINLogin)
 	})
 
 	// Stripe webhook — no auth middleware (Stripe signs its own requests).
 	r.Post("/v1/billing/webhook", billingHandler.Webhook)
 
-	// Google OAuth callback — public (called by Google after consent).
-	r.Get("/v1/auth/oauth/google/callback", oauthHandler.GoogleCallback)
-
 	// Authenticated API routes.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(jwtSecret))
+		r.Use(middleware.Auth(verifier, q))
 		// Per-account rate limiting after auth so account_id is in context.
 		if accountLimiter != nil {
 			r.Use(accountLimiter.Middleware)
@@ -269,14 +315,27 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// Auth (requires JWT).
 		r.Get("/v1/auth/me", authHandler.Me)
 
+		// My households — lists all households the account is a member of.
+		r.Get("/v1/me/households", householdHandler.ListMine)
+
 		// WebSocket.
 		r.Get("/v1/ws", wsHandler.ServeWS)
+
+		// Invite-by-code MUST be registered before /v1/households/{id} so chi's
+		// trie resolves the "by-code" literal segment instead of treating it as
+		// the {id} parameter.
+		r.Get("/v1/households/by-code/{code}", inviteHandler.GetByCode)
+		r.Post("/v1/households/by-code/{code}/join", inviteHandler.RequestJoin)
+		r.Post("/v1/join-requests/{id}/approve", inviteHandler.ApproveJoinRequest)
+		r.Post("/v1/join-requests/{id}/reject", inviteHandler.RejectJoinRequest)
 
 		// Households.
 		r.Post("/v1/households", householdHandler.Create)
 		r.Get("/v1/households/{id}", householdHandler.Get)
 		r.Patch("/v1/households/{id}", householdHandler.Update)
 		r.Delete("/v1/households/{id}", householdHandler.Delete)
+		r.Post("/v1/households/{id}/invite/regenerate", inviteHandler.RegenerateInviteCode)
+		r.Get("/v1/households/{id}/join-requests", inviteHandler.ListJoinRequests)
 
 		// Members (nested under household).
 		r.Get("/v1/households/{id}/members", memberHandler.List)
@@ -311,6 +370,110 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Patch("/v1/recipes/{id}", recipeHandler.Update)
 		r.Delete("/v1/recipes/{id}", recipeHandler.Delete)
 
+		// Recipe collections.
+		r.Get("/v1/recipe-collections", recipeCollectionHandler.List)
+		r.Post("/v1/recipe-collections", recipeCollectionHandler.Create)
+		r.Patch("/v1/recipe-collections/{id}", recipeCollectionHandler.Update)
+		r.Delete("/v1/recipe-collections/{id}", recipeCollectionHandler.Delete)
+		r.Post("/v1/recipe-collections/{id}/recipes", recipeCollectionHandler.AddRecipe)
+		r.Delete("/v1/recipe-collections/{id}/recipes/{recipe_id}", recipeCollectionHandler.RemoveRecipe)
+		r.Get("/v1/recipe-collections/{id}/recipes", recipeCollectionHandler.ListRecipes)
+
+		// Meal plan.
+		r.Get("/v1/meal-plan", mealPlanHandler.List)
+		r.Post("/v1/meal-plan", mealPlanHandler.Upsert)
+		r.Delete("/v1/meal-plan/{id}", mealPlanHandler.Delete)
+
+		// Shopping lists.
+		r.Post("/v1/shopping/generate", shoppingHandler.Generate)
+		r.Get("/v1/shopping/current", shoppingHandler.GetCurrent)
+		r.Get("/v1/shopping/staples", shoppingHandler.ListStaples)
+		r.Post("/v1/shopping/staples", shoppingHandler.UpsertStaple)
+		r.Delete("/v1/shopping/staples/{id}", shoppingHandler.DeleteStaple)
+
+		// Ingredients search.
+		r.Get("/v1/ingredients/search", shoppingHandler.SearchIngredients)
+
+		// Notifications.
+		r.Post("/v1/notify/test", notifyHandler.TestNotification)
+		r.Patch("/v1/members/{id}/notify", notifyHandler.UpdateMemberNotify)
+
+		// Routines.
+		r.Get("/v1/routines", routineHandler.List)
+		r.Post("/v1/routines", routineHandler.Create)
+		r.Patch("/v1/routines/{id}", routineHandler.Update)
+		r.Delete("/v1/routines/{id}", routineHandler.Delete)
+		r.Post("/v1/routines/{id}/steps", routineHandler.AddStep)
+		r.Patch("/v1/routines/{id}/steps/{stepID}", routineHandler.UpdateStep)
+		r.Delete("/v1/routines/{id}/steps/{stepID}", routineHandler.DeleteStep)
+		r.Post("/v1/routines/{id}/complete", routineHandler.MarkComplete)
+		r.Delete("/v1/routines/{id}/complete/{completionID}", routineHandler.UnmarkCompletion)
+		r.Get("/v1/routines/{id}/streak", routineHandler.GetStreak)
+		r.Get("/v1/routines/completions", routineHandler.ListCompletionsForDay)
+
+		// Chores.
+		r.Get("/v1/chores", choreHandler.List)
+		r.Post("/v1/chores", choreHandler.Create)
+		r.Get("/v1/chores/completions", choreHandler.ListCompletions)
+		r.Patch("/v1/chores/{id}", choreHandler.Update)
+		r.Delete("/v1/chores/{id}", choreHandler.Archive)
+		r.Post("/v1/chores/{id}/complete", choreHandler.Complete)
+		r.Delete("/v1/chores/{id}/complete/{date}", choreHandler.UndoComplete)
+
+		// Wallet.
+		r.Get("/v1/wallet/{member_id}", walletHandler.GetWallet)
+		r.Post("/v1/wallet/{member_id}/tip", walletHandler.Tip)
+		r.Post("/v1/wallet/{member_id}/cash-out", walletHandler.CashOut)
+		r.Post("/v1/wallet/{member_id}/adjust", walletHandler.Adjust)
+		r.Get("/v1/allowance", walletHandler.ListAllowances)
+		r.Put("/v1/allowance/{member_id}", walletHandler.SetAllowance)
+
+		// Ad-hoc tasks.
+		r.Get("/v1/ad-hoc-tasks", walletHandler.ListAdHocTasks)
+		r.Post("/v1/ad-hoc-tasks", walletHandler.CreateAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/complete", walletHandler.CompleteAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/approve", walletHandler.ApproveAdHocTask)
+		r.Post("/v1/ad-hoc-tasks/{id}/decline", walletHandler.DeclineAdHocTask)
+
+		// ── Points ──
+		r.Get("/v1/point-categories", pointsHandler.ListCategories)
+		r.Post("/v1/point-categories", pointsHandler.CreateCategory)
+		r.Patch("/v1/point-categories/{id}", pointsHandler.UpdateCategory)
+		r.Delete("/v1/point-categories/{id}", pointsHandler.ArchiveCategory)
+		r.Get("/v1/behaviors", pointsHandler.ListBehaviors)
+		r.Post("/v1/behaviors", pointsHandler.CreateBehavior)
+		r.Patch("/v1/behaviors/{id}", pointsHandler.UpdateBehavior)
+		r.Delete("/v1/behaviors/{id}", pointsHandler.ArchiveBehavior)
+		r.Post("/v1/points/{member_id}/grant", pointsHandler.Grant)
+		r.Post("/v1/points/{member_id}/adjust", pointsHandler.Adjust)
+		r.Get("/v1/points/scoreboard", pointsHandler.Scoreboard)
+		r.Get("/v1/points/{member_id}", pointsHandler.GetBalance)
+
+		// ── Rewards ──
+		r.Get("/v1/rewards", rewardHandler.List)
+		r.Post("/v1/rewards", rewardHandler.Create)
+		r.Patch("/v1/rewards/{id}", rewardHandler.Update)
+		r.Delete("/v1/rewards/{id}", rewardHandler.Archive)
+		r.Post("/v1/rewards/{id}/redeem", rewardHandler.Redeem)
+		r.Post("/v1/rewards/{id}/cost-adjust", rewardHandler.CostAdjust)
+		r.Delete("/v1/reward-adjustments/{id}", rewardHandler.DeleteCostAdjustment)
+		r.Get("/v1/redemptions", rewardHandler.ListRedemptions)
+		r.Post("/v1/redemptions/{id}/approve", rewardHandler.Approve)
+		r.Post("/v1/redemptions/{id}/decline", rewardHandler.Decline)
+		r.Post("/v1/redemptions/{id}/fulfill", rewardHandler.Fulfill)
+		r.Put("/v1/savings-goals/{member_id}", rewardHandler.SetSavingsGoal)
+		r.Get("/v1/timeline/{member_id}", rewardHandler.Timeline)
+
+		// Equity engine.
+		r.Get("/v1/equity", equityHandler.GetDashboard)
+		r.Get("/v1/equity/suggestions", equityHandler.GetSuggestions)
+		r.Get("/v1/equity/domains", equityHandler.ListDomains)
+		r.Get("/v1/equity/tasks", equityHandler.ListTasks)
+		r.Post("/v1/equity/tasks", equityHandler.CreateTask)
+		r.Patch("/v1/equity/tasks/{id}", equityHandler.UpdateTask)
+		r.Delete("/v1/equity/tasks/{id}", equityHandler.DeleteTask)
+		r.Post("/v1/equity/tasks/{id}/log", equityHandler.LogTaskTime)
+
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)
 		r.Post("/v1/calendars/ical", calendarHandler.AddICal)
@@ -330,16 +493,13 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Post("/v1/billing/portal", billingHandler.Portal)
 		r.Get("/v1/billing/subscription", billingHandler.Subscription)
 
-		// Google OAuth start (auth required so we know which account).
-		r.Post("/v1/auth/oauth/google/start", oauthHandler.GoogleStart)
-
 		// Media upload — larger body limit (10 MB).
 		r.With(middleware.MaxRequestBody(10 << 20)).Post("/v1/media/upload", mediaHandler.Upload)
 	})
 
 	// Media sign endpoint — authenticated, outside the group above.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Auth(jwtSecret))
+		r.Use(middleware.Auth(verifier, q))
 		if accountLimiter != nil {
 			r.Use(accountLimiter.Middleware)
 		}

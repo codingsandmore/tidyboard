@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
+	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -85,8 +87,10 @@ func TestHousehold_CreateGet_Integration(t *testing.T) {
 
 	token := testutil.MakeJWT(acc.ID, uuid.Nil, uuid.Nil, "owner")
 
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(testutil.TestJWTSecret))
+	r.Use(middleware.Auth(verifier, q))
 	r.Post("/v1/households", h.Create)
 	r.Get("/v1/households/{id}", h.Get)
 	r.Patch("/v1/households/{id}", h.Update)

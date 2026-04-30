@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
+	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
@@ -64,11 +66,15 @@ func setupEventFixtures(t *testing.T) (srv *httptest.Server, token string, house
 
 	token = testutil.MakeJWT(acc.ID, householdID, mem.ID, "admin")
 
-	eventSvc := service.NewEventService(q)
+	bc := broadcast.NewMemoryBroadcaster()
+	auditSvc := service.NewAuditService(q)
+	eventSvc := service.NewEventService(q, bc, auditSvc)
 	h := handler.NewEventHandler(eventSvc)
 
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(testutil.TestJWTSecret))
+	r.Use(middleware.Auth(verifier, q))
 	r.Get("/v1/events", h.List)
 	r.Post("/v1/events", h.Create)
 	r.Get("/v1/events/{id}", h.Get)

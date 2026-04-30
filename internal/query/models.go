@@ -20,6 +20,32 @@ type Account struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AdHocTask struct {
+	ID                  uuid.UUID          `json:"id"`
+	HouseholdID         uuid.UUID          `json:"household_id"`
+	MemberID            uuid.UUID          `json:"member_id"`
+	Name                string             `json:"name"`
+	PayoutCents         int32              `json:"payout_cents"`
+	RequiresApproval    bool               `json:"requires_approval"`
+	Status              string             `json:"status"`
+	CreatedByAccountID  *uuid.NullUUID     `json:"created_by_account_id"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+	ApprovedAt          pgtype.Timestamptz `json:"approved_at"`
+	ApprovedByAccountID *uuid.NullUUID     `json:"approved_by_account_id"`
+	DeclineReason       string             `json:"decline_reason"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type AllowanceSetting struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	MemberID    uuid.UUID          `json:"member_id"`
+	AmountCents int64              `json:"amount_cents"`
+	ActiveFrom  pgtype.Date        `json:"active_from"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type AuditEntry struct {
 	ID             uuid.UUID          `json:"id"`
 	Timestamp      pgtype.Timestamptz `json:"timestamp"`
@@ -47,6 +73,17 @@ type BackupRecord struct {
 	S3Key          *string            `json:"s3_key"`
 }
 
+type Behavior struct {
+	ID              uuid.UUID          `json:"id"`
+	HouseholdID     uuid.UUID          `json:"household_id"`
+	CategoryID      uuid.UUID          `json:"category_id"`
+	Name            string             `json:"name"`
+	SuggestedPoints int32              `json:"suggested_points"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Calendar struct {
 	ID                uuid.UUID          `json:"id"`
 	HouseholdID       uuid.UUID          `json:"household_id"`
@@ -62,6 +99,58 @@ type Calendar struct {
 	Username          string             `json:"username"`
 	PasswordEncrypted string             `json:"password_encrypted"`
 	DisplayName       string             `json:"display_name"`
+}
+
+type Chore struct {
+	ID            uuid.UUID          `json:"id"`
+	HouseholdID   uuid.UUID          `json:"household_id"`
+	MemberID      uuid.UUID          `json:"member_id"`
+	Name          string             `json:"name"`
+	Weight        int32              `json:"weight"`
+	FrequencyKind string             `json:"frequency_kind"`
+	DaysOfWeek    []string           `json:"days_of_week"`
+	AutoApprove   bool               `json:"auto_approve"`
+	ArchivedAt    pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChoreCompletion struct {
+	ID                  uuid.UUID          `json:"id"`
+	ChoreID             uuid.UUID          `json:"chore_id"`
+	MemberID            uuid.UUID          `json:"member_id"`
+	Date                pgtype.Date        `json:"date"`
+	MarkedAt            pgtype.Timestamptz `json:"marked_at"`
+	Approved            bool               `json:"approved"`
+	ApprovedByAccountID *uuid.NullUUID     `json:"approved_by_account_id"`
+	PayoutCents         int32              `json:"payout_cents"`
+	Closed              bool               `json:"closed"`
+}
+
+type DomainOwnership struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	DomainID           uuid.UUID          `json:"domain_id"`
+	OwnerMemberID      uuid.UUID          `json:"owner_member_id"`
+	AssignedAt         pgtype.Timestamptz `json:"assigned_at"`
+	AssignedByMemberID *uuid.NullUUID     `json:"assigned_by_member_id"`
+	Notes              string             `json:"notes"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type EquityTask struct {
+	ID            uuid.UUID          `json:"id"`
+	HouseholdID   uuid.UUID          `json:"household_id"`
+	DomainID      uuid.UUID          `json:"domain_id"`
+	Name          string             `json:"name"`
+	TaskType      string             `json:"task_type"`
+	Recurrence    string             `json:"recurrence"`
+	EstMinutes    int32              `json:"est_minutes"`
+	OwnerMemberID *uuid.NullUUID     `json:"owner_member_id"`
+	SharePct      int32              `json:"share_pct"`
+	Archived      bool               `json:"archived"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Event struct {
@@ -150,6 +239,16 @@ type ListItem struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type MealPlanEntry struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	RecipeID    *uuid.NullUUID     `json:"recipe_id"`
+	Date        pgtype.Date        `json:"date"`
+	Slot        string             `json:"slot"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Member struct {
 	ID                      uuid.UUID          `json:"id"`
 	HouseholdID             uuid.UUID          `json:"household_id"`
@@ -165,18 +264,41 @@ type Member struct {
 	NotificationPreferences []byte             `json:"notification_preferences"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	NtfyTopic               *string            `json:"ntfy_topic"`
 }
 
-type OauthToken struct {
-	ID                    uuid.UUID          `json:"id"`
-	AccountID             uuid.UUID          `json:"account_id"`
-	Provider              string             `json:"provider"`
-	AccessTokenEncrypted  string             `json:"access_token_encrypted"`
-	RefreshTokenEncrypted string             `json:"refresh_token_encrypted"`
-	TokenExpiry           pgtype.Timestamptz `json:"token_expiry"`
-	Scopes                []string           `json:"scopes"`
-	CreatedAt             pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+type PantryStaple struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Amount      pgtype.Numeric     `json:"amount"`
+	Unit        string             `json:"unit"`
+	Aisle       string             `json:"aisle"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PointCategory struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Color       string             `json:"color"`
+	SortOrder   int32              `json:"sort_order"`
+	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PointGrant struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	CategoryID         *uuid.NullUUID     `json:"category_id"`
+	BehaviorID         *uuid.NullUUID     `json:"behavior_id"`
+	Points             int32              `json:"points"`
+	Reason             string             `json:"reason"`
+	GrantedByAccountID *uuid.NullUUID     `json:"granted_by_account_id"`
+	GrantedAt          pgtype.Timestamptz `json:"granted_at"`
 }
 
 type Recipe struct {
@@ -206,6 +328,23 @@ type Recipe struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type RecipeCollection struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Slug        string             `json:"slug"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RecipeCollectionItem struct {
+	CollectionID uuid.UUID          `json:"collection_id"`
+	RecipeID     uuid.UUID          `json:"recipe_id"`
+	SortOrder    int32              `json:"sort_order"`
+	AddedAt      pgtype.Timestamptz `json:"added_at"`
+}
+
 type RecipeIngredient struct {
 	ID               uuid.UUID      `json:"id"`
 	RecipeID         uuid.UUID      `json:"recipe_id"`
@@ -230,6 +369,113 @@ type RecipeStep struct {
 	ImageUrl     string    `json:"image_url"`
 }
 
+type Redemption struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	RewardID           uuid.UUID          `json:"reward_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	PointsAtRedemption int32              `json:"points_at_redemption"`
+	Status             string             `json:"status"`
+	RequestedAt        pgtype.Timestamptz `json:"requested_at"`
+	DecidedAt          pgtype.Timestamptz `json:"decided_at"`
+	DecidedByAccountID *uuid.NullUUID     `json:"decided_by_account_id"`
+	FulfilledAt        pgtype.Timestamptz `json:"fulfilled_at"`
+	DeclineReason      string             `json:"decline_reason"`
+	GrantID            *uuid.NullUUID     `json:"grant_id"`
+}
+
+type Reward struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ImageUrl           *string            `json:"image_url"`
+	CostPoints         int32              `json:"cost_points"`
+	FulfillmentKind    string             `json:"fulfillment_kind"`
+	Active             bool               `json:"active"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RewardCostAdjustment struct {
+	ID                 uuid.UUID          `json:"id"`
+	HouseholdID        uuid.UUID          `json:"household_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	RewardID           uuid.UUID          `json:"reward_id"`
+	DeltaPoints        int32              `json:"delta_points"`
+	Reason             string             `json:"reason"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type Routine struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	MemberID    *uuid.NullUUID     `json:"member_id"`
+	DaysOfWeek  []string           `json:"days_of_week"`
+	TimeSlot    string             `json:"time_slot"`
+	Archived    bool               `json:"archived"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RoutineCompletion struct {
+	ID          uuid.UUID          `json:"id"`
+	RoutineID   uuid.UUID          `json:"routine_id"`
+	StepID      *uuid.NullUUID     `json:"step_id"`
+	MemberID    uuid.UUID          `json:"member_id"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+}
+
+type RoutineStep struct {
+	ID         uuid.UUID          `json:"id"`
+	RoutineID  uuid.UUID          `json:"routine_id"`
+	Name       string             `json:"name"`
+	EstMinutes *int32             `json:"est_minutes"`
+	SortOrder  int32              `json:"sort_order"`
+	Icon       *string            `json:"icon"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SavingsGoal struct {
+	ID        uuid.UUID          `json:"id"`
+	MemberID  uuid.UUID          `json:"member_id"`
+	RewardID  uuid.UUID          `json:"reward_id"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+	ClearedAt pgtype.Timestamptz `json:"cleared_at"`
+}
+
+type ShoppingList struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	DateFrom    pgtype.Date        `json:"date_from"`
+	DateTo      pgtype.Date        `json:"date_to"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ShoppingListItem struct {
+	ID             uuid.UUID          `json:"id"`
+	ShoppingListID uuid.UUID          `json:"shopping_list_id"`
+	HouseholdID    uuid.UUID          `json:"household_id"`
+	Name           string             `json:"name"`
+	Amount         pgtype.Numeric     `json:"amount"`
+	Unit           string             `json:"unit"`
+	Aisle          string             `json:"aisle"`
+	SourceRecipes  []string           `json:"source_recipes"`
+	Completed      bool               `json:"completed"`
+	SortOrder      int32              `json:"sort_order"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Subscription struct {
 	ID                   uuid.UUID          `json:"id"`
 	HouseholdID          uuid.UUID          `json:"household_id"`
@@ -239,4 +485,60 @@ type Subscription struct {
 	CurrentPeriodEnd     pgtype.Timestamptz `json:"current_period_end"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TaskDomain struct {
+	ID          uuid.UUID          `json:"id"`
+	HouseholdID uuid.UUID          `json:"household_id"`
+	Name        string             `json:"name"`
+	Icon        string             `json:"icon"`
+	Description string             `json:"description"`
+	IsSystem    bool               `json:"is_system"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TaskLog struct {
+	ID              uuid.UUID          `json:"id"`
+	TaskID          uuid.UUID          `json:"task_id"`
+	HouseholdID     uuid.UUID          `json:"household_id"`
+	MemberID        uuid.UUID          `json:"member_id"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	IsCognitive     bool               `json:"is_cognitive"`
+	Notes           string             `json:"notes"`
+	Source          string             `json:"source"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type Wallet struct {
+	ID           uuid.UUID          `json:"id"`
+	MemberID     uuid.UUID          `json:"member_id"`
+	BalanceCents int64              `json:"balance_cents"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WalletTransaction struct {
+	ID                 uuid.UUID          `json:"id"`
+	WalletID           uuid.UUID          `json:"wallet_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	AmountCents        int64              `json:"amount_cents"`
+	Kind               string             `json:"kind"`
+	ReferenceID        *uuid.NullUUID     `json:"reference_id"`
+	Reason             string             `json:"reason"`
+	CreatedByAccountID *uuid.NullUUID     `json:"created_by_account_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type WeeklySummary struct {
+	ID               uuid.UUID          `json:"id"`
+	HouseholdID      uuid.UUID          `json:"household_id"`
+	MemberID         uuid.UUID          `json:"member_id"`
+	WeekStart        pgtype.Date        `json:"week_start"`
+	EarnedCents      int64              `json:"earned_cents"`
+	StreakBonusCents int64              `json:"streak_bonus_cents"`
+	ChoresCompleted  int32              `json:"chores_completed"`
+	ChoresPossible   int32              `json:"chores_possible"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }

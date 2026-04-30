@@ -1,0 +1,71 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: SSH deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/tidyboard
+
+            echo "==> Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main
+
+            # Ensure swap exists. The t4g.small only has 2GB RAM and a
+            # parallel `docker compose up --build` of all services has
+            # OOM-killed sshd / dockerd in the past (see project memory:
+            # project_path_c_box_ooms_on_full_build.md). Add a 4GB swap on
+            # first run and keep it across reboots via /etc/fstab.
+            if [ ! -f /swapfile ]; then
+              echo "==> Provisioning 4GB swapfile (one-time)..."
+              sudo fallocate -l 4G /swapfile
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+              echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+            else
+              # Make sure it's actually swapped on (e.g. after fresh reboot
+              # where the fstab entry should auto-mount).
+              swapon --show=NAME | grep -q '^/swapfile$' || sudo swapon /swapfile
+            fi
+            free -m | head -3
+
+            # Build services one at a time to keep peak RSS below the 2GB
+            # limit + swap headroom. `docker compose build` builds without
+            # restarting; the subsequent `up -d` only restarts containers
+            # that actually changed.
+            echo "==> Building tidyboard (Go)..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build tidyboard
+
+            echo "==> Building web (Next.js)..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build web
+
+            echo "==> Starting services..."
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up -d --remove-orphans
+
+            echo "==> Pruning unused images..."
+            docker image prune -f
+
+            echo "==> Deploy complete."
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              ps

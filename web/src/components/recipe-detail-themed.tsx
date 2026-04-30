@@ -19,7 +19,7 @@ export function RecipeDetailThemed({ recipe }: { recipe: Recipe }) {
         fontFamily: TB.fontBody,
       }}
     >
-      <RecipeDetail dark={dark} />
+      <RecipeDetail id={recipe.id} dark={dark} />
     </div>
   );
 }

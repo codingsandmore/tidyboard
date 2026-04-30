@@ -26,20 +26,6 @@ func NewAuthService(cfg config.AuthConfig, q *query.Queries) *AuthService {
 	return &AuthService{cfg: cfg, q: q}
 }
 
-// HashPassword returns a bcrypt hash of the plain-text password.
-func (s *AuthService) HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("hashing password: %w", err)
-	}
-	return string(hash), nil
-}
-
-// CheckPassword returns nil if plain matches hash.
-func (s *AuthService) CheckPassword(hash, plain string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain))
-}
-
 // HashPIN returns a bcrypt hash of the 4-6 digit PIN.
 func (s *AuthService) HashPIN(pin string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
@@ -54,7 +40,12 @@ func (s *AuthService) CheckPIN(hash, pin string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin))
 }
 
-// IssueToken generates a signed JWT for the given account/household/member context.
+// IssueToken generates a bespoke HMAC-HS256 JWT for the kiosk PIN flow.
+// This is NOT a Cognito artifact and is NOT legacy code awaiting deletion.
+// The PIN flow is a standalone kiosk path: a child member authenticates by
+// 4-6 digit PIN and receives a short-lived JWT scoped to their household.
+// Cognito is used exclusively for adult account holders (OIDC). The only
+// caller is PINLogin; do not add callers without a clear PIN-flow reason.
 func (s *AuthService) IssueToken(accountID, householdID, memberID uuid.UUID, role string) (string, time.Time, error) {
 	expiresAt := time.Now().Add(s.cfg.JWTExpiry)
 	claims := jwt.MapClaims{
@@ -72,74 +63,6 @@ func (s *AuthService) IssueToken(accountID, householdID, memberID uuid.UUID, rol
 		return "", time.Time{}, fmt.Errorf("signing token: %w", err)
 	}
 	return signed, expiresAt, nil
-}
-
-// Register creates a new Account and returns a JWT.
-func (s *AuthService) Register(ctx context.Context, req model.CreateAccountRequest) (*model.AuthResponse, error) {
-	// Check email uniqueness
-	_, err := s.q.GetAccountByEmail(ctx, req.Email)
-	if err == nil {
-		return nil, ErrEmailTaken
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("checking email: %w", err)
-	}
-
-	hash, err := s.HashPassword(req.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	acc, err := s.q.CreateAccount(ctx, query.CreateAccountParams{
-		ID:           uuid.New(),
-		Email:        req.Email,
-		PasswordHash: &hash,
-		IsActive:     true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("creating account: %w", err)
-	}
-
-	// Issue a token with no household/member context yet (zero UUIDs)
-	token, expiresAt, err := s.IssueToken(acc.ID, uuid.Nil, uuid.Nil, "")
-	if err != nil {
-		return nil, err
-	}
-
-	return &model.AuthResponse{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		Account:   accountToModel(acc),
-	}, nil
-}
-
-// Login verifies credentials and issues a JWT.
-func (s *AuthService) Login(ctx context.Context, req model.LoginRequest) (*model.AuthResponse, error) {
-	acc, err := s.q.GetAccountByEmail(ctx, req.Email)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrInvalidCredentials
-		}
-		return nil, fmt.Errorf("fetching account: %w", err)
-	}
-
-	if acc.PasswordHash == nil {
-		return nil, ErrInvalidCredentials
-	}
-	if err := s.CheckPassword(*acc.PasswordHash, req.Password); err != nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	token, expiresAt, err := s.IssueToken(acc.ID, uuid.Nil, uuid.Nil, "")
-	if err != nil {
-		return nil, err
-	}
-
-	return &model.AuthResponse{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		Account:   accountToModel(acc),
-	}, nil
 }
 
 // PINLogin authenticates a child member by PIN and issues a scoped JWT.

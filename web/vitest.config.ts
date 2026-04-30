@@ -8,10 +8,12 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.tsx"],
     globals: true,
+    maxWorkers: process.env.CI ? 2 : undefined,
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
       "**/e2e/**",
+      "**/e2e-prod/**",
       "**/e2e-real/**",
       "**/*.e2e.spec.*",
       "**/*.stories.tsx",
