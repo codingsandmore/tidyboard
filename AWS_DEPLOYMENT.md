@@ -1,63 +1,51 @@
-# Tidyboard — AWS Deployment
+# Tidyboard — EC2 Deployment
 
-Tidyboard ships with a complete Terraform infrastructure-as-code stack targeting
-AWS ECS Fargate. A single `terraform apply` provisions a production-ready
-Tidyboard stack behind CloudFront + ALB with Aurora Serverless v2, ElastiCache
-Redis, and all secrets in AWS Secrets Manager.
+Tidyboard production uses one EC2 instance running Docker Compose behind Caddy.
+The previous registry-backed service deployment path has been removed.
 
-## Quick reference
+## Quick Reference
 
 | What | Where |
 |---|---|
-| Full deployment guide | [`deploy/aws/README.md`](deploy/aws/README.md) |
 | Terraform root module | [`deploy/aws/`](deploy/aws/) |
-| Build + push script | [`deploy/aws/scripts/build-and-push.sh`](deploy/aws/scripts/build-and-push.sh) |
-| Deploy script | [`deploy/aws/scripts/deploy.sh`](deploy/aws/scripts/deploy.sh) |
-| GitHub Actions CI/CD | [`.github/workflows/deploy-aws.yml`](.github/workflows/deploy-aws.yml) |
+| EC2 infrastructure guide | [`deploy/aws/README.md`](deploy/aws/README.md) |
+| GitHub Actions deploy workflow | [`.github/workflows/deploy-ec2.yml`](.github/workflows/deploy-ec2.yml) |
+| Runtime secrets helper | [`deploy/aws/scripts/put-ssm-params.sh`](deploy/aws/scripts/put-ssm-params.sh) |
+| Shared DB bootstrap helper | [`deploy/aws/scripts/bootstrap-db.sh`](deploy/aws/scripts/bootstrap-db.sh) |
 
-## Five-minute summary
+## Five-Minute Summary
 
 ```bash
-# 1. Create AWS profile
+# 1. Create or select an AWS named profile.
 aws configure --profile tidyboard
 
-# 2. Configure variables
+# 2. Configure Terraform variables.
 cd deploy/aws
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: set domain_name
+# Edit terraform.tfvars: set domain_name, ssh_key_name, and admin_ssh_cidr.
 
-# 3. Provision infrastructure
-terraform init && terraform apply
+# 3. Store runtime secrets in SSM Parameter Store.
+./scripts/put-ssm-params.sh --profile tidyboard --region us-east-1 --env prod
 
-# 4. Set real secret values in Secrets Manager
-aws --profile tidyboard secretsmanager put-secret-value \
-  --secret-id "tidyboard-prod/auth/jwt-secret" \
-  --secret-string "$(openssl rand -base64 64)"
-# ... repeat for db password, redis password, stripe, oauth
+# 4. Provision or update infrastructure.
+terraform init
+terraform plan -out .tfplan
+terraform apply .tfplan
 
-# 5. Build and push Docker images to ECR
-./deploy/aws/scripts/build-and-push.sh
-
-# 6. Force ECS redeployment
-./deploy/aws/scripts/deploy.sh
-
-# 7. Add DNS CNAME for ACM validation (or enable Route 53)
-# See: terraform output acm_validation_records
-
-# 8. Point your domain at CloudFront
-# See: terraform output cloudfront_url
+# 5. Deploy the application through the EC2 workflow.
+gh workflow run deploy-ec2.yml
 ```
 
-## AWS credential policy
+## Runtime Deploy Flow
 
-**All AWS access uses named profiles from `~/.aws/credentials`.
-Static access keys are never hardcoded anywhere in this codebase.**
+The only production deploy workflow is `Deploy to EC2`. On a `main` push or
+manual dispatch it SSHes to the configured EC2 host, resets `/opt/tidyboard` to
+`origin/main`, builds the Go and web services one at a time, runs
+`docker compose up -d --remove-orphans`, prunes unused images, and prints final
+service status.
 
-The Terraform provider is configured with:
-```hcl
-provider "aws" {
-  profile = var.aws_profile  # default: "tidyboard"
-}
-```
+## AWS Credential Policy
 
-See [`deploy/aws/providers.tf`](deploy/aws/providers.tf).
+All operator AWS access uses named profiles from `~/.aws/credentials` or IAM
+roles. Static access keys are never hardcoded in this codebase. Runtime secrets
+are stored as SSM SecureStrings under `/tidyboard/<environment>/...`.

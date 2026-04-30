@@ -206,27 +206,23 @@ Ensure port 80 and 443 are open in your firewall/security group.
 
 ---
 
-### Option 2 — AWS ECS Fargate (recommended for cloud hosting)
+### Option 2 — AWS EC2 Production
 
-A full Terraform infrastructure-as-code stack is provided in `deploy/aws/`.
-One `terraform apply` provisions:
+The production AWS path is a single EC2 instance running Docker Compose and
+Caddy. Terraform in `deploy/aws/` provisions the supporting infrastructure:
 
-- **ECS Fargate** — four services: Go server, Next.js web, Python sync-worker,
-  Python recipe-scraper
-- **Aurora Serverless v2** (PostgreSQL 16) with **RDS Proxy**
-- **ElastiCache Redis 7**
-- **ALB** with HTTPS (ACM certificate)
-- **CloudFront** CDN in front of the ALB
+- **EC2** — one ARM64 instance for Docker Compose services
+- **Elastic IP** — stable public address for the instance
+- **Caddy** — HTTPS termination on the host
 - **S3** — media and backup buckets
-- **Secrets Manager** — all secrets (JWT, DB, Redis, Stripe, OAuth)
-- **Route 53** — optional, gated by `create_route53_records`
+- **SSM Parameter Store** — runtime secrets
+- **Cognito** — hosted sign-in and user pool
+- **Route 53** — optional apex and `www` A records pointing at the EC2 EIP
+
+Application deploys run only through `.github/workflows/deploy-ec2.yml`.
 
 **Full guide**: [`deploy/aws/README.md`](deploy/aws/README.md)
 **Quick reference**: [`AWS_DEPLOYMENT.md`](AWS_DEPLOYMENT.md)
-
-Estimated cost for a single-household deployment: ~$150–160/month.
-See the cost table in `deploy/aws/README.md` for a line-item breakdown and
-cost-reduction tips (Fargate Spot, desired_count = 0 for idle services).
 
 ---
 
@@ -310,8 +306,8 @@ api.tidyboard.example.com.  A     203.0.113.10
 - Vercel: use **Project → Settings → Environment Variables** (encrypted at rest).
 - Self-hosted: store secrets in a secrets manager or inject via systemd
   `EnvironmentFile=` directive pointing to a root-owned file (`chmod 600`).
-- AWS: use **AWS Secrets Manager** or **Parameter Store (SSM)**. Lambda
-  functions read secrets at cold-start via the AWS SDK.
+- EC2 production: use **Parameter Store (SSM)**. The instance reads runtime
+  secrets during boot and writes them into the app environment.
 - Generate strong secrets:
   ```bash
   openssl rand -base64 64   # JWT secret
