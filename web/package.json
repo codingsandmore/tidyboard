@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build && node serwist.config.mjs",
     "start": "next start",
-    "test": "vitest run",
+    "test": "TIDYBOARD_FORCE_VITEST_EXIT=1 vitest run --reporter=default --reporter=./src/test/ci-exit-reporter.ts",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",

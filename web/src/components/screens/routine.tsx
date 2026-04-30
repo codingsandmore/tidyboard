@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
-import { TBD, getMember } from "@/lib/data";
+import { getMember } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { H } from "@/components/ui/heading";
-import { useRoutines, useMarkStepComplete, useStreak } from "@/lib/api/hooks";
-import type { ApiRoutineStep } from "@/lib/api/types";
+import { useRoutines, useMarkStepComplete, useStreak, useMembers } from "@/lib/api/hooks";
+import type { ApiRoutine, ApiRoutineStep } from "@/lib/api/types";
+import type { Member } from "@/lib/data";
 import { useTranslations } from "next-intl";
 import { PhotoSlideshow } from "@/components/photo-slideshow";
 
@@ -166,43 +167,59 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
 }
 
 // ═══════ Routine V2 — checklist simple ═══════
-export function RoutineChecklist() {
+export function RoutineChecklist({ routine: routineProp }: { routine?: ApiRoutine }) {
   const t = useTranslations("routine");
-  const r = TBD.routine;
-  const member = getMember(r.member);
+  const { data: routines } = useRoutines();
+  const { data: members } = useMembers();
+
+  const r = routineProp ?? routines?.[0];
+  const member: Member | undefined = r?.member_id
+    ? members?.find((m) => m.id === r.member_id) ?? getMember(r.member_id)
+    : undefined;
+
+  if (!r || !member) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: TB.bg, color: TB.text2, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <H as="h2" style={{ fontSize: 18 }}>{t("noRoutineYet")}</H>
+      </div>
+    );
+  }
+
+  const steps = r.steps ?? [];
+  const total = steps.length;
+  // checklist variant has no live done-state — show static progress of 0
+  const progress = 0;
+
   return (
     <div style={{ width: "100%", height: "100%", background: member.color, color: "#fff", fontFamily: TB.fontBody, padding: 0, boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "28px 24px 16px" }}>
-        <div style={{ fontSize: 12, opacity: 0.85, letterSpacing: "0.1em" }}>JACKSON · {t("goodMorning")}</div>
+        <div style={{ fontSize: 12, opacity: 0.85, letterSpacing: "0.1em" }}>{member.name.toUpperCase()} · {t("goodMorning")}</div>
         <H as="h1" style={{ fontFamily: TB.fontDisplay, fontSize: 38, color: "#fff", marginTop: 6 }}>{t("letsGetReady")}</H>
         <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, height: 10, background: "rgba(255,255,255,0.25)", borderRadius: 9999, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${r.progress / r.total * 100}%`, background: "#fff", borderRadius: 9999 }} />
+            <div style={{ height: "100%", width: `${total > 0 ? progress / total * 100 : 0}%`, background: "#fff", borderRadius: 9999 }} />
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{r.progress}/{r.total}</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{progress}/{total}</div>
         </div>
       </div>
       <div style={{ flex: 1, background: "#fff", borderRadius: "24px 24px 0 0", padding: 20, color: TB.text, overflow: "auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {r.steps.map((s) => (
+          {steps.map((s) => (
             <div key={s.id} style={{
               padding: "14px 16px", borderRadius: 14,
-              background: s.done ? "#F5F5F4" : "#fff",
-              border: s.active ? `2px dashed ${member.color}` : `1px solid ${TB.borderSoft}`,
+              background: "#fff",
+              border: `1px solid ${TB.borderSoft}`,
               display: "flex", alignItems: "center", gap: 14,
-              opacity: s.done ? 0.6 : 1,
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
-                border: `2px solid ${s.done ? TB.success : member.color}`,
-                background: s.done ? TB.success : "transparent",
+                border: `2px solid ${member.color}`,
+                background: "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {s.done && <Icon name="check" size={16} color="#fff" stroke={3} />}
-              </div>
-              <div style={{ fontSize: 24 }}>{s.emoji}</div>
-              <div style={{ fontSize: 18, fontWeight: 600, flex: 1, textDecoration: s.done ? "line-through" : "none" }}>{s.name}</div>
-              <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>{s.min}m</div>
+              }} />
+              <div style={{ fontSize: 24 }}>{s.icon ?? "✅"}</div>
+              <div style={{ fontSize: 18, fontWeight: 600, flex: 1 }}>{s.name}</div>
+              <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>{s.est_minutes ?? 0}m</div>
             </div>
           ))}
         </div>
@@ -212,17 +229,33 @@ export function RoutineChecklist() {
 }
 
 // ═══════ Routine V3 — path / journey ═══════
-export function RoutinePath() {
+export function RoutinePath({ routine: routineProp }: { routine?: ApiRoutine }) {
   const t = useTranslations("routine");
-  const r = TBD.routine;
-  const member = getMember(r.member);
+  const { data: routines } = useRoutines();
+  const { data: members } = useMembers();
+
+  const r = routineProp ?? routines?.[0];
+  const member: Member | undefined = r?.member_id
+    ? members?.find((m) => m.id === r.member_id) ?? getMember(r.member_id)
+    : undefined;
+
+  if (!r || !member) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #F7F9F3 0%, #EEF1EB 100%)", fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <H as="h2" style={{ fontSize: 18, color: TB.text2 }}>{t("noRoutineYet")}</H>
+      </div>
+    );
+  }
+
+  const steps = r.steps ?? [];
+
   return (
     <div style={{ width: "100%", height: "100%", background: "linear-gradient(170deg, #F7F9F3 0%, #EEF1EB 100%)", fontFamily: TB.fontBody, padding: 24, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <Avatar member={member} size={54} />
         <div>
-          <H as="h2" style={{ fontFamily: TB.fontDisplay, color: member.color, fontSize: 26 }}>Jackson&apos;s Journey</H>
-          <div style={{ fontSize: 12, color: TB.text2 }}>{t("halfwayThere", { n: 15 })}</div>
+          <H as="h2" style={{ fontFamily: TB.fontDisplay, color: member.color, fontSize: 26 }}>{member.name}&apos;s Journey</H>
+          <div style={{ fontSize: 12, color: TB.text2 }}>{t("halfwayThere", { n: steps.length })}</div>
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ background: "#fff", padding: "10px 14px", borderRadius: 14, display: "flex", alignItems: "center", gap: 6, boxShadow: TB.shadow }}>
@@ -236,7 +269,7 @@ export function RoutinePath() {
         <svg style={{ position: "absolute", inset: 0, pointerEvents: "none" }} viewBox="0 0 300 500" preserveAspectRatio="none">
           <path d="M 60 30 Q 260 90, 80 180 T 220 330 T 80 480" stroke={member.color} strokeWidth="4" strokeDasharray="6 8" fill="none" opacity="0.35" />
         </svg>
-        {r.steps.map((s, i) => {
+        {steps.map((s, i) => {
           const leftSide = i % 2 === 0;
           return (
             <div key={s.id} style={{
@@ -246,21 +279,20 @@ export function RoutinePath() {
             }}>
               <div style={{
                 width: 48, height: 48, borderRadius: "50%",
-                background: s.done ? TB.success : (s.active ? member.color : "#fff"),
-                border: s.active ? `3px solid ${member.color}` : `2px solid ${s.done ? TB.success : TB.border}`,
+                background: "#fff",
+                border: `2px solid ${TB.border}`,
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
-                boxShadow: s.active ? `0 0 0 6px ${member.color}22` : TB.shadow,
+                boxShadow: TB.shadow,
               }}>
-                {s.done ? <Icon name="check" size={22} color="#fff" stroke={3} /> : s.emoji}
+                {s.icon ?? "✅"}
               </div>
               <div style={{
                 background: "#fff", padding: "10px 14px", borderRadius: 12, boxShadow: TB.shadow,
-                border: s.active ? `2px solid ${member.color}` : `1px solid ${TB.border}`,
-                opacity: s.done ? 0.55 : 1,
+                border: `1px solid ${TB.border}`,
                 minWidth: 140,
               }}>
-                <div style={{ fontSize: 15, fontWeight: 600, textDecoration: s.done ? "line-through" : "none" }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>{s.min} min</div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>{s.est_minutes ?? 0} min</div>
               </div>
             </div>
           );
@@ -309,26 +341,37 @@ export function KioskLock() {
 // ═══════ Kiosk Lock — Member picker state ═══════
 export function KioskLockMembers() {
   const t = useTranslations("lock");
+  const { data: allMembers } = useMembers();
+  // Show all members (children + adults) in the picker; fall back to empty list
+  // while loading so no hardcoded names are shown.
+  const members = allMembers ?? [];
+
   return (
     <div style={{ width: "100%", height: "100%", background: "#1C1917", color: "#fff", fontFamily: TB.fontBody, display: "flex", flexDirection: "column", padding: 32, boxSizing: "border-box" }}>
       <div style={{ textAlign: "center", marginBottom: 50 }}>
         <div style={{ fontFamily: TB.fontDisplay, fontSize: 48, fontWeight: 500 }}>{t("whosUsing")}</div>
         <div style={{ fontSize: 16, color: TB.muted, marginTop: 8 }}>{t("tapAvatar")}</div>
       </div>
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gridTemplateRows: "repeat(2, 1fr)", gap: 32, alignItems: "center", justifyItems: "center" }}>
-        {TBD.members.map((m) => (
-          <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, cursor: "pointer" }}>
-            <div style={{
-              width: 120, height: 120, borderRadius: "50%", background: m.color,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: TB.fontBody, fontWeight: 600, color: "#fff", fontSize: 48,
-              boxShadow: `0 0 0 4px rgba(255,255,255,0.1), 0 20px 50px ${m.color}55`,
-            }}>{m.initial}</div>
-            <div style={{ fontSize: 20, fontWeight: 600 }}>{m.name}</div>
-            <div style={{ fontSize: 12, color: TB.muted }}>{m.role === "child" ? t("pinRequired") : t("enterPassword")}</div>
-          </div>
-        ))}
-      </div>
+      {members.length === 0 ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: TB.muted, fontSize: 16 }}>
+          {t("noRoutineYet")}
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gridTemplateRows: "repeat(2, 1fr)", gap: 32, alignItems: "center", justifyItems: "center" }}>
+          {members.map((m) => (
+            <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, cursor: "pointer" }}>
+              <div style={{
+                width: 120, height: 120, borderRadius: "50%", background: m.color,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: TB.fontBody, fontWeight: 600, color: "#fff", fontSize: 48,
+                boxShadow: `0 0 0 4px rgba(255,255,255,0.1), 0 20px 50px ${m.color}55`,
+              }}>{m.initial}</div>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>{m.name}</div>
+              <div style={{ fontSize: 12, color: TB.muted }}>{m.role === "child" ? t("pinRequired") : t("enterPassword")}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

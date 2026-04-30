@@ -361,5 +361,21 @@
       "diffExpand": "Show diff",
       "diffCollapse": "Hide diff"
     }
+  },
+  "points": {
+    "rewards": "Rewards",
+    "scoreboard": "Scoreboard",
+    "timeline": "Timeline",
+    "pointsBalance": "{count} pts",
+    "redeem": "Redeem",
+    "request": "Request",
+    "needMore": "Need {count} more",
+    "approve": "Approve",
+    "decline": "Decline",
+    "fulfilled": "Fulfilled",
+    "savingFor": "Saving for this",
+    "saveForThis": "Save for this",
+    "redeemedToast": "Redeemed! {count} pts spent.",
+    "requestedToast": "Request sent — waiting for parent approval."
   }
 }
