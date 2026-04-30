@@ -106,7 +106,6 @@ function smokeWithAuth(name: string, Page: React.ComponentType) {
         </AuthProvider>
       </QueryClientProvider>
     );
-    vi.unstubAllGlobals();
     expect(container).toBeTruthy();
   });
 }
