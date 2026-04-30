@@ -12,7 +12,7 @@
  * attempt, capped at 30s.
  *
  * Skipped entirely in SSR (typeof window === "undefined") and when
- * isApiFallbackMode() is true (no backend to connect to).
+ * there is no authenticated household yet.
  */
 
 import {
@@ -26,7 +26,6 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-store";
-import { isApiFallbackMode } from "@/lib/api/fallback";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -163,8 +162,6 @@ export function WSProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // SSR guard
     if (typeof window === "undefined") return;
-    // Demo/fallback mode — no backend
-    if (isApiFallbackMode()) return;
     // Not authenticated yet, or authenticated but still mid-onboarding.
     if (auth.status !== "authenticated" || !auth.token || !auth.household?.id) {
       setStatus("idle");

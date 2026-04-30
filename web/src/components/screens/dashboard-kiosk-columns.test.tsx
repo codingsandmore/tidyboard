@@ -25,9 +25,10 @@ describe("DashKioskColumns", () => {
     renderWithQuery(<DashKioskColumns />);
   });
 
-  it("shows Thursday heading", () => {
+  it("shows the current weekday heading", () => {
     renderWithQuery(<DashKioskColumns />);
-    expect(screen.getByText("Thursday")).toBeTruthy();
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(new Date());
+    expect(screen.getByText(weekday)).toBeTruthy();
   });
 
   it("shows member column headers", () => {

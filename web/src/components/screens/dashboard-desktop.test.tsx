@@ -28,6 +28,7 @@ vi.mock("@/lib/api/hooks", () => ({
     ],
   }),
   useEvents: () => ({ data: TBD.events }),
+  useHousehold: () => ({ data: { name: "Rivera household", settings: {} } }),
   useRedemptions: () => ({ data: [] }),
   useAdHocTasks: () => ({ data: [] }),
   useWeather: () => ({ data: null }),
@@ -73,7 +74,8 @@ describe("DashDesktop", () => {
 
   it("shows Today heading", () => {
     renderWithQuery(<DashDesktop />);
-    expect(screen.getByText(/Today, April 22/)).toBeTruthy();
+    const todayLabel = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" }).format(new Date());
+    expect(screen.getByText(`Today, ${todayLabel}`)).toBeTruthy();
   });
 
   it("shows navigation items", () => {
@@ -96,7 +98,7 @@ describe("DashDesktop", () => {
 
   it("shows events in the main list", () => {
     renderWithQuery(<DashDesktop />);
-    expect(screen.getByText("Morning standup")).toBeTruthy();
+    expect(screen.getAllByText("Morning standup").length).toBeGreaterThan(0);
   });
 
   it("Search button navigates to calendar agenda view", () => {
@@ -116,7 +118,7 @@ describe("DashDesktop", () => {
   it("clicking an event navigates to its calendar detail route", () => {
     mockPush.mockClear();
     renderWithQuery(<DashDesktop />);
-    fireEvent.click(screen.getByText("Morning standup"));
+    fireEvent.click(screen.getAllByText("Morning standup")[0]);
     expect(mockPush).toHaveBeenCalledWith("/calendar?event=e1");
   });
 

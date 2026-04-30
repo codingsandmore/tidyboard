@@ -4,13 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { fmtTime, getMembers } from "@/lib/data";
+import { fmtTime } from "@/lib/time";
+import type { Member } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEvents, useMembers, useRedemptions, useAdHocTasks } from "@/lib/api/hooks";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
+import { useEvents, useHousehold, useMembers, useRedemptions, useAdHocTasks } from "@/lib/api/hooks";
 import { useWeather } from "@/lib/weather/use-weather";
 import { useAuth } from "@/lib/auth/auth-store";
 import { Scoreboard } from "@/components/screens/scoreboard";
@@ -20,10 +22,29 @@ export function DashDesktop() {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
   const router = useRouter();
-  const { data: apiMembers } = useMembers();
-  const { activeMember, setActiveMember } = useAuth();
-  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
-  const { data: weather } = useWeather();
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const { activeMember, setActiveMember, household } = useAuth();
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const {
+    data: hh,
+    error: householdError,
+    isPending: householdPending,
+    refetch: refetchHousehold,
+  } = useHousehold(household?.id);
+  const lat = typeof hh?.settings?.weather_latitude === "number" ? hh.settings.weather_latitude : undefined;
+  const lon = typeof hh?.settings?.weather_longitude === "number" ? hh.settings.weather_longitude : undefined;
+  const weatherCoords = lat != null && lon != null ? { lat, lon } : undefined;
+  const { data: weather } = useWeather(weatherCoords, { enabled: Boolean(weatherCoords) });
   const isAdmin = activeMember?.role === "adult";
   const { data: pendingRedemptions } = useRedemptions(isAdmin ? { status: "pending" } : undefined);
   const { data: pendingAdHoc } = useAdHocTasks(isAdmin ? { status: "pending" } : undefined);
@@ -31,6 +52,32 @@ export function DashDesktop() {
   const members = apiMembers ?? [];
   const activeMemberTargets = members.filter((member) => member.role !== "pet");
   const events = apiEvents ?? [];
+  const householdName = hh?.name || household?.name || "Tidyboard";
+  const nextEvent = events[0];
+  const todayLabel = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" }).format(new Date());
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const resolveEventMembers = (ids: string[]): Member[] =>
+    ids
+      .map((id) => memberById.get(id))
+      .filter((member): member is Member => Boolean(member));
+
+  if (membersError || eventsError || householdError) {
+    return (
+      <DataErrorState
+        title="Unable to load dashboard data"
+        error={membersError ?? eventsError ?? householdError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+          void refetchHousehold();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending || (Boolean(household?.id) && householdPending)) {
+    return <DataLoadingState label="Loading dashboard..." />;
+  }
 
   /** Toggle: clicking the already-active member clears the filter. */
   function handleMemberClick(m: (typeof members)[0]) {
@@ -108,7 +155,7 @@ export function DashDesktop() {
             tidyboard
           </div>
           <div style={{ fontSize: 11, color: TB.text2, marginTop: 2 }}>
-            The Smith Family
+            {householdName}
           </div>
         </div>
         {activeMemberTargets.map((m) => {
@@ -210,7 +257,7 @@ export function DashDesktop() {
         >
           <div>
             <H as="h2" style={{ fontSize: 22 }}>
-              Today, April 22
+              Today, {todayLabel}
             </H>
             <div style={{ fontSize: 12, color: TB.text2, marginTop: 2 }}>
               {t("eventsCount", { count: events.length })}
@@ -233,7 +280,7 @@ export function DashDesktop() {
               </div>
             )}
             {events.map((e, i) => {
-              const ms = getMembers(e.members);
+              const ms = resolveEventMembers(e.members);
               return (
                 <div
                   key={e.id}
@@ -296,7 +343,7 @@ export function DashDesktop() {
                       style={{
                         width: 4,
                         height: 36,
-                        background: ms.length > 1 ? TB.primary : ms[0].color,
+                        background: ms.length > 1 ? TB.primary : ms[0]?.color ?? TB.primary,
                         borderRadius: 2,
                       }}
                     />
@@ -358,11 +405,14 @@ export function DashDesktop() {
               marginTop: 4,
             }}
           >
-            Grocery run
+            {nextEvent?.title ?? t("noEvents")}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-            11:00 AM · Trader Joe&apos;s
-          </div>
+          {nextEvent && (
+            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
+              {fmtTime(nextEvent.start)}
+              {nextEvent.location ? ` · ${nextEvent.location}` : ""}
+            </div>
+          )}
         </Card>
 
         <div>
@@ -382,9 +432,7 @@ export function DashDesktop() {
                 {weather ? `${weather.tempNow}°` : "—"}
               </div>
               <div style={{ fontSize: 12, color: TB.text2 }}>
-                {weather
-                  ? `${weather.label} · H ${weather.high} · L ${weather.low}`
-                  : "Loading…"}
+                {weather ? `${weather.label} · H ${weather.high} · L ${weather.low}` : "Weather unavailable"}
               </div>
             </div>
           </Card>
@@ -407,8 +455,8 @@ export function DashDesktop() {
               }}
             />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 550 }}>Spaghetti Carbonara</div>
-              <div style={{ fontSize: 11, color: TB.text2 }}>30 min · Serves 4</div>
+              <div style={{ fontSize: 14, fontWeight: 550 }}>No dinner planned</div>
+              <div style={{ fontSize: 11, color: TB.text2 }}>Add meals from the meal planner</div>
             </div>
           </Card>
         </div>
@@ -418,16 +466,12 @@ export function DashDesktop() {
             {t("upcomingTasks")}
           </H>
           <Card pad={0}>
-            {[
-              "Pay Comcast bill · due Fri",
-              "Emma — permission slip · Mon",
-              "Order birthday gift · next week",
-            ].map((task, i) => (
+            {["No upcoming tasks"].map((task, i) => (
               <div
                 key={i}
                 style={{
                   padding: "10px 12px",
-                  borderBottom: i < 2 ? `1px solid ${TB.borderSoft}` : "none",
+                  borderBottom: "none",
                   display: "flex",
                   alignItems: "center",
                   gap: 8,

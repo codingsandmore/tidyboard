@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { fmtTime, getMembers } from "@/lib/data";
+import { fmtTime } from "@/lib/time";
+import type { Member } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
@@ -16,7 +17,19 @@ export function DashKioskAmbient() {
   const { data: apiEvents } = useEvents();
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
-  const nextEvent = events.find((e) => e.start >= "10:34") ?? events[0];
+  const nextEvent = events[0];
+  const now = new Date();
+  const timeLabel = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(now);
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(now);
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const resolveEventMembers = (ids: string[]): Member[] =>
+    ids
+      .map((id) => memberById.get(id))
+      .filter((member): member is Member => Boolean(member));
   return (
     <div
       style={{
@@ -54,10 +67,10 @@ export function DashKioskAmbient() {
               color: TB.text,
             }}
           >
-            10:34
+            {timeLabel}
           </div>
           <div style={{ marginTop: 8, fontSize: 16, color: TB.text2, fontWeight: 500 }}>
-            Thursday, April 22
+            {dateLabel}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -70,7 +83,7 @@ export function DashKioskAmbient() {
               marginTop: 4,
             }}
           >
-            72°
+            —
           </div>
         </div>
       </div>
@@ -106,7 +119,7 @@ export function DashKioskAmbient() {
               {nextEvent.title}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-              <StackedAvatars members={getMembers(nextEvent.members)} size={28} />
+              <StackedAvatars members={resolveEventMembers(nextEvent.members)} size={28} />
               <div style={{ fontSize: 13, opacity: 0.92 }}>
                 {fmtTime(nextEvent.start)} · {nextEvent.location}
               </div>
@@ -247,7 +260,7 @@ export function DashKioskAmbient() {
               marginTop: 2,
             }}
           >
-            Spaghetti Carbonara
+            No dinner planned
           </div>
         </div>
         <Btn kind="ghost" size="sm" iconRight="chevronR" onClick={() => router.push("/recipes")}>

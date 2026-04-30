@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { TBD, getMember, type Member } from "@/lib/data";
+import type { Member } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -148,13 +148,14 @@ function adaptDashboard(api: ApiEquityDashboard, members: Member[]) {
 
 export function Equity({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("equity");
-  // Try live backend first; fall back to stub data
+  // Try live backend first; legacy stub hook only returns data when backed by the API.
   const { data: liveData } = useEquityDashboard();
   const { data: stubData } = useEquity("This Week");
   const { data: suggestions } = useRebalanceSuggestions();
 
   const { data: membersData } = useMembers();
-  const allMembers: Member[] = membersData ?? (TBD.members as Member[]);
+  const allMembers: Member[] = membersData ?? [];
+  const memberById = new Map(allMembers.map((member) => [member.id, member]));
   const equityData = liveData
     ? adaptDashboard(liveData, allMembers)
     : stubData ?? null;
@@ -348,7 +349,7 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           </div>
           <div style={{ maxHeight: 260, overflow: "auto" }}>
             {eq.domainList.map((dm) => {
-              const m = getMember(dm.owner);
+              const m = memberById.get(dm.owner);
               return (
                 <div
                   key={dm.name}
@@ -360,7 +361,7 @@ export function Equity({ dark = false }: { dark?: boolean }) {
                     gap: 12,
                   }}
                 >
-                  <Avatar member={m} size={24} ring={false} />
+                  {m && <Avatar member={m} size={24} ring={false} />}
                   <div style={{ flex: 1, fontSize: 13, fontWeight: 550 }}>{dm.name}</div>
                   <div style={{ fontFamily: TB.fontMono, fontSize: 11, color: tc2 }}>{dm.tasks} tasks</div>
                   <div style={{ fontFamily: TB.fontMono, fontSize: 12, color: tc, minWidth: 38, textAlign: "right", fontWeight: 500 }}>{dm.hours}h</div>
@@ -382,13 +383,13 @@ export function EquityScales() {
   const { data: liveData } = useEquityDashboard();
   const { data: stubData } = useEquity("This Week");
 
-  const allMembers: Member[] = membersData ?? (TBD.members as Member[]);
+  const allMembers: Member[] = membersData ?? [];
   const adults = allMembers.filter((m) => m.role === "adult");
 
-  // Resolve equity adults from live API or stub fallback
+  // Resolve equity adults from live API data only; do not manufacture demo state.
   const equityAdults = liveData
     ? adaptDashboard(liveData, allMembers).adults
-    : stubData?.adults ?? TBD.equity.adults;
+    : stubData?.adults ?? [];
 
   // Use first two adults for the two-pan scale visualization
   const left = adults[0];
@@ -476,8 +477,9 @@ export function EquityScales() {
 export function Settings() {
   const t = useTranslations("settings");
   const tNav = useTranslations("nav");
-  const { logout } = useAuth();
+  const { logout, household } = useAuth();
   const router = useRouter();
+  const householdName = household?.name || "Tidyboard";
 
   function handleSignOut() {
     logout();
@@ -511,8 +513,10 @@ export function Settings() {
               <Icon name="home" size={22} color={TB.primary} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>The Smith Family</div>
-              <div style={{ fontSize: 12, color: TB.text2 }}>Running on Raspberry Pi · Berkeley, CA · 4 members</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{householdName}</div>
+              <div style={{ fontSize: 12, color: TB.text2 }}>
+                Household settings
+              </div>
             </div>
           </div>
         </Card>
@@ -576,6 +580,8 @@ export function Settings() {
 export function Race() {
   const t = useTranslations("race");
   const { data: apiRace } = useRace();
+  const { data: membersData } = useMembers();
+  const memberById = new Map((membersData ?? []).map((member) => [member.id, member]));
 
   if (!apiRace) {
     return (
@@ -606,13 +612,14 @@ export function Race() {
       {/* Tracks */}
       <div style={{ background: TB.surface, borderRadius: 16, padding: 18, display: "flex", flexDirection: "column", gap: 18 }}>
         {r.participants.map((p) => {
-          const m = getMember(p.id);
+          const m = memberById.get(p.id);
           const pct = (p.progress / p.items) * 100;
+          const participantName = m?.name ?? p.id;
           return (
             <div key={p.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <Avatar member={m} size={32} />
-                <div style={{ fontWeight: 600 }}>{m.name}</div>
+                {m && <Avatar member={m} size={32} />}
+                <div style={{ fontWeight: 600 }}>{participantName}</div>
                 <div style={{ fontSize: 12, color: TB.text2, fontFamily: TB.fontMono, marginLeft: "auto" }}>
                   {p.progress}/{p.items}
                 </div>
@@ -625,7 +632,7 @@ export function Race() {
                       style={{
                         flex: 1,
                         borderRight: i < p.items - 1 ? `1px solid ${TB.surface}` : "none",
-                        background: i < p.progress ? m.color : "transparent",
+                        background: i < p.progress ? m?.color ?? TB.primary : "transparent",
                       }}
                     />
                   ))}
@@ -639,7 +646,7 @@ export function Race() {
                     height: 18,
                     borderRadius: "50%",
                     background: "#fff",
-                    border: `2px solid ${m.color}`,
+                    border: `2px solid ${m?.color ?? TB.primary}`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -659,7 +666,7 @@ export function Race() {
         <div style={{ fontSize: 12, fontWeight: 600, color: TB.text2, margin: "6px 4px 8px", letterSpacing: "0.06em" }}>{t("tasksTapToClaim")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {r.items.map((it, i) => {
-            const m = it.by ? getMember(it.by) : null;
+            const m = it.by ? memberById.get(it.by) ?? null : null;
             return (
               <div
                 key={i}

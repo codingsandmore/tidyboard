@@ -23,8 +23,7 @@ vi.mock("@/lib/api/hooks", () => ({
   // New equity engine hooks — return undefined so the component falls back to stub data
   useEquityDashboard: () => ({ data: undefined }),
   useRebalanceSuggestions: () => ({ data: undefined }),
-  // Members hook — return undefined so the component falls back to TBD.members
-  useMembers: () => ({ data: undefined }),
+  useMembers: () => ({ data: TBD.members }),
 }));
 
 function createWrapper() {

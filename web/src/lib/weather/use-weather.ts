@@ -78,17 +78,12 @@ async function fetchWeather(lat: number, lon: number): Promise<WeatherSnapshot> 
   };
 }
 
-// Berkeley, CA — sample data shows the demo family lives there. Households
-// will eventually carry their own lat/lon in settings; until then this is
-// the fallback for any caller that doesn't pass coords.
-const DEFAULT_COORDS = { lat: 37.8716, lon: -122.273 };
-
 export function useWeather(
   coords?: { lat: number; lon: number },
   opts?: { enabled?: boolean }
 ) {
-  const enabled = opts?.enabled ?? true;
-  const effectiveCoords = coords ?? (enabled ? DEFAULT_COORDS : undefined);
+  const enabled = opts?.enabled ?? Boolean(coords);
+  const effectiveCoords = enabled ? coords : undefined;
   const { lat, lon } = effectiveCoords ?? { lat: 0, lon: 0 };
   return useQuery<WeatherSnapshot>({
     queryKey: ["weather", lat, lon],

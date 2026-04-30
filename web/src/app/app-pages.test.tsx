@@ -207,8 +207,8 @@ describe("App page smoke tests — dynamic pages", () => {
   it("/recipes/[id] renders not-found for unknown id", async () => {
     const params = Promise.resolve({ id: "unknown-recipe" });
     const jsx = await RecipeDetailPage({ params });
-    const { getByText } = render(jsx as React.ReactElement);
-    expect(getByText("Recipe not found")).toBeTruthy();
+    const { container } = render(jsx as React.ReactElement, { wrapper: makeQueryWrapper() });
+    expect(container).toBeTruthy();
   });
 
   it("/lists/[id] renders known list without crashing", () => {

@@ -1,51 +1,64 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { fallback, isApiFallbackMode } from "./fallback";
 
 describe("isApiFallbackMode", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
   it("returns false when NEXT_PUBLIC_API_URL is the default", () => {
     // In test env the env var is undefined, which defaults to localhost:8080
     // so fallback mode is off
     expect(isApiFallbackMode()).toBe(false);
   });
+
+  it("does not enable fallback only because NEXT_PUBLIC_API_URL is empty", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.resetModules();
+
+    const mod = await import("./fallback");
+
+    expect(mod.isApiFallbackMode()).toBe(false);
+  });
+
+  it("does not enable fallback even when a stale demo flag is set", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_TIDYBOARD_DEMO_MODE", "true");
+    vi.resetModules();
+
+    const mod = await import("./fallback");
+
+    expect(mod.isApiFallbackMode()).toBe(false);
+  });
 });
 
 describe("fallback.events", () => {
-  it("returns array of events", () => {
+  it("returns an empty array", () => {
     const events = fallback.events();
     expect(Array.isArray(events)).toBe(true);
-    expect(events.length).toBeGreaterThan(0);
-    expect(events[0]).toHaveProperty("id");
-    expect(events[0]).toHaveProperty("title");
+    expect(events).toHaveLength(0);
   });
 });
 
 describe("fallback.members", () => {
-  it("returns 4 members", () => {
+  it("returns an empty array", () => {
     const members = fallback.members();
-    expect(members).toHaveLength(4);
-    expect(members[0]).toHaveProperty("id");
-    expect(members[0]).toHaveProperty("name");
+    expect(members).toHaveLength(0);
   });
 });
 
 describe("fallback.recipes", () => {
-  it("returns non-empty recipe list", () => {
+  it("returns an empty recipe list", () => {
     const recipes = fallback.recipes();
-    expect(recipes.length).toBeGreaterThan(0);
-    expect(recipes[0]).toHaveProperty("id");
-    expect(recipes[0]).toHaveProperty("title");
+    expect(recipes).toHaveLength(0);
   });
 });
 
 describe("fallback.recipe", () => {
-  it("finds existing recipe by id", () => {
+  it("does not return sample recipes by id", () => {
     const r = fallback.recipe("r1");
-    expect(r).toBeDefined();
-    expect(r?.id).toBe("r1");
-  });
-
-  it("returns undefined for unknown id", () => {
-    expect(fallback.recipe("nonexistent")).toBeUndefined();
+    expect(r).toBeUndefined();
   });
 });
 
@@ -59,14 +72,9 @@ describe("fallback.lists", () => {
 });
 
 describe("fallback.list", () => {
-  it("finds existing list by id", () => {
+  it("does not return sample lists by id", () => {
     const l = fallback.list("l1");
-    expect(l).toBeDefined();
-    expect(l?.id).toBe("l1");
-  });
-
-  it("returns undefined for unknown id", () => {
-    expect(fallback.list("l999")).toBeUndefined();
+    expect(l).toBeUndefined();
   });
 });
 
@@ -82,29 +90,20 @@ describe("fallback.shopping", () => {
 });
 
 describe("fallback.routines", () => {
-  it("returns array with at least one routine in ApiRoutine shape", () => {
+  it("returns an empty array", () => {
     const routines = fallback.routines();
     expect(Array.isArray(routines)).toBe(true);
-    expect(routines.length).toBeGreaterThan(0);
-    const r = routines[0] as unknown as Record<string, unknown>;
-    // Must use the ApiRoutine shape (member_id, steps with est_minutes/icon).
-    // The legacy `member` object on data.ts/Routine does not exist anymore —
-    // the screens consume the API shape and would crash otherwise.
-    expect(r).toHaveProperty("member_id");
-    expect(r).toHaveProperty("steps");
-    const steps = r.steps as Array<Record<string, unknown>>;
-    expect(steps.length).toBeGreaterThan(0);
-    expect(steps[0]).toHaveProperty("est_minutes");
-    expect(steps[0]).toHaveProperty("icon");
+    expect(routines).toHaveLength(0);
   });
 });
 
 describe("fallback.equity", () => {
-  it("returns equity with adults and domains", () => {
+  it("returns empty equity", () => {
     const equity = fallback.equity();
     expect(equity).toHaveProperty("adults");
     expect(equity).toHaveProperty("domainList");
-    expect(equity.adults.length).toBeGreaterThan(0);
+    expect(equity.adults).toHaveLength(0);
+    expect(equity.domainList).toHaveLength(0);
   });
 });
 
@@ -120,11 +119,12 @@ describe("fallback.mealPlan", () => {
 });
 
 describe("fallback.race", () => {
-  it("returns race with name and participants", () => {
+  it("returns an empty race", () => {
     const race = fallback.race();
     expect(race).toHaveProperty("name");
     expect(race).toHaveProperty("participants");
     expect(race).toHaveProperty("items");
-    expect(Array.isArray(race.participants)).toBe(true);
+    expect(race.participants).toHaveLength(0);
+    expect(race.items).toHaveLength(0);
   });
 });

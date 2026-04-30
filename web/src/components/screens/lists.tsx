@@ -4,9 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { TB } from "@/lib/tokens";
-import { getMember } from "@/lib/data";
 import type { FamilyList, ListItem } from "@/lib/data";
-import { useLists, useCreateList, useAddListItem, useToggleListItem, useDeleteListItem } from "@/lib/api/hooks";
+import { useLists, useCreateList, useAddListItem, useToggleListItem, useDeleteListItem, useMembers } from "@/lib/api/hooks";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -345,6 +344,7 @@ export function ListsIndex() {
 export function ListDetail({ list }: { list: FamilyList }) {
   const t = useTranslations("list");
   const [newText, setNewText] = useState("");
+  const { data: members } = useMembers();
 
   const toggleItem = useToggleListItem();
   const addListItem = useAddListItem();
@@ -372,6 +372,7 @@ export function ListDetail({ list }: { list: FamilyList }) {
   const done = items.filter((i) => i.done).length;
   const total = items.length;
   const color = CATEGORY_COLOR[list.category];
+  const memberById = new Map((members ?? []).map((member) => [member.id, member]));
 
   return (
     <div
@@ -470,7 +471,7 @@ export function ListDetail({ list }: { list: FamilyList }) {
           }}
         >
           {items.map((item, idx) => {
-            const assignee = item.assignee ? getMember(item.assignee) : null;
+            const assignee = item.assignee ? memberById.get(item.assignee) ?? null : null;
             return (
               <div
                 key={item.id}

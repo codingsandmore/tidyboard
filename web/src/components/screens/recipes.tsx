@@ -3,12 +3,12 @@
 import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { TBD } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { H } from "@/components/ui/heading";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
 import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe, useGenerateShoppingList } from "@/lib/api/hooks";
@@ -46,7 +46,7 @@ export function RecipeImport() {
   const t = useTranslations("recipe");
   const tCommon = useTranslations("common");
   const router = useRouter();
-  const [url, setUrl] = useState("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+  const [url, setUrl] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   const importMutation = useImportRecipe();
@@ -181,46 +181,6 @@ export function RecipeImport() {
           </Btn>
         </div>
 
-        <div
-          style={{
-            marginTop: 28,
-            padding: 14,
-            background: TB.surface,
-            border: `1px solid ${TB.borderSoft}`,
-            borderRadius: 10,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              color: TB.text2,
-              marginBottom: 8,
-            }}
-          >
-            {t("recentlyAdded")}
-          </div>
-          {[
-            "Sheet Pan Chicken Fajitas · nytimes.com",
-            "Miso Butter Salmon · bonappetit.com",
-          ].map((item, i) => (
-            <div
-              key={i}
-              style={{
-                padding: "6px 0",
-                fontSize: 13,
-                color: TB.text,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Icon name="chef" size={14} color={TB.text2} />
-              {item}
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -257,7 +217,7 @@ export function scaleAmount(amt: string | undefined, factor: number): string {
 export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean }) {
   const t = useTranslations("recipe");
   const router = useRouter();
-  const { data: apiRecipe } = useRecipe(id ?? "");
+  const { data: apiRecipe, error, isPending, refetch } = useRecipe(id ?? "");
   const r = apiRecipe;
   const bg = dark ? TB.dBg : TB.bg;
   const surf = dark ? TB.dElevated : TB.surface;
@@ -271,6 +231,26 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
     if (r?.serves) setServings(r.serves);
   }, [r?.id, r?.serves]);
   const scaleFactor = baseServes > 0 ? servings / baseServes : 1;
+
+  if (id && isPending) {
+    return <DataLoadingState label="Loading recipe..." dark={dark} />;
+  }
+
+  if (error) {
+    const status = typeof error === "object" && error !== null && "status" in error
+      ? (error as { status?: unknown }).status
+      : undefined;
+    if (status !== 404) {
+      return (
+        <DataErrorState
+          title="Unable to load recipe"
+          error={error}
+          onRetry={() => void refetch()}
+          dark={dark}
+        />
+      );
+    }
+  }
 
   if (!r) {
     return (
@@ -614,7 +594,7 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
 export function RecipePreview() {
   const t = useTranslations("recipe");
   const router = useRouter();
-  const r = TBD.recipes[0];
+  const tags: string[] = [];
   return (
     <div
       style={{
@@ -647,8 +627,9 @@ export function RecipePreview() {
         <StripePlaceholder h={160} label="recipe image · imported" style={{ borderRadius: 0 }} />
         <div style={{ padding: 20 }}>
           <Input
-            value={r.title}
+            value=""
             onChange={() => {}}
+            placeholder="Recipe title"
             style={{ fontSize: 20, fontWeight: 600, height: 50, fontFamily: TB.fontDisplay }}
           />
           <div
@@ -660,7 +641,7 @@ export function RecipePreview() {
               letterSpacing: "0.06em",
             }}
           >
-            {t("source")} · {r.source.toUpperCase()}
+            {t("source")} · Import a recipe to review it here
           </div>
 
           <div
@@ -671,9 +652,9 @@ export function RecipePreview() {
               marginTop: 14,
             }}
           >
-            <Stat label={t("prepLabel")} value={`${r.prep}m`} />
-            <Stat label={t("cookLabel")} value={`${r.cook}m`} />
-            <Stat label={t("servings")} value={r.serves} />
+            <Stat label={t("prepLabel")} value="0m" />
+            <Stat label={t("cookLabel")} value="0m" />
+            <Stat label={t("servings")} value={0} />
           </div>
 
           <div style={{ marginTop: 18 }}>
@@ -689,7 +670,7 @@ export function RecipePreview() {
               {t("tags")}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {r.tag.map((tag) => (
+              {tags.map((tag) => (
                 <Badge key={tag}>#{tag}</Badge>
               ))}
               <Badge>+ add</Badge>
@@ -714,7 +695,7 @@ export function RecipePreview() {
                   key={i}
                   name="star"
                   size={24}
-                  color={i <= r.rating ? TB.warning : TB.border}
+                  color={TB.border}
                 />
               ))}
             </div>
@@ -742,7 +723,7 @@ export function RecipePreview() {
                 color: TB.text2,
               }}
             >
-              Kids loved this — add extra pecorino next time.
+              Add household notes after importing a recipe.
             </div>
           </div>
         </div>

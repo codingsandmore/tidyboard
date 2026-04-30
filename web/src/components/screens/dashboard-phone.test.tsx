@@ -36,14 +36,16 @@ describe("DashPhone", () => {
     expect(screen.getByText("tidyboard")).toBeTruthy();
   });
 
-  it("shows Thursday heading", () => {
+  it("shows the current weekday heading", () => {
     renderWithQuery(<DashPhone />);
-    expect(screen.getByText("Thursday")).toBeTruthy();
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(new Date());
+    expect(screen.getByText(weekday)).toBeTruthy();
   });
 
-  it("shows date and weather info", () => {
+  it("shows the current date and real event count", () => {
     renderWithQuery(<DashPhone />);
-    expect(screen.getByText(/April 22/)).toBeTruthy();
+    const dateLabel = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" }).format(new Date());
+    expect(screen.getByText(new RegExp(dateLabel))).toBeTruthy();
   });
 
   it("shows at least one event", () => {
@@ -58,8 +60,9 @@ describe("DashPhone", () => {
     expect(mockPush).toHaveBeenCalledWith("/calendar?event=e1");
   });
 
-  it("shows Spaghetti Carbonara dinner", () => {
+  it("does not show sample dinner data", () => {
     renderWithQuery(<DashPhone />);
-    expect(screen.getByText("Spaghetti Carbonara")).toBeTruthy();
+    expect(screen.queryByText("Spaghetti Carbonara")).toBeNull();
+    expect(screen.getByText("No dinner planned")).toBeTruthy();
   });
 });
