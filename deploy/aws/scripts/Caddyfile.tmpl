@@ -1,0 +1,52 @@
+# Caddyfile template for Tidyboard (Path C).
+#
+# Currently the canonical Caddyfile is INLINED in cloud-init.yaml (written
+# on first boot via a here-doc). This .tmpl exists as a source-of-truth
+# reference and for possible future use with terraform templatefile().
+#
+# Host names (`tidyboard:8080`, `web:3000`) are docker compose service names,
+# resolvable via docker's embedded DNS from inside the caddy container.
+# DO NOT use `localhost` here — in the caddy container that resolves to caddy
+# itself, not the upstream services.
+
+{$TIDYBOARD_DOMAIN} {
+    encode gzip zstd
+
+    @api {
+        path /api/*
+        path /v1/*
+        path /health
+        path /ready
+        path /metrics
+    }
+    handle @api {
+        reverse_proxy tidyboard:8080
+    }
+
+    @ws {
+        path /ws/*
+    }
+    handle @ws {
+        reverse_proxy tidyboard:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    # everything else → Next.js
+    handle {
+        reverse_proxy web:3000
+    }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+    }
+}
+
+# redirect www → apex
+www.{$TIDYBOARD_DOMAIN} {
+    redir https://{$TIDYBOARD_DOMAIN}{uri}
+}

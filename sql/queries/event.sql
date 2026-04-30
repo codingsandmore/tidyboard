@@ -33,6 +33,7 @@ SELECT * FROM events
 WHERE household_id = $1
   AND (sqlc.narg(start_time)::timestamptz IS NULL OR end_time   >= sqlc.narg(start_time))
   AND (sqlc.narg(end_time)::timestamptz   IS NULL OR start_time <= sqlc.narg(end_time))
+  AND (sqlc.narg(member_id)::uuid         IS NULL OR sqlc.narg(member_id)::uuid = ANY(assigned_members))
 ORDER BY start_time ASC;
 
 -- name: UpdateEvent :one
@@ -95,3 +96,13 @@ RETURNING *;
 SELECT * FROM calendars
 WHERE id = $1 AND household_id = $2
 LIMIT 1;
+
+-- name: ListCalendars :many
+SELECT * FROM calendars
+WHERE household_id = $1
+ORDER BY created_at;
+
+-- name: CreateCalendar :one
+INSERT INTO calendars (id, household_id, name, source, url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;

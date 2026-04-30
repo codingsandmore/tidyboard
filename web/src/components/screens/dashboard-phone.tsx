@@ -1,21 +1,23 @@
 "use client";
 
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMembers } from "@/lib/data";
-import { Icon } from "@/components/ui/icon";
+import { fmtTime, getMembers } from "@/lib/data";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useAuth } from "@/lib/auth/auth-store";
 import { useTranslations } from "next-intl";
 
 export function DashPhone() {
   const tNav = useTranslations("nav");
   const tDash = useTranslations("dashboard");
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const { activeMember } = useAuth();
+  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
   return (
     <div
       style={{
@@ -50,7 +52,7 @@ export function DashPhone() {
         >
           tidyboard
         </div>
-        <Avatar member={members[1] ?? TBD.members[1]} size={30} ring={false} />
+        {members[1] && <Avatar member={members[1]} size={30} ring={false} />}
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 8px" }}>
@@ -71,6 +73,11 @@ export function DashPhone() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {events.length === 0 && (
+            <div style={{ padding: "20px 0", textAlign: "center", color: TB.text2, fontSize: 13 }}>
+              {tDash("noEvents")}
+            </div>
+          )}
           {events.slice(0, 5).map((e) => {
             const ms = getMembers(e.members);
             const accent = ms.length > 1 ? TB.primary : ms[0].color;
@@ -152,8 +159,17 @@ export function DashPhone() {
           { n: "calendar", l: tNav("calendar"), href: "/calendar" },
           { n: "checkCircle", l: tNav("routines"), href: "/routines" },
           { n: "list", l: tNav("lists"), href: "/lists" },
+          { n: "pencil", l: tNav("notes"), href: "/notes" },
           { n: "chef", l: tNav("meals"), href: "/meals" },
+          { n: "star", l: tNav("wallet"), href: "/wallet" },
+          { n: "list", l: tNav("chores"), href: "/chores" },
           { n: "star", l: tNav("equity"), href: "/equity" },
+          ...(activeMember?.role === "child"
+            ? [
+                { n: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
+                { n: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
+              ]
+            : []),
         ]}
       />
     </div>

@@ -1,30 +1,67 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMembers } from "@/lib/data";
+import { fmtTime, getMembers } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEvents, useMembers } from "@/lib/api/hooks";
+import { useEvents, useMembers, useRedemptions, useAdHocTasks } from "@/lib/api/hooks";
+import { useWeather } from "@/lib/weather/use-weather";
+import { useAuth } from "@/lib/auth/auth-store";
+import { Scoreboard } from "@/components/screens/scoreboard";
 import { useTranslations } from "next-intl";
 
 export function DashDesktop() {
   const t = useTranslations("dashboard");
   const tNav = useTranslations("nav");
+  const router = useRouter();
   const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents();
-  const members = apiMembers && apiMembers.length > 0 ? apiMembers : TBD.members;
-  const events = apiEvents && apiEvents.length > 0 ? apiEvents : TBD.events;
+  const { activeMember, setActiveMember } = useAuth();
+  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const { data: weather } = useWeather();
+  const isAdmin = activeMember?.role === "adult";
+  const { data: pendingRedemptions } = useRedemptions(isAdmin ? { status: "pending" } : undefined);
+  const { data: pendingAdHoc } = useAdHocTasks(isAdmin ? { status: "pending" } : undefined);
+  const pendingCount = (pendingRedemptions?.length ?? 0) + (pendingAdHoc?.length ?? 0);
+  const members = apiMembers ?? [];
+  const events = apiEvents ?? [];
 
-  const NAV: { i: IconName; l: string; href: string; active?: boolean }[] = [
+  /** Toggle: clicking the already-active member clears the filter. */
+  function handleMemberClick(m: (typeof members)[0]) {
+    if (activeMember?.id === m.id) {
+      setActiveMember(null);
+    } else {
+      setActiveMember({ id: m.id, name: m.name, role: m.role === "child" ? "child" : "adult" });
+    }
+  }
+
+  const NAV: { i: IconName; l: string; href: string; active?: boolean; badge?: number }[] = [
     { i: "calendar", l: tNav("calendar"), href: "/calendar", active: true },
     { i: "checkCircle", l: tNav("routines"), href: "/routines" },
     { i: "list", l: tNav("lists"), href: "/lists" },
+    { i: "pencil", l: tNav("notes"), href: "/notes" },
     { i: "chef", l: tNav("meals"), href: "/meals" },
+    { i: "star", l: tNav("wallet"), href: "/wallet" },
+    { i: "list", l: tNav("chores"), href: "/chores" },
     { i: "star", l: tNav("equity"), href: "/equity" },
+    ...(activeMember?.role === "child"
+      ? [
+          { i: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
+          { i: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          { i: "star" as IconName, l: "Points", href: "/admin/points", badge: pendingCount > 0 ? pendingCount : undefined },
+          { i: "plus" as IconName, l: "Award", href: "/admin/points/award" },
+          { i: "trophy" as IconName, l: "Rewards", href: "/admin/rewards" },
+        ]
+      : []),
     { i: "settings", l: tNav("settings"), href: "/settings" },
   ];
 
@@ -73,40 +110,48 @@ export function DashDesktop() {
             The Smith Family
           </div>
         </div>
-        {members.map((m) => (
-          <div
-            key={m.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px",
-              borderRadius: 8,
-              cursor: "pointer",
-              background: m.id === "mom" ? TB.bg2 : "transparent",
-            }}
-          >
-            <Avatar member={m} size={30} ring={false} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 550,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {m.name}
-              </div>
-              <div style={{ fontSize: 10, color: TB.text2 }}>
-                {m.role === "child"
-                  ? `⭐ ${m.stars} · 🔥 ${t("streak", { n: m.streak })}`
-                  : t("eventsShort", { count: events.filter((e) => e.members.includes(m.id)).length })}
+        {members.map((m) => {
+          const isActive = activeMember?.id === m.id;
+          return (
+            <div
+              key={m.id}
+              data-testid={`member-tile-${m.id}`}
+              onClick={() => handleMemberClick(m)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px",
+                borderRadius: 8,
+                cursor: "pointer",
+                background: isActive ? `${TB.primary}18` : "transparent",
+                border: isActive ? `1.5px solid ${TB.primary}` : "1.5px solid transparent",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+            >
+              <Avatar member={m} size={30} ring={false} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: isActive ? 650 : 550,
+                    color: isActive ? TB.primary : TB.text,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m.name}
+                </div>
+                <div style={{ fontSize: 10, color: TB.text2 }}>
+                  {m.role === "child"
+                    ? `⭐ ${m.stars} · 🔥 ${t("streak", { n: m.streak })}`
+                    : t("eventsShort", { count: events.filter((e) => e.members.includes(m.id)).length })}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div style={{ flex: 1 }} />
         <div style={{ padding: "8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {NAV.map((n) => (
@@ -128,7 +173,24 @@ export function DashDesktop() {
               }}
             >
               <Icon name={n.i} size={16} color={n.active ? TB.primary : TB.text2} />
-              {n.l}
+              <span style={{ flex: 1 }}>{n.l}</span>
+              {n.badge != null && n.badge > 0 && (
+                <span
+                  style={{
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    padding: "1px 6px",
+                    lineHeight: "16px",
+                    minWidth: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {n.badge}
+                </span>
+              )}
             </Link>
           ))}
         </div>
@@ -154,16 +216,21 @@ export function DashDesktop() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn kind="secondary" size="sm" icon="search">
+            <Btn kind="secondary" size="sm" icon="search" onClick={() => router.push("/calendar?view=Agenda")}>
               {t("search")}
             </Btn>
-            <Btn kind="primary" size="sm" icon="plus">
+            <Btn kind="primary" size="sm" icon="plus" onClick={() => router.push("/calendar?new=event")}>
               {t("newEvent")}
             </Btn>
           </div>
         </div>
         <div style={{ flex: 1, padding: 20, overflow: "auto" }}>
           <Card pad={0} style={{ overflow: "hidden" }}>
+            {events.length === 0 && (
+              <div style={{ padding: "32px 20px", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+                {t("noEvents")}
+              </div>
+            )}
             {events.map((e, i) => {
               const ms = getMembers(e.members);
               return (
@@ -292,7 +359,7 @@ export function DashDesktop() {
             {t("weather")}
           </H>
           <Card pad={14} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <Icon name="sun" size={40} color={TB.warning} />
+            <Icon name={weather?.icon ?? "sun"} size={40} color={TB.warning} />
             <div>
               <div
                 style={{
@@ -301,14 +368,18 @@ export function DashDesktop() {
                   fontWeight: 500,
                 }}
               >
-                72°
+                {weather ? `${weather.tempNow}°` : "—"}
               </div>
               <div style={{ fontSize: 12, color: TB.text2 }}>
-                Partly sunny · H 78 · L 58
+                {weather
+                  ? `${weather.label} · H ${weather.high} · L ${weather.low}`
+                  : "Loading…"}
               </div>
             </div>
           </Card>
         </div>
+
+        <CelebrationsCard events={events} />
 
         <div>
           <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
@@ -364,7 +435,89 @@ export function DashDesktop() {
             ))}
           </Card>
         </div>
+
+        <div>
+          <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
+            Top kids
+          </H>
+          <Card pad={0} style={{ overflow: "hidden" }}>
+            <Scoreboard />
+          </Card>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Upcoming birthdays + anniversaries — shows yearly-recurring events whose
+ * next occurrence falls in the next 60 days. Pulled from the same /v1/events
+ * stream the rest of the dashboard uses; tagged via `recurrence_rule` set
+ * from the EventModal "Repeat" dropdown.
+ */
+function CelebrationsCard({
+  events,
+}: {
+  events: ReadonlyArray<{
+    id: string;
+    title: string;
+    start_time?: string;
+    start?: string;
+    recurrence_rule?: string;
+  }>;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const horizon = new Date(today);
+  horizon.setDate(horizon.getDate() + 60);
+
+  const upcoming = events
+    .filter((e) => (e.recurrence_rule ?? "").toUpperCase().includes("FREQ=YEARLY"))
+    .map((e) => {
+      const startStr = e.start_time ?? (e.start && e.start.includes("T") ? e.start : null);
+      if (!startStr) return null;
+      const orig = new Date(startStr);
+      // Compute next anniversary occurrence on or after today.
+      const next = new Date(today.getFullYear(), orig.getMonth(), orig.getDate());
+      if (next < today) next.setFullYear(next.getFullYear() + 1);
+      return next <= horizon ? { id: e.id, title: e.title, when: next } : null;
+    })
+    .filter((x): x is { id: string; title: string; when: Date } => x !== null)
+    .sort((a, b) => a.when.getTime() - b.when.getTime())
+    .slice(0, 4);
+
+  if (upcoming.length === 0) return null;
+
+  return (
+    <div data-testid="celebrations-card">
+      <H as="h3" style={{ fontSize: 16, marginBottom: 8 }}>
+        Celebrations
+      </H>
+      <Card pad={0}>
+        {upcoming.map((c, i) => {
+          const days = Math.round(
+            (c.when.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          return (
+            <div
+              key={c.id}
+              style={{
+                padding: 12,
+                borderBottom: i < upcoming.length - 1 ? `1px solid ${TB.borderSoft}` : "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Icon name="star" size={18} color={TB.warning} />
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 550 }}>{c.title}</div>
+              <div style={{ fontSize: 11, color: TB.text2, fontFamily: TB.fontMono }}>
+                {days === 0 ? "TODAY" : days === 1 ? "TOMORROW" : `IN ${days}d`}
+              </div>
+            </div>
+          );
+        })}
+      </Card>
     </div>
   );
 }

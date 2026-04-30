@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createCalendar = `-- name: CreateCalendar :one
+INSERT INTO calendars (id, household_id, name, source, url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, household_id, name, source, sync_config, sync_direction, assigned_member_id, color_override, created_at, updated_at, url, username, password_encrypted, display_name
+`
+
+type CreateCalendarParams struct {
+	ID          uuid.UUID `json:"id"`
+	HouseholdID uuid.UUID `json:"household_id"`
+	Name        string    `json:"name"`
+	Source      string    `json:"source"`
+	Url         string    `json:"url"`
+}
+
+func (q *Queries) CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error) {
+	row := q.db.QueryRow(ctx, createCalendar,
+		arg.ID,
+		arg.HouseholdID,
+		arg.Name,
+		arg.Source,
+		arg.Url,
+	)
+	var i Calendar
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.Name,
+		&i.Source,
+		&i.SyncConfig,
+		&i.SyncDirection,
+		&i.AssignedMemberID,
+		&i.ColorOverride,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Url,
+		&i.Username,
+		&i.PasswordEncrypted,
+		&i.DisplayName,
+	)
+	return i, err
+}
+
 const createEvent = `-- name: CreateEvent :one
 
 INSERT INTO events (
@@ -139,103 +181,6 @@ func (q *Queries) GetCalendar(ctx context.Context, arg GetCalendarParams) (Calen
 	return i, err
 }
 
-const createCalendar = `-- name: CreateCalendar :one
-INSERT INTO calendars (
-    id,
-    household_id,
-    name,
-    source,
-    sync_config,
-    sync_direction,
-    url,
-    username,
-    password_encrypted,
-    display_name,
-    created_at,
-    updated_at
-) VALUES (
-    $1, $2, $3, $4, '{}', 'one_way_in', $5, '', '', $3, NOW(), NOW()
-)
-RETURNING id, household_id, name, source, sync_config, sync_direction, assigned_member_id, color_override, created_at, updated_at, url, username, password_encrypted, display_name
-`
-
-type CreateCalendarParams struct {
-	ID          uuid.UUID `json:"id"`
-	HouseholdID uuid.UUID `json:"household_id"`
-	Name        string    `json:"name"`
-	Source      string    `json:"source"`
-	Url         string    `json:"url"`
-}
-
-func (q *Queries) CreateCalendar(ctx context.Context, arg CreateCalendarParams) (Calendar, error) {
-	row := q.db.QueryRow(ctx, createCalendar,
-		arg.ID,
-		arg.HouseholdID,
-		arg.Name,
-		arg.Source,
-		arg.Url,
-	)
-	var i Calendar
-	err := row.Scan(
-		&i.ID,
-		&i.HouseholdID,
-		&i.Name,
-		&i.Source,
-		&i.SyncConfig,
-		&i.SyncDirection,
-		&i.AssignedMemberID,
-		&i.ColorOverride,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Url,
-		&i.Username,
-		&i.PasswordEncrypted,
-		&i.DisplayName,
-	)
-	return i, err
-}
-
-const listCalendars = `-- name: ListCalendars :many
-SELECT id, household_id, name, source, sync_config, sync_direction, assigned_member_id, color_override, created_at, updated_at, url, username, password_encrypted, display_name FROM calendars
-WHERE household_id = $1
-ORDER BY created_at ASC
-`
-
-func (q *Queries) ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error) {
-	rows, err := q.db.Query(ctx, listCalendars, householdID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Calendar
-	for rows.Next() {
-		var i Calendar
-		if err := rows.Scan(
-			&i.ID,
-			&i.HouseholdID,
-			&i.Name,
-			&i.Source,
-			&i.SyncConfig,
-			&i.SyncDirection,
-			&i.AssignedMemberID,
-			&i.ColorOverride,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Url,
-			&i.Username,
-			&i.PasswordEncrypted,
-			&i.DisplayName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getEvent = `-- name: GetEvent :one
 SELECT id, household_id, calendar_id, external_id, title, description, start_time, end_time, all_day, location, recurrence_rule, assigned_members, reminders, created_at, updated_at FROM events
 WHERE id = $1 AND household_id = $2
@@ -304,11 +249,53 @@ func (q *Queries) GetEventByExternalID(ctx context.Context, arg GetEventByExtern
 	return i, err
 }
 
+const listCalendars = `-- name: ListCalendars :many
+SELECT id, household_id, name, source, sync_config, sync_direction, assigned_member_id, color_override, created_at, updated_at, url, username, password_encrypted, display_name FROM calendars
+WHERE household_id = $1
+ORDER BY created_at
+`
+
+func (q *Queries) ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error) {
+	rows, err := q.db.Query(ctx, listCalendars, householdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Calendar{}
+	for rows.Next() {
+		var i Calendar
+		if err := rows.Scan(
+			&i.ID,
+			&i.HouseholdID,
+			&i.Name,
+			&i.Source,
+			&i.SyncConfig,
+			&i.SyncDirection,
+			&i.AssignedMemberID,
+			&i.ColorOverride,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Url,
+			&i.Username,
+			&i.PasswordEncrypted,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEventsInRange = `-- name: ListEventsInRange :many
 SELECT id, household_id, calendar_id, external_id, title, description, start_time, end_time, all_day, location, recurrence_rule, assigned_members, reminders, created_at, updated_at FROM events
 WHERE household_id = $1
   AND ($2::timestamptz IS NULL OR end_time   >= $2)
   AND ($3::timestamptz   IS NULL OR start_time <= $3)
+  AND ($4::uuid         IS NULL OR $4::uuid = ANY(assigned_members))
 ORDER BY start_time ASC
 `
 
@@ -316,10 +303,16 @@ type ListEventsInRangeParams struct {
 	HouseholdID uuid.UUID          `json:"household_id"`
 	StartTime   pgtype.Timestamptz `json:"start_time"`
 	EndTime     pgtype.Timestamptz `json:"end_time"`
+	MemberID    *uuid.NullUUID     `json:"member_id"`
 }
 
 func (q *Queries) ListEventsInRange(ctx context.Context, arg ListEventsInRangeParams) ([]Event, error) {
-	rows, err := q.db.Query(ctx, listEventsInRange, arg.HouseholdID, arg.StartTime, arg.EndTime)
+	rows, err := q.db.Query(ctx, listEventsInRange,
+		arg.HouseholdID,
+		arg.StartTime,
+		arg.EndTime,
+		arg.MemberID,
+	)
 	if err != nil {
 		return nil, err
 	}

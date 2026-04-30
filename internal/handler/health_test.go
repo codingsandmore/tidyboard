@@ -43,7 +43,7 @@ func TestReadyHandler_NoPing(t *testing.T) {
 		t.Skip("TIDYBOARD_TEST_DSN not set; skipping integration test")
 	}
 
-	h := handler.Ready(nil)
+	h := handler.Ready(handler.ReadyConfig{})
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
 
@@ -54,5 +54,5 @@ func TestReadyHandler_NoPing(t *testing.T) {
 	var body map[string]any
 	err := json.Unmarshal(rec.Body.Bytes(), &body)
 	require.NoError(t, err)
-	assert.Equal(t, "ready", body["status"])
+	assert.Equal(t, "ok", body["status"])
 }

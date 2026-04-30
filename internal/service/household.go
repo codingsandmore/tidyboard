@@ -44,6 +44,19 @@ func (s *HouseholdService) Create(ctx context.Context, accountID uuid.UUID, req 
 	return householdToModel(h), nil
 }
 
+// ListByAccount returns all households the given account is a member of.
+func (s *HouseholdService) ListByAccount(ctx context.Context, accountID uuid.UUID) ([]*model.Household, error) {
+	rows, err := s.q.ListHouseholdsByAccount(ctx, &uuid.NullUUID{UUID: accountID, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("listing households by account: %w", err)
+	}
+	out := make([]*model.Household, len(rows))
+	for i, h := range rows {
+		out[i] = householdToModel(h)
+	}
+	return out, nil
+}
+
 // Get returns a household by ID.
 func (s *HouseholdService) Get(ctx context.Context, id uuid.UUID) (*model.Household, error) {
 	h, err := s.q.GetHousehold(ctx, id)

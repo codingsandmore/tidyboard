@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { TB } from "@/lib/tokens";
-import { TBD, getMember } from "@/lib/data";
+import { getMember } from "@/lib/data";
 import type { FamilyList, ListItem } from "@/lib/data";
+import { useLists, useCreateList, useAddListItem, useToggleListItem, useDeleteListItem } from "@/lib/api/hooks";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,23 @@ const CATEGORY_COLOR: Record<FamilyList["category"], string> = {
 
 export function ListsIndex() {
   const t = useTranslations("list");
+  const { data: apiLists } = useLists();
+  const lists = apiLists ?? [];
+  const [newListName, setNewListName] = useState("");
+  const [showNewList, setShowNewList] = useState(false);
+  const createList = useCreateList();
+
+  const handleCreateList = () => {
+    const name = newListName.trim();
+    if (!name) return;
+    createList.mutate({ name, type: "todo" }, {
+      onSuccess: () => {
+        setNewListName("");
+        setShowNewList(false);
+      },
+    });
+  };
+
   return (
     <div
       style={{
@@ -52,7 +70,7 @@ export function ListsIndex() {
           {t("lists")}
         </H>
         <button
-          onClick={() => window.prompt("New list name:")}
+          onClick={() => setShowNewList(true)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -72,10 +90,86 @@ export function ListsIndex() {
         </button>
       </div>
 
+      {/* Inline new-list form */}
+      {showNewList && (
+        <div
+          style={{
+            padding: "12px 20px",
+            borderBottom: `1px solid ${TB.border}`,
+            background: TB.bg2,
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+          }}
+        >
+          <input
+            autoFocus
+            value={newListName}
+            onChange={(e) => setNewListName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreateList();
+              if (e.key === "Escape") { setShowNewList(false); setNewListName(""); }
+            }}
+            placeholder="List name…"
+            style={{
+              flex: 1,
+              height: 36,
+              padding: "0 10px",
+              border: `1px solid ${TB.border}`,
+              borderRadius: 6,
+              fontFamily: TB.fontBody,
+              fontSize: 14,
+              color: TB.text,
+              background: TB.surface,
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={handleCreateList}
+            disabled={createList.isPending}
+            style={{
+              height: 36,
+              padding: "0 14px",
+              background: TB.primary,
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              fontFamily: TB.fontBody,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {createList.isPending ? "…" : "Create"}
+          </button>
+          <button
+            onClick={() => { setShowNewList(false); setNewListName(""); }}
+            style={{
+              height: 36,
+              padding: "0 10px",
+              background: "transparent",
+              color: TB.text2,
+              border: `1px solid ${TB.border}`,
+              borderRadius: 6,
+              fontFamily: TB.fontBody,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* List cards */}
       <div style={{ flex: 1, overflow: "auto", padding: "12px 20px 24px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {TBD.lists.map((list) => {
+          {lists.length === 0 && (
+            <div style={{ padding: "48px 0", textAlign: "center", color: TB.text2, fontSize: 14 }}>
+              {t("emptyState")}
+            </div>
+          )}
+          {lists.map((list) => {
             const done = list.items.filter((i) => i.done).length;
             const total = list.items.length;
             const pct = total === 0 ? 0 : (done / total) * 100;
@@ -250,25 +344,29 @@ export function ListsIndex() {
 
 export function ListDetail({ list }: { list: FamilyList }) {
   const t = useTranslations("list");
-  const [items, setItems] = useState<ListItem[]>(
-    list.items.map((it) => ({ ...it }))
-  );
   const [newText, setNewText] = useState("");
 
-  const toggle = (id: string) => {
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, done: !it.done } : it))
-    );
+  const toggleItem = useToggleListItem();
+  const addListItem = useAddListItem();
+  const deleteListItem = useDeleteListItem();
+
+  // Use live items from the list prop (refetched after mutations via invalidateQueries)
+  const items = list.items;
+
+  const toggle = (itemId: string, currentDone: boolean) => {
+    toggleItem.mutate({ listId: list.id, itemId, completed: !currentDone });
   };
 
   const addItem = () => {
     const text = newText.trim();
     if (!text) return;
-    setItems((prev) => [
-      ...prev,
-      { id: `new-${Date.now()}`, text, done: false },
-    ]);
-    setNewText("");
+    addListItem.mutate({ listId: list.id, text }, {
+      onSuccess: () => setNewText(""),
+    });
+  };
+
+  const removeItem = (itemId: string) => {
+    deleteListItem.mutate({ listId: list.id, itemId });
   };
 
   const done = items.filter((i) => i.done).length;
@@ -376,7 +474,6 @@ export function ListDetail({ list }: { list: FamilyList }) {
             return (
               <div
                 key={item.id}
-                onClick={() => toggle(item.id)}
                 style={{
                   padding: "13px 16px",
                   borderBottom:
@@ -386,13 +483,13 @@ export function ListDetail({ list }: { list: FamilyList }) {
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
-                  cursor: "pointer",
                   opacity: item.done ? 0.55 : 1,
                   transition: "opacity .15s",
                 }}
               >
                 {/* Checkbox */}
                 <div
+                  onClick={() => toggle(item.id, item.done)}
                   style={{
                     width: 20,
                     height: 20,
@@ -404,6 +501,7 @@ export function ListDetail({ list }: { list: FamilyList }) {
                     alignItems: "center",
                     justifyContent: "center",
                     transition: "all .15s",
+                    cursor: "pointer",
                   }}
                 >
                   {item.done && (
@@ -413,6 +511,7 @@ export function ListDetail({ list }: { list: FamilyList }) {
 
                 {/* Text */}
                 <span
+                  onClick={() => toggle(item.id, item.done)}
                   style={{
                     flex: 1,
                     fontSize: 15,
@@ -422,6 +521,7 @@ export function ListDetail({ list }: { list: FamilyList }) {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
+                    cursor: "pointer",
                   }}
                 >
                   {item.text}
@@ -438,6 +538,24 @@ export function ListDetail({ list }: { list: FamilyList }) {
                 {assignee && (
                   <Avatar member={assignee} size={26} ring={false} />
                 )}
+
+                {/* Delete button */}
+                <button
+                  onClick={() => removeItem(item.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    padding: 4,
+                    cursor: "pointer",
+                    color: TB.muted,
+                    display: "flex",
+                    alignItems: "center",
+                    flexShrink: 0,
+                  }}
+                  aria-label="Delete item"
+                >
+                  <Icon name="trash" size={14} color={TB.muted} />
+                </button>
               </div>
             );
           })}

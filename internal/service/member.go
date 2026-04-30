@@ -47,9 +47,15 @@ func (s *MemberService) Create(ctx context.Context, householdID uuid.UUID, req m
 		pinHash = &h
 	}
 
+	var accountID *uuid.NullUUID
+	if req.AccountID != nil {
+		accountID = &uuid.NullUUID{UUID: *req.AccountID, Valid: true}
+	}
+
 	m, err := s.q.CreateMember(ctx, query.CreateMemberParams{
 		ID:                      uuid.New(),
 		HouseholdID:             householdID,
+		AccountID:               accountID,
 		Name:                    req.Name,
 		DisplayName:             req.DisplayName,
 		Color:                   req.Color,

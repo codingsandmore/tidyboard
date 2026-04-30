@@ -3,9 +3,18 @@
 /**
  * Auth context for Tidyboard.
  *
- * Stores the JWT in localStorage under "tb-auth-token".
- * On mount, if a token exists it calls /v1/auth/me to hydrate account/household/member.
- * Falls back to mock "Smith Family" user when NEXT_PUBLIC_API_URL is "" (demo mode).
+ * Cognito-issued id_token is the bearer the Go middleware validates.
+ * Stored in localStorage under "tb-auth-token". On mount, if a token exists
+ * the provider calls /v1/auth/me to hydrate account/household/member.
+ *
+ * Demo mode (NEXT_PUBLIC_API_URL == "") still mocks the Smith Family.
+ *
+ * Sign-in is OIDC redirect to Cognito's Hosted UI (PKCE Authorization Code).
+ * The callback page (/auth/callback) calls completeCallback() which finishes
+ * the exchange and stores the resulting id_token via this provider.
+ *
+ * The legacy email/password register/login methods are gone — Cognito owns
+ * those flows. pinLogin stays for kiosk auth.
  */
 
 import {
@@ -18,6 +27,7 @@ import {
 } from "react";
 import { api } from "@/lib/api/client";
 import { isApiFallbackMode } from "@/lib/api/fallback";
+import { readOIDCConfig, signIn as oidcSignIn, signOut as oidcSignOut } from "@/lib/auth/oidc";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -45,17 +55,35 @@ export interface AuthState {
   household: AuthHousehold | null;
   member: AuthMember | null;
   token: string | null;
-  register(email: string, password: string): Promise<void>;
-  login(email: string, password: string): Promise<void>;
+  /**
+   * The currently "active" member in kiosk mode. In non-kiosk use this is
+   * the same as `member`. In kiosk mode any household member can claim the
+   * active session by entering their PIN; `activeMember` reflects who did.
+   */
+  activeMember: AuthMember | null;
+  /** Explicitly set the active member (e.g. adult switching without PIN). */
+  setActiveMember(m: AuthMember | null): void;
+  /** Return to the lock screen (clears activeMember, does NOT clear token). */
+  lockKiosk(): void;
+  /** Redirect to Cognito Hosted UI; never returns. `returnTo` defaults to "/". */
+  signIn(returnTo?: string): Promise<void>;
+  /** Set the Cognito-issued id_token after the callback page exchanges it. */
+  acceptToken(idToken: string): Promise<void>;
+  /** Kiosk PIN auth — backend issues a member-scoped JWT, sets activeMember. */
   pinLogin(memberId: string, pin: string): Promise<void>;
+  /** Clear local state + redirect to Cognito /logout. */
   logout(): void;
+  /**
+   * All households this account is a member of (fetched from GET /v1/me/households).
+   * Empty until hydration completes. Populated even in single-household accounts.
+   */
+  availableHouseholds: AuthHousehold[];
 }
 
 // ── Backend response types ─────────────────────────────────────────────────
 
-interface AuthResponse {
+interface PinResponse {
   token: string;
-  account_id?: string;
   member_id?: string;
 }
 
@@ -72,12 +100,14 @@ const TOKEN_KEY = "tb-auth-token";
 
 // ── Fallback mock auth ─────────────────────────────────────────────────────
 
-const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token"> = {
+const FALLBACK_AUTH: Pick<AuthState, "status" | "account" | "household" | "member" | "token" | "activeMember" | "availableHouseholds"> = {
   status: "authenticated",
   account: { id: "demo-account", email: "demo@smithfamily.net" },
   household: { id: "demo-household", name: "Smith Family" },
   member: { id: "demo-member", name: "Sarah Smith", role: "adult" },
   token: "demo-token",
+  activeMember: { id: "demo-member", name: "Sarah Smith", role: "adult" },
+  availableHouseholds: [{ id: "demo-household", name: "Smith Family" }],
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -88,8 +118,12 @@ const AuthContext = createContext<AuthState>({
   household: null,
   member: null,
   token: null,
-  register: async () => {},
-  login: async () => {},
+  activeMember: null,
+  availableHouseholds: [],
+  setActiveMember: () => {},
+  lockKiosk: () => {},
+  signIn: async () => {},
+  acceptToken: async () => {},
   pinLogin: async () => {},
   logout: () => {},
 });
@@ -129,26 +163,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [household, setHousehold] = useState<AuthHousehold | null>(null);
   const [member, setMember] = useState<AuthMember | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [activeMember, setActiveMemberState] = useState<AuthMember | null>(null);
+  const [availableHouseholds, setAvailableHouseholds] = useState<AuthHousehold[]>([]);
 
-  // Hydrate from /me using current token
   const hydrate = useCallback(async (): Promise<boolean> => {
     try {
       const me = await api.get<MeResponse>("/v1/auth/me");
       setAccount({ id: me.account_id, email: "" });
       if (me.household_id) {
         setHousehold({ id: me.household_id, name: "" });
+      } else {
+        setHousehold(null);
       }
       if (me.member_id) {
-        setMember({ id: me.member_id, name: "", role: me.role === "child" ? "child" : "adult" });
+        setMember({
+          id: me.member_id,
+          name: "",
+          role: me.role === "child" ? "child" : "adult",
+        });
+      } else {
+        setMember(null);
       }
       setStatus("authenticated");
+      // Fetch available households in the background — non-fatal if it fails.
+      api.get<{ id: string; name: string }[]>("/v1/me/households")
+        .then((hhs) => setAvailableHouseholds(hhs.map((h) => ({ id: h.id, name: h.name }))))
+        .catch(() => {/* leave empty — single-household fallback */});
       return true;
     } catch {
       return false;
     }
   }, []);
 
-  // On mount: check fallback mode or try to restore session
   useEffect(() => {
     if (isApiFallbackMode()) {
       setStatus(FALLBACK_AUTH.status);
@@ -156,6 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHousehold(FALLBACK_AUTH.household);
       setMember(FALLBACK_AUTH.member);
       setToken(FALLBACK_AUTH.token);
+      setActiveMemberState(FALLBACK_AUTH.activeMember);
+      setAvailableHouseholds(FALLBACK_AUTH.availableHouseholds);
       return;
     }
 
@@ -175,38 +223,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [hydrate]);
 
-  const register = useCallback(async (email: string, password: string): Promise<void> => {
-    const res = await api.post<AuthResponse>("/v1/auth/register", { email, password });
-    persistToken(res.token);
-    setToken(res.token);
-    // Set account id from response; /me will fill the rest
-    if (res.account_id) {
-      setAccount({ id: res.account_id, email });
+  const signIn = useCallback(async (returnTo: string = "/"): Promise<void> => {
+    const cfg = readOIDCConfig();
+    if (!cfg) {
+      throw new Error("auth: Cognito not configured (NEXT_PUBLIC_COGNITO_* env missing)");
     }
-    await hydrate();
-    // Update email after /me (which may not return it)
-    setAccount((prev) => prev ? { ...prev, email } : { id: res.account_id ?? "", email });
-  }, [hydrate]);
+    await oidcSignIn(cfg, returnTo);
+    // Browser redirected away — anything after this never runs.
+  }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<void> => {
-    const res = await api.post<AuthResponse>("/v1/auth/login", { email, password });
-    persistToken(res.token);
-    setToken(res.token);
-    if (res.account_id) {
-      setAccount({ id: res.account_id, email });
-    }
-    await hydrate();
-    setAccount((prev) => prev ? { ...prev, email } : { id: res.account_id ?? "", email });
-  }, [hydrate]);
+  const acceptToken = useCallback(
+    async (idToken: string): Promise<void> => {
+      persistToken(idToken);
+      setToken(idToken);
+      await hydrate();
+    },
+    [hydrate],
+  );
 
   const pinLogin = useCallback(async (memberId: string, pin: string): Promise<void> => {
-    const res = await api.post<AuthResponse>("/v1/auth/pin", { member_id: memberId, pin });
+    const res = await api.post<PinResponse>("/v1/auth/pin", { member_id: memberId, pin });
     persistToken(res.token);
     setToken(res.token);
     setStatus("authenticated");
     if (res.member_id) {
-      setMember((prev) => prev ? { ...prev, id: res.member_id! } : { id: res.member_id!, name: "", role: "child" });
+      const m: AuthMember = { id: res.member_id, name: "", role: "child" };
+      setMember((prev) => prev ? { ...prev, id: res.member_id! } : m);
+      setActiveMemberState(m);
     }
+  }, []);
+
+  const setActiveMember = useCallback((m: AuthMember | null): void => {
+    setActiveMemberState(m);
+  }, []);
+
+  const lockKiosk = useCallback((): void => {
+    setActiveMemberState(null);
   }, []);
 
   const logout = useCallback((): void => {
@@ -216,11 +268,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHousehold(null);
     setMember(null);
     setStatus("unauthenticated");
+    const cfg = readOIDCConfig();
+    if (cfg) {
+      // Redirects to Cognito /logout, which redirects back to logoutUri.
+      oidcSignOut(cfg);
+    }
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ status, account, household, member, token, register, login, pinLogin, logout }}
+      value={{
+        status, account, household, member, token,
+        activeMember: activeMember ?? member,
+        availableHouseholds,
+        setActiveMember,
+        lockKiosk,
+        signIn, acceptToken, pinLogin, logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

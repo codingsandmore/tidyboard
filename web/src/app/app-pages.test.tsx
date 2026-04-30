@@ -25,7 +25,7 @@ import CalDayDarkPage from "./calendar/day-dark/page";
 import CalWeekPage from "./calendar/week/page";
 import CalMonthPage from "./calendar/month/page";
 import CalAgendaPage from "./calendar/agenda/page";
-import CalEventPage from "./calendar/event/page";
+// Note: /calendar/event was a design-scene preview page; it has been removed.
 
 import RoutinesPage from "./routines/page";
 import RoutinesKidPage from "./routines/kid/page";
@@ -106,7 +106,6 @@ function smokeWithAuth(name: string, Page: React.ComponentType) {
         </AuthProvider>
       </QueryClientProvider>
     );
-    vi.unstubAllGlobals();
     expect(container).toBeTruthy();
   });
 }
@@ -126,29 +125,28 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/calendar", CalendarPage);
   smokeWithQuery("/calendar/day", CalDayPage);
   smokeWithQuery("/calendar/day-dark", CalDayDarkPage);
-  smoke("/calendar/week", CalWeekPage);
+  smokeWithQuery("/calendar/week", CalWeekPage);
   smoke("/calendar/month", CalMonthPage);
   smokeWithQuery("/calendar/agenda", CalAgendaPage);
-  smokeWithQuery("/calendar/event", CalEventPage);
 
   smokeWithQuery("/routines", RoutinesPage);
   smokeWithQuery("/routines/kid", RoutinesKidPage);
   smokeWithQuery("/routines/kid-dark", RoutinesKidDarkPage);
-  smoke("/routines/checklist", RoutinesChecklistPage);
-  smoke("/routines/path", RoutinesPathPage);
+  smokeWithQuery("/routines/checklist", RoutinesChecklistPage);
+  smokeWithQuery("/routines/path", RoutinesPathPage);
 
   smokeWithQuery("/meals", MealsPage);
   smokeWithQuery("/meals/preview", MealsPreviewPage);
-  smoke("/recipes", RecipesPage);
+  smokeWithQuery("/recipes", RecipesPage);
   smokeWithQuery("/recipes/import", RecipesImportPage);
   smoke("/recipes/preview-preview", RecipesPreviewPage);
   smokeWithQuery("/recipes/preview-detail", RecipesPreviewDetailPage);
   smokeWithQuery("/recipes/preview-detail-dark", RecipesPreviewDetailDarkPage);
   smokeWithQuery("/recipes/preview-import", RecipesPreviewImportPage);
 
-  smoke("/lists", ListsPage);
-  smoke("/lists/preview", ListsPreviewPage);
-  smoke("/lists/preview-detail", ListsPreviewDetailPage);
+  smokeWithQuery("/lists", ListsPage);
+  smokeWithQuery("/lists/preview", ListsPreviewPage);
+  smokeWithQuery("/lists/preview-detail", ListsPreviewDetailPage);
 
   smokeWithQuery("/shopping", ShoppingPage);
   smokeWithQuery("/shopping/preview", ShoppingPreviewPage);
@@ -156,10 +154,10 @@ describe("App page smoke tests — static pages", () => {
   smokeWithQuery("/equity", EquityPage);
   smokeWithQuery("/equity/preview", EquityPreviewPage);
   smokeWithQuery("/equity/preview-dark", EquityPreviewDarkPage);
-  smoke("/equity/preview-scales", EquityPreviewScalesPage);
+  smokeWithQuery("/equity/preview-scales", EquityPreviewScalesPage);
 
-  smoke("/lock", LockPage);
-  smoke("/lock/members", LockMembersPage);
+  smokeWithAuth("/lock", LockPage);
+  smokeWithQuery("/lock/members", LockMembersPage);
   smoke("/lock/screen", LockScreenPage);
 
   smokeWithQuery("/race", RacePage);

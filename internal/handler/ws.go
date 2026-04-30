@@ -8,35 +8,35 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/handler/respond"
 	"github.com/tidyboard/tidyboard/internal/middleware"
+	"github.com/tidyboard/tidyboard/internal/query"
 )
 
 // WSHandler handles the WebSocket upgrade endpoint.
+//
+// Browsers cannot set custom headers on the WebSocket handshake, so this
+// endpoint accepts the bearer token via either Authorization header
+// (server-side / curl) or `?token=` query param (browser). Both paths flow
+// through the same Verifier + DB resolution as HTTP middleware.
 type WSHandler struct {
 	broadcaster broadcast.Broadcaster
-	jwtSecret   string
+	verifier    auth.Verifier
+	queries     *query.Queries
 }
 
 // NewWSHandler constructs a WSHandler.
-func NewWSHandler(broadcaster broadcast.Broadcaster, jwtSecret string) *WSHandler {
-	return &WSHandler{broadcaster: broadcaster, jwtSecret: jwtSecret}
+func NewWSHandler(broadcaster broadcast.Broadcaster, verifier auth.Verifier, q *query.Queries) *WSHandler {
+	return &WSHandler{broadcaster: broadcaster, verifier: verifier, queries: q}
 }
 
 // ServeWS handles GET /v1/ws.
-// It accepts the JWT via Authorization header OR ?token= query param (for browser WS clients).
 func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
-	// Resolve token: header first, then query param.
-	tokenStr := ""
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		if len(auth) > 7 && auth[:7] == "Bearer " {
-			tokenStr = auth[7:]
-		} else if len(auth) > 7 && auth[:7] == "bearer " {
-			tokenStr = auth[7:]
-		}
-	}
+	tokenStr := auth.ExtractBearer(r.Header.Get("Authorization"))
 	if tokenStr == "" {
 		tokenStr = r.URL.Query().Get("token")
 	}
@@ -45,21 +45,19 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := &middleware.Claims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return []byte(h.jwtSecret), nil
-	})
-	if err != nil || !token.Valid {
+	id, err := h.verifier.Verify(r.Context(), tokenStr)
+	if err != nil {
 		respond.Error(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
 		return
 	}
 
-	householdID := claims.HouseholdID
-	if householdID == "" {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household_id in token")
+	_, householdID, _, _, err := middleware.Resolve(r.Context(), h.queries, id)
+	if err != nil {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "could not resolve identity")
+		return
+	}
+	if householdID == uuid.Nil {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "no household membership yet")
 		return
 	}
 
@@ -73,7 +71,7 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 
-	channel := "household:" + householdID
+	channel := "household:" + householdID.String()
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 

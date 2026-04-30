@@ -4,9 +4,7 @@ import LoginPage from "./page";
 import { AuthProvider } from "@/lib/auth/auth-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// ── Shared router mock ──────────────────────────────────────────────────────
-// We override the module-level mock from setup.tsx so all useRouter() calls
-// within this test file return the same object (and thus the same push fn).
+// ── Mocks ───────────────────────────────────────────────────────────────────
 
 const pushMock = vi.fn();
 
@@ -29,9 +27,15 @@ function makeLocalStorageMock() {
   const store: Record<string, string> = {};
   return {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v; },
-    removeItem: (k: string) => { delete store[k]; },
-    clear: () => { for (const k in store) delete store[k]; },
+    setItem: (k: string, v: string) => {
+      store[k] = v;
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      for (const k in store) delete store[k];
+    },
   };
 }
 
@@ -42,7 +46,7 @@ function renderLoginPage() {
       <AuthProvider>
         <LoginPage />
       </AuthProvider>
-    </QueryClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -51,6 +55,13 @@ function renderLoginPage() {
 beforeEach(() => {
   vi.stubGlobal("localStorage", makeLocalStorageMock());
   pushMock.mockClear();
+  // Stub window.location.assign so signIn() doesn't blow up on navigation.
+  if (typeof window !== "undefined" && window.location) {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign: vi.fn(), replace: vi.fn(), origin: "http://localhost" },
+    });
+  }
 });
 
 afterEach(() => {
@@ -61,69 +72,40 @@ afterEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe("LoginPage", () => {
-  it("renders email and password fields and a submit button", () => {
+  it("renders a single Continue button (no email/password fields after Cognito cutover)", () => {
     renderLoginPage();
-    expect(screen.getByLabelText("Email")).toBeTruthy();
-    expect(screen.getByLabelText("Password")).toBeTruthy();
+    // No password input — Cognito Hosted UI handles passwords.
+    expect(screen.queryByLabelText("Password")).toBeNull();
+    expect(screen.queryByLabelText("Email")).toBeNull();
     expect(screen.getByRole("button", { name: /log in/i })).toBeTruthy();
   });
 
-  it("renders a link to /onboarding", () => {
+  it("renders a link to the kiosk PIN login", () => {
     renderLoginPage();
-    const link = screen.getByRole("link", { name: /create one/i });
+    const link = screen.getByRole("link", { name: /kiosk pin/i });
     expect(link).toBeTruthy();
-    expect((link as HTMLAnchorElement).href).toContain("/onboarding");
+    expect((link as HTMLAnchorElement).href).toContain("/pin-login");
   });
 
-  it("shows error card when login fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        statusText: "Unauthorized",
-        json: async () => ({ code: "INVALID_CREDENTIALS", message: "Wrong email or password", status: 401 }),
-      })
-    );
-
+  it("shows the explanatory hint about secure sign-in", () => {
     renderLoginPage();
-
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "bad@test.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrongpw" } });
-    fireEvent.click(screen.getByRole("button", { name: /log in/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeTruthy();
-    });
-    expect(screen.getByRole("alert").textContent).toContain("Wrong email or password");
+    expect(
+      screen.getByText(/secure sign-in page/i),
+    ).toBeTruthy();
   });
 
-  it("redirects to / on successful login", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn()
-        // login
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({ token: "tok", account_id: "a1" }),
-        })
-        // /me
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          json: async () => ({ account_id: "a1", household_id: null, member_id: null, role: "adult" }),
-        })
-    );
-
+  it("clicking the button kicks off the OIDC redirect (or surfaces a config error if env missing)", async () => {
     renderLoginPage();
-
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "pw" } });
     fireEvent.click(screen.getByRole("button", { name: /log in/i }));
 
+    // In the test environment NEXT_PUBLIC_COGNITO_* are not set, so signIn()
+    // throws "Cognito not configured" — the page renders that error inline.
+    // We assert we either redirected (window.location.assign was called) OR
+    // the error path triggered. Both prove the click handler is wired.
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/");
+      const assigned = (window.location.assign as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+      const errorShown = !!screen.queryByRole("alert");
+      expect(assigned || errorShown).toBe(true);
     });
   });
 });

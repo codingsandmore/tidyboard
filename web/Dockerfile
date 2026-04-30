@@ -10,7 +10,13 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+# --legacy-peer-deps: @storybook/nextjs@9.1.14+ supports next@16 in its peer
+# range, but the v9 migration removed @storybook/addon-essentials and
+# @storybook/addon-interactions as separate packages (folded into core
+# storybook). Bumping to v9 requires updating .storybook/main.ts config, which
+# is out of scope for this change. Re-evaluate when that migration is done.
+# Storybook is dev-only; the flag has no effect on the production runtime image.
+RUN npm ci --ignore-scripts --legacy-peer-deps
 
 # ── Stage 2: builder ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -20,8 +26,19 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build environment — these are build-time values only.
-# Runtime values (NEXT_PUBLIC_API_URL etc.) are injected via ECS task env vars.
+# NEXT_PUBLIC_* env vars are baked into the client bundle at BUILD TIME, not
+# read at runtime. docker-compose.prod.yml passes them as build args; we
+# re-export them as ENV so `next build` picks them up.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_COGNITO_REGION
+ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
+ARG NEXT_PUBLIC_COGNITO_DOMAIN
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION
+ENV NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ENV NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID
+ENV NEXT_PUBLIC_COGNITO_DOMAIN=$NEXT_PUBLIC_COGNITO_DOMAIN
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 

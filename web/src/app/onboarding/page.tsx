@@ -43,13 +43,15 @@ async function createHousehold(name: string): Promise<HouseholdResponse> {
 
 async function addMember(
   householdId: string,
-  member: FamilyMemberDraft
+  member: FamilyMemberDraft,
+  accountId?: string
 ): Promise<MemberResponse> {
   return api.post<MemberResponse>(`/v1/households/${householdId}/members`, {
     name: member.name,
     display_name: member.display_name,
     role: member.role,
     color: member.color,
+    ...(accountId ? { account_id: accountId } : {}),
   });
 }
 
@@ -58,17 +60,27 @@ async function addMember(
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { register } = useAuth();
+  const { status: authStatus, account } = useAuth();
   const t = useTranslations();
+
+  // Onboarding requires a signed-in Cognito user — sign-up + email/password is
+  // owned by Cognito's Hosted UI, not this page. Redirect unauthenticated users
+  // to /login with the return-to set so they land back here.
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      router.replace(`/login?returnTo=${encodeURIComponent("/onboarding")}`);
+    }
+  }, [authStatus, router]);
 
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [calendarConnected, setCalendarConnected] = useState(false);
 
-  // Step 1 state
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Step 1 (account) is fulfilled by Cognito sign-in before the user reaches
+  // this page. The email below is read from the Cognito-hydrated auth context
+  // so we can display it as confirmation (no edit, no submit).
+  const email = account?.email ?? "";
 
   // Step 2 state
   const [householdName, setHouseholdName] = useState("");
@@ -77,7 +89,7 @@ export default function OnboardingPage() {
   // Step 3 state (add self)
   const [selfName, setSelfName] = useState("");
   const [selfDisplayName, setSelfDisplayName] = useState("");
-  const [selfColor, setSelfColor] = useState(TB.memberColors[0]);
+  const [selfColor, setSelfColor] = useState<string>(TB.memberColors[0]);
 
   // Step 4 state (family members)
   const [familyMembers] = useState<FamilyMemberDraft[]>([]);
@@ -113,36 +125,37 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       if (step === 1) {
-        // Create account
-        await register(email || "demo@example.com", password || "placeholder");
+        // Account already exists — Cognito created it on first sign-in and
+        // the auth middleware populated /v1/auth/me. Nothing to do here;
+        // step 1 is now just a "you're signed in as X" confirmation.
       } else if (step === 2) {
         // Create household
-        const hh = await createHousehold(householdName || "My Family");
+        const hh = await createHousehold(householdName);
         setHouseholdId(hh.id);
       } else if (step === 3 && householdId) {
-        // Add self as adult member
-        await addMember(householdId, {
-          name: selfName || "Admin",
-          display_name: selfDisplayName || selfName || "Admin",
-          role: "adult",
-          color: selfColor,
-        });
+        // Add self as adult member, linking to the signed-in account so
+        // /v1/auth/me can resolve household_id + member_id after onboarding.
+        await addMember(
+          householdId,
+          {
+            name: selfName,
+            display_name: selfDisplayName || selfName,
+            role: "adult",
+            color: selfColor,
+          },
+          account?.id
+        );
       } else if (step === 4 && householdId) {
         // Add any queued family members
         for (const m of familyMembers) {
           await addMember(householdId, m);
         }
       } else if (step === 5) {
-        // Google Calendar OAuth — if already connected, advance directly
-        if (!calendarConnected) {
-          const res = await api.post<{ redirect_url: string }>(
-            "/v1/auth/oauth/google/start",
-            {}
-          );
-          // Full-window redirect: Google → callback → /onboarding?step=5&connected=1
-          window.location.href = res.redirect_url;
-          return; // navigation takes over; don't advance step here
-        }
+        // Google Calendar OAuth used to live here (separate scope from the
+        // sign-in OAuth Cognito federates). Disabled for now — users can add
+        // an iCal URL from Settings → Calendars to subscribe to a calendar
+        // without read-only Google integration. A scoped Google Calendar
+        // OAuth flow is a future enhancement and not blocking onboarding.
       }
       // Steps 0, 5 (calendar — skip network or already connected), 6 (landing) advance directly
       if (step < TOTAL - 1) setStep(step + 1);
@@ -188,7 +201,42 @@ export default function OnboardingPage() {
           boxShadow: "0 0 0 1px rgba(0,0,0,.03)",
         }}
       >
-        <Onboarding step={step} />
+        <Onboarding
+          step={step}
+          householdName={householdName}
+          setHouseholdName={setHouseholdName}
+          selfName={selfName}
+          setSelfName={setSelfName}
+          selfDisplayName={selfDisplayName}
+          setSelfDisplayName={setSelfDisplayName}
+          selfColor={selfColor}
+          setSelfColor={setSelfColor}
+        />
+
+        {/* Step 2: "Join instead" alternative path */}
+        {step === 2 && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 84,
+              left: 16,
+              right: 16,
+              textAlign: "center",
+              fontFamily: TB.fontBody,
+              fontSize: 13,
+              color: TB.text2,
+              zIndex: 5,
+            }}
+          >
+            Already have a code?{" "}
+            <a
+              href="/join"
+              style={{ color: TB.primary, textDecoration: "underline", fontWeight: 600 }}
+            >
+              Join an existing household
+            </a>
+          </div>
+        )}
 
         {/* Error overlay — shown above the visual step */}
         {error && (

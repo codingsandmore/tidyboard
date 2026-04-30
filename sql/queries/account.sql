@@ -26,6 +26,11 @@ SELECT * FROM accounts
 WHERE email = $1
 LIMIT 1;
 
+-- name: GetAccountByOIDC :one
+SELECT * FROM accounts
+WHERE oidc_provider = $1 AND oidc_subject = $2
+LIMIT 1;
+
 -- name: UpdateAccount :one
 UPDATE accounts
 SET

@@ -5,7 +5,6 @@ import "errors"
 // Sentinel errors used by all services.
 var (
 	ErrNotFound           = errors.New("not found")
-	ErrEmailTaken         = errors.New("email already in use")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrPINLocked          = errors.New("PIN locked due to too many failed attempts")
 	ErrForbidden          = errors.New("forbidden")

@@ -24,7 +24,7 @@ func NewEventHandler(svc *service.EventService) *EventHandler {
 }
 
 // List handles GET /v1/events.
-// Query params: start, end (RFC3339), member_id, calendar_id.
+// Query params: start, end (RFC3339), member_id (UUID), calendar_id.
 func (h *EventHandler) List(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
@@ -45,7 +45,14 @@ func (h *EventHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events, err := h.svc.ListInRange(r.Context(), householdID, start, end)
+	var memberID *uuid.UUID
+	if m := q.Get("member_id"); m != "" {
+		if id, err := uuid.Parse(m); err == nil {
+			memberID = &id
+		}
+	}
+
+	events, err := h.svc.ListInRange(r.Context(), householdID, start, end, memberID)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list events")
 		return

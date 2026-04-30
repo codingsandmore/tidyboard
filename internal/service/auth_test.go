@@ -11,24 +11,24 @@ import (
 	"github.com/tidyboard/tidyboard/internal/service"
 )
 
-func TestHashPassword_RoundTrip(t *testing.T) {
+func TestHashPIN_FourDigit_RoundTrip(t *testing.T) {
 	svc := service.NewAuthService(config.AuthConfig{
 		JWTSecret: "test-secret",
 		JWTExpiry: 0,
 	}, nil)
 
-	password := "super-secret-password-123"
-	hash, err := svc.HashPassword(password)
+	pin := "super-secret-password-123"
+	hash, err := svc.HashPIN(pin)
 	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
-	assert.NotEqual(t, password, hash)
+	assert.NotEqual(t, pin, hash)
 
-	// correct password must pass
-	err = svc.CheckPassword(hash, password)
+	// correct value must pass
+	err = svc.CheckPIN(hash, pin)
 	assert.NoError(t, err)
 
-	// wrong password must fail
-	err = svc.CheckPassword(hash, "wrong-password")
+	// wrong value must fail
+	err = svc.CheckPIN(hash, "wrong-password")
 	assert.Error(t, err)
 }
 
