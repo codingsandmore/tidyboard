@@ -36,12 +36,12 @@ func TestWeekEndBatch_StreakBonusOnComplete100Percent(t *testing.T) {
 	creatorAccountID := uuid.New()
 	_, err := p.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		creatorAccountID, "weekendbatch-creator@example.com",
+		creatorAccountID, creatorAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
 	_, err = p.Exec(ctx,
-		`INSERT INTO households (id, name, timezone, invite_code, created_by_account_id) VALUES ($1, 'WeekEndTest', 'UTC', 'WEBATCH1', $2)`,
+		`INSERT INTO households (id, name, timezone, invite_code, created_by) VALUES ($1, 'WeekEndTest', 'UTC', 'WEBATCH1', $2)`,
 		householdID, creatorAccountID,
 	)
 	require.NoError(t, err)
@@ -49,12 +49,12 @@ func TestWeekEndBatch_StreakBonusOnComplete100Percent(t *testing.T) {
 	memberAccountID := uuid.New()
 	_, err = p.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		memberAccountID, "weekendbatch-child@example.com",
+		memberAccountID, memberAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
 	_, err = p.Exec(ctx,
-		`INSERT INTO members (id, household_id, account_id, display_name, role) VALUES ($1, $2, $3, 'Kid', 'child')`,
+		`INSERT INTO members (id, household_id, account_id, name, display_name, role) VALUES ($1, $2, $3, 'Kid', 'Kid', 'child')`,
 		memberID, householdID, memberAccountID,
 	)
 	require.NoError(t, err)
@@ -68,9 +68,9 @@ func TestWeekEndBatch_StreakBonusOnComplete100Percent(t *testing.T) {
 		_, _ = p.Exec(bgCtx, `DELETE FROM wallet_transactions WHERE member_id = $1`, memberID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM wallets WHERE member_id = $1`, memberID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM members WHERE id = $1`, memberID)
+		_, _ = p.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, memberAccountID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, creatorAccountID)
-		_, _ = p.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 	})
 
 	// Seed $5/week allowance.
@@ -148,12 +148,12 @@ func TestWeekEndBatch_NoBonus_WhenIncomplete(t *testing.T) {
 	creatorAccountID := uuid.New()
 	_, err := p.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		creatorAccountID, "weekendbatch2-creator@example.com",
+		creatorAccountID, creatorAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
 	_, err = p.Exec(ctx,
-		`INSERT INTO households (id, name, timezone, invite_code, created_by_account_id) VALUES ($1, 'WeekEndTest2', 'UTC', 'WEBATCH2', $2)`,
+		`INSERT INTO households (id, name, timezone, invite_code, created_by) VALUES ($1, 'WeekEndTest2', 'UTC', 'WEBATCH2', $2)`,
 		householdID, creatorAccountID,
 	)
 	require.NoError(t, err)
@@ -161,12 +161,12 @@ func TestWeekEndBatch_NoBonus_WhenIncomplete(t *testing.T) {
 	memberAccountID := uuid.New()
 	_, err = p.Exec(ctx,
 		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
-		memberAccountID, "weekendbatch2-child@example.com",
+		memberAccountID, memberAccountID.String()+"@example.com",
 	)
 	require.NoError(t, err)
 
 	_, err = p.Exec(ctx,
-		`INSERT INTO members (id, household_id, account_id, display_name, role) VALUES ($1, $2, $3, 'Kid', 'child')`,
+		`INSERT INTO members (id, household_id, account_id, name, display_name, role) VALUES ($1, $2, $3, 'Kid', 'Kid', 'child')`,
 		memberID, householdID, memberAccountID,
 	)
 	require.NoError(t, err)
@@ -180,9 +180,9 @@ func TestWeekEndBatch_NoBonus_WhenIncomplete(t *testing.T) {
 		_, _ = p.Exec(bgCtx, `DELETE FROM wallet_transactions WHERE member_id = $1`, memberID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM wallets WHERE member_id = $1`, memberID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM members WHERE id = $1`, memberID)
+		_, _ = p.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, memberAccountID)
 		_, _ = p.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, creatorAccountID)
-		_, _ = p.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
 	})
 
 	_, err = q.UpsertAllowance(ctx, query.UpsertAllowanceParams{

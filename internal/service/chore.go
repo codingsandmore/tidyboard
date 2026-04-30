@@ -54,6 +54,11 @@ func FrequencyPerWeek(kind string, days []string) int {
 
 // Create inserts a new chore into the household.
 func (s *ChoreService) Create(ctx context.Context, householdID uuid.UUID, inp ChoreCreateInput) (query.Chore, error) {
+	daysOfWeek := inp.DaysOfWeek
+	if daysOfWeek == nil {
+		daysOfWeek = []string{}
+	}
+
 	chore, err := s.q.CreateChore(ctx, query.CreateChoreParams{
 		ID:            uuid.New(),
 		HouseholdID:   householdID,
@@ -61,7 +66,7 @@ func (s *ChoreService) Create(ctx context.Context, householdID uuid.UUID, inp Ch
 		Name:          inp.Name,
 		Weight:        int32(inp.Weight),
 		FrequencyKind: inp.FrequencyKind,
-		DaysOfWeek:    inp.DaysOfWeek,
+		DaysOfWeek:    daysOfWeek,
 		AutoApprove:   inp.AutoApprove,
 	})
 	if err != nil {

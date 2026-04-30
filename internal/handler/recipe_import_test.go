@@ -4,6 +4,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/client"
+	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/query"
@@ -61,17 +64,43 @@ func setupRecipeImportHandler(t *testing.T, scraperURL string) (*httptest.Server
 	recipeSvc := service.NewRecipeService(q, rc)
 	h := handler.NewRecipeHandler(recipeSvc)
 
-	jwtSecret := testutil.TestJWTSecret
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(jwtSecret))
+	r.Use(middleware.Auth(verifier, q))
 	r.Post("/v1/recipes/import", h.Import)
 
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
+	ctx := context.Background()
 	accountID := uuid.New()
 	householdID := uuid.New()
 	memberID := uuid.New()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO accounts (id, email, password_hash) VALUES ($1, $2, 'x') ON CONFLICT DO NOTHING`,
+		accountID, "recipe-import-"+accountID.String()+"@example.com",
+	)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx,
+		`INSERT INTO households (id, name, timezone, invite_code, created_by) VALUES ($1, 'Recipe Import Test', 'UTC', $2, $3)`,
+		householdID, "R"+householdID.String()[:7], accountID,
+	)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx,
+		`INSERT INTO members (id, household_id, account_id, name, display_name, role, age_group) VALUES ($1, $2, $3, 'Tester', 'Tester', 'admin', 'adult')`,
+		memberID, householdID, accountID,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		bgCtx := context.Background()
+		_, _ = pool.Exec(bgCtx, `DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT id FROM recipes WHERE household_id = $1)`, householdID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM recipe_steps WHERE recipe_id IN (SELECT id FROM recipes WHERE household_id = $1)`, householdID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM recipes WHERE household_id = $1`, householdID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM members WHERE id = $1`, memberID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM households WHERE id = $1`, householdID)
+		_, _ = pool.Exec(bgCtx, `DELETE FROM accounts WHERE id = $1`, accountID)
+	})
 	token := testutil.MakeJWT(accountID, householdID, memberID, "admin")
 
 	return srv, token

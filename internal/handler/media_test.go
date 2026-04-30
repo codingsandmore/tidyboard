@@ -4,6 +4,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/config"
 	"github.com/tidyboard/tidyboard/internal/handler"
 	"github.com/tidyboard/tidyboard/internal/middleware"
@@ -50,9 +52,10 @@ func setupMediaHandler(t *testing.T) (*httptest.Server, string) {
 
 	h := handler.NewMediaHandler(ls, cfg)
 
-	jwtSecret := testutil.TestJWTSecret
+	verifier, err := auth.NewVerifier(context.Background(), config.AuthConfig{JWTSecret: testutil.TestJWTSecret})
+	require.NoError(t, err)
 	r := chi.NewRouter()
-	r.Use(middleware.Auth(jwtSecret))
+	r.Use(middleware.Auth(verifier, nil))
 	r.Post("/v1/media/upload", h.Upload)
 	r.Get("/v1/media/sign/*", h.Sign)
 	r.Get("/v1/media/*", h.ServeFile)

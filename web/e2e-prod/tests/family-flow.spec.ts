@@ -18,6 +18,15 @@ import {
   apiTip,
   apiUpsertAllowance,
   apiCashOut,
+  apiCreateCategory,
+  apiDeleteCategory,
+  apiCreateBehavior,
+  apiDeleteBehavior,
+  apiGrantPoints,
+  apiPointsBalance,
+  apiCreateReward,
+  apiDeleteReward,
+  apiRedeemReward,
 } from "../helpers/api";
 import { CleanupQueue } from "../helpers/cleanup";
 
@@ -238,5 +247,54 @@ test.describe("Production family flow (auth required)", () => {
     await apiCashOut(TOKEN, kid!.id, w2.wallet.balance_cents);
     const w3 = await apiGetWallet(TOKEN, kid!.id);
     expect(w3.wallet.balance_cents).toBe(0);
+  });
+
+  test("8. points + rewards round-trip", async () => {
+    if (!TOKEN) test.skip(true, "no TIDYBOARD_TEST_TOKEN");
+
+    const members = await apiListMembers(TOKEN, householdId);
+    const kid = members.find((m) => m.name.startsWith(`[${RUN}]`) && m.role === "child");
+    if (!kid) test.skip(true, "no test kid available from step 2");
+
+    // local cleanup stack — drained at end of this test
+    const pointsCleanup: Array<() => Promise<unknown>> = [];
+    try {
+      // 1. category
+      const cat = await apiCreateCategory(TOKEN, `[${RUN}] Effort`, "#10b981");
+      pointsCleanup.push(() => apiDeleteCategory(TOKEN, cat.id));
+
+      // 2. behavior
+      const beh = await apiCreateBehavior(TOKEN, cat.id, `[${RUN}] Did dishes`, 10);
+      pointsCleanup.push(() => apiDeleteBehavior(TOKEN, beh.id));
+
+      // 3. grant 25 pts to the test kid
+      await apiGrantPoints(TOKEN, kid!.id, {
+        behavior_id: beh.id,
+        category_id: cat.id,
+        points: 25,
+        reason: "round-trip test",
+      });
+      const bal = await apiPointsBalance(TOKEN, kid!.id);
+      expect(bal.total).toBeGreaterThanOrEqual(25);
+
+      // 4. self-serve reward + redeem
+      const reward = await apiCreateReward(TOKEN, `[${RUN}] sticker`, 10, "self_serve");
+      pointsCleanup.push(() => apiDeleteReward(TOKEN, reward.id));
+
+      const r = await apiRedeemReward(TOKEN, reward.id, kid!.id);
+      expect(r.status).toBe("approved");
+
+      const bal2 = await apiPointsBalance(TOKEN, kid!.id);
+      expect(bal2.total).toBe(bal.total - 10);
+    } finally {
+      // drain in reverse order, best-effort
+      for (const fn of pointsCleanup.reverse()) {
+        try {
+          await fn();
+        } catch {
+          // best-effort — ignore cleanup failures
+        }
+      }
+    }
   });
 });
