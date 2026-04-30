@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
-import { getMember } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { H } from "@/components/ui/heading";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { useRoutines, useMarkStepComplete, useStreak, useMembers } from "@/lib/api/hooks";
 import type { ApiRoutine, ApiRoutineStep } from "@/lib/api/types";
 import type { Member } from "@/lib/data";
@@ -15,7 +15,18 @@ import { PhotoSlideshow } from "@/components/photo-slideshow";
 // ═══════ Routine — kid hero (primary variation) ═══════
 export function RoutineKid({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("routine");
-  const { data: routines } = useRoutines();
+  const {
+    data: routines,
+    error: routinesError,
+    isPending: routinesPending,
+    refetch: refetchRoutines,
+  } = useRoutines();
+  const {
+    data: members,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
   const markComplete = useMarkStepComplete();
 
   const apiRoutine = routines?.[0];
@@ -41,6 +52,24 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
   const tc2 = dark ? TB.dText2 : TB.text2;
   const border = dark ? TB.dBorder : TB.border;
 
+  if (routinesError || membersError) {
+    return (
+      <DataErrorState
+        title="Unable to load routines"
+        error={routinesError ?? membersError}
+        onRetry={() => {
+          void refetchRoutines();
+          void refetchMembers();
+        }}
+        dark={dark}
+      />
+    );
+  }
+
+  if (routinesPending || membersPending) {
+    return <DataLoadingState label="Loading routines..." dark={dark} />;
+  }
+
   if (!apiRoutine) {
     return (
       <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
@@ -49,7 +78,14 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
     );
   }
 
-  const member = getMember(apiRoutine.member_id ?? "");
+  const member = members?.find((m) => m.id === apiRoutine.member_id);
+  if (!member) {
+    return (
+      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+        <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("noRoutineYet")}</H>
+      </div>
+    );
+  }
   const steps: ApiRoutineStep[] = apiRoutine.steps ?? [];
   const progress = doneSteps.size;
   const total = steps.length;
@@ -169,13 +205,40 @@ export function RoutineKid({ dark = false }: { dark?: boolean }) {
 // ═══════ Routine V2 — checklist simple ═══════
 export function RoutineChecklist({ routine: routineProp }: { routine?: ApiRoutine }) {
   const t = useTranslations("routine");
-  const { data: routines } = useRoutines();
-  const { data: members } = useMembers();
+  const {
+    data: routines,
+    error: routinesError,
+    isPending: routinesPending,
+    refetch: refetchRoutines,
+  } = useRoutines();
+  const {
+    data: members,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
 
   const r = routineProp ?? routines?.[0];
   const member: Member | undefined = r?.member_id
-    ? members?.find((m) => m.id === r.member_id) ?? getMember(r.member_id)
+    ? members?.find((m) => m.id === r.member_id)
     : undefined;
+
+  if (routinesError || membersError) {
+    return (
+      <DataErrorState
+        title="Unable to load routines"
+        error={routinesError ?? membersError}
+        onRetry={() => {
+          void refetchRoutines();
+          void refetchMembers();
+        }}
+      />
+    );
+  }
+
+  if (routinesPending || membersPending) {
+    return <DataLoadingState label="Loading routines..." />;
+  }
 
   if (!r || !member) {
     return (
@@ -231,13 +294,40 @@ export function RoutineChecklist({ routine: routineProp }: { routine?: ApiRoutin
 // ═══════ Routine V3 — path / journey ═══════
 export function RoutinePath({ routine: routineProp }: { routine?: ApiRoutine }) {
   const t = useTranslations("routine");
-  const { data: routines } = useRoutines();
-  const { data: members } = useMembers();
+  const {
+    data: routines,
+    error: routinesError,
+    isPending: routinesPending,
+    refetch: refetchRoutines,
+  } = useRoutines();
+  const {
+    data: members,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
 
   const r = routineProp ?? routines?.[0];
   const member: Member | undefined = r?.member_id
-    ? members?.find((m) => m.id === r.member_id) ?? getMember(r.member_id)
+    ? members?.find((m) => m.id === r.member_id)
     : undefined;
+
+  if (routinesError || membersError) {
+    return (
+      <DataErrorState
+        title="Unable to load routines"
+        error={routinesError ?? membersError}
+        onRetry={() => {
+          void refetchRoutines();
+          void refetchMembers();
+        }}
+      />
+    );
+  }
+
+  if (routinesPending || membersPending) {
+    return <DataLoadingState label="Loading routines..." />;
+  }
 
   if (!r || !member) {
     return (
@@ -341,10 +431,18 @@ export function KioskLock() {
 // ═══════ Kiosk Lock — Member picker state ═══════
 export function KioskLockMembers() {
   const t = useTranslations("lock");
-  const { data: allMembers } = useMembers();
+  const { data: allMembers, error, isPending, refetch } = useMembers();
   // Show all members (children + adults) in the picker; fall back to empty list
   // while loading so no hardcoded names are shown.
   const members = allMembers ?? [];
+
+  if (error) {
+    return <DataErrorState title="Unable to load family members" error={error} onRetry={() => void refetch()} dark />;
+  }
+
+  if (isPending) {
+    return <DataLoadingState label="Loading family members..." dark />;
+  }
 
   return (
     <div style={{ width: "100%", height: "100%", background: "#1C1917", color: "#fff", fontFamily: TB.fontBody, display: "flex", flexDirection: "column", padding: 32, boxSizing: "border-box" }}>

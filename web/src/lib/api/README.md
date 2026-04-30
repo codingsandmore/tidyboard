@@ -9,18 +9,16 @@ A thin fetch wrapper and React Query hooks for the Tidyboard REST backend.
 | `client.ts` | Low-level `api.get/post/put/delete` wrapper |
 | `types.ts` | Shared types (re-exports `data.ts` types + `ApiError`, `AuthToken`, `PagedResult<T>`) |
 | `hooks.ts` | React Query hooks for every backend endpoint |
-| `fallback.ts` | Sample Smith-family data used when API is unavailable |
+| `fallback.ts` | Empty compatibility values; production errors must not render sample data |
 | `provider.tsx` | `<ApiProvider>` — mounts `QueryClientProvider` in `layout.tsx` |
 
 ## Environment variable
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8080   # default; set in .env.local
-NEXT_PUBLIC_API_URL=                        # empty string → fallback mode (no fetch)
 ```
 
-Set `NEXT_PUBLIC_API_URL=""` in `.env.local` to run the UI entirely against
-sample data without any network traffic.
+Do not set `NEXT_PUBLIC_API_URL` to an empty string for production builds.
 
 ## Auth
 
@@ -28,38 +26,29 @@ The client reads `tb-auth-token` from `localStorage` and adds it as
 `Authorization: Bearer <token>` on every request. No token → no auth header
 (public endpoints still work).
 
-## Fallback / dev mode
+## Error handling
 
-When `NEXT_PUBLIC_API_URL` is `""` or the backend returns an error, every hook
-transparently returns data from `fallback.ts`, which sources from `TBD` in
-`data.ts`. The UI continues to render with realistic sample data.
+When the backend returns an error or cannot be reached, hooks surface the
+React Query error. Screens should show a real error or empty state so backend
+problems are visible and fixable.
 
-This is intentional during parallel development: the frontend and backend can
-be built independently, with the UI always showing something sensible.
+## Live data guide
 
-## Migration guide
+Production screens should read from the backend hooks directly:
 
-Screens currently import `TBD` from `@/lib/data` directly. To migrate a screen
-to live data:
-
-1. Replace the direct `TBD.xxx` read with the corresponding hook:
+1. Read the domain data with the corresponding hook:
 
 ```ts
-// Before
-import { TBD } from "@/lib/data";
-const recipes = TBD.recipes;
-
-// After
 import { useRecipes } from "@/lib/api/hooks";
 const { data: recipes, isLoading } = useRecipes();
 ```
 
 2. Handle `isLoading` and `isError` states in the component.
 
-3. Remove the `TBD` import if nothing else uses it.
+3. Keep `src/lib/data.ts` out of production route runtime imports.
 
-Do NOT modify `src/lib/data.ts` — it is the canonical source of sample data
-and is used by the fallback layer and existing tests.
+Do not wire production routes to `src/lib/data.ts`; it is legacy fixture data
+for tests and previews only.
 
 ## Available hooks
 

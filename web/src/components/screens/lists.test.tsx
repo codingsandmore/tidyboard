@@ -12,6 +12,7 @@ function mockMutation() {
 }
 
 vi.mock("@/lib/api/hooks", () => ({
+  useMembers: () => ({ data: TBD.members }),
   useLists: () => ({ data: TBD.lists }),
   useCreateList: () => mockMutation(),
   useToggleListItem: () => mockMutation(),

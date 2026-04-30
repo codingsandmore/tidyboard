@@ -63,7 +63,7 @@ describe("RecipeImport", () => {
 
   it("updates URL input on change", () => {
     renderWithQuery(<RecipeImport />);
-    const input = screen.getByDisplayValue("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+    const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "https://example.com/recipe" } });
     expect(screen.getByDisplayValue("https://example.com/recipe")).toBeTruthy();
   });
@@ -78,7 +78,7 @@ describe("RecipeImport", () => {
   it("calls importMutation.mutate with the entered URL", () => {
     importMutateMock.mockImplementation(() => {});
     renderWithQuery(<RecipeImport />);
-    const input = screen.getByDisplayValue("https://www.seriouseats.com/spaghetti-alla-carbonara-recipe");
+    const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "https://example.com/recipe" } });
     fireEvent.click(screen.getByText("Import recipe"));
     expect(importMutateMock).toHaveBeenCalledWith(
@@ -92,6 +92,7 @@ describe("RecipeImport", () => {
       opts.onError();
     });
     renderWithQuery(<RecipeImport />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://example.com/recipe" } });
     fireEvent.click(screen.getByText("Import recipe"));
     expect(screen.getByTestId("import-error")).toBeTruthy();
     expect(screen.getByText(/Failed to import recipe/)).toBeTruthy();
@@ -102,6 +103,7 @@ describe("RecipeImport", () => {
       opts.onSuccess();
     });
     renderWithQuery(<RecipeImport />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://example.com/recipe" } });
     fireEvent.click(screen.getByText("Import recipe"));
     expect(screen.getByTestId("import-success")).toBeTruthy();
   });
@@ -159,7 +161,7 @@ describe("RecipePreview", () => {
 
   it("shows recipe tags", () => {
     render(<RecipePreview />);
-    expect(screen.getByText("#italian")).toBeTruthy();
+    expect(screen.queryByText("#italian")).toBeNull();
   });
 });
 

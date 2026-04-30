@@ -8,7 +8,7 @@ import { H } from "@/components/ui/heading";
 import { Avatar } from "@/components/ui/avatar";
 import { useNotes, type Note } from "@/lib/notes/use-notes";
 import { useMembers } from "@/lib/api/hooks";
-import { getMember } from "@/lib/data";
+import type { Member } from "@/lib/data";
 import { useAuth } from "@/lib/auth/auth-store";
 
 const NOTE_COLORS = ["#FEF3C7", "#FECACA", "#BBF7D0", "#BFDBFE", "#DDD6FE", "#FED7AA"];
@@ -152,15 +152,15 @@ export function NotesBoard() {
           </div>
         )}
         {notes.map((n) => (
-          <NoteCard key={n.id} note={n} onRemove={() => removeNote(n.id)} />
+          <NoteCard key={n.id} note={n} members={members} onRemove={() => removeNote(n.id)} />
         ))}
       </div>
     </div>
   );
 }
 
-function NoteCard({ note, onRemove }: { note: Note; onRemove: () => void }) {
-  const author = getMember(note.author_id);
+function NoteCard({ note, members, onRemove }: { note: Note; members: Member[]; onRemove: () => void }) {
+  const author = members.find((member) => member.id === note.author_id);
   const pinned = new Date(note.pinned_at);
   const ago = relativeTime(pinned);
   return (

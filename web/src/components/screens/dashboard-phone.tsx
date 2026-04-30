@@ -1,10 +1,12 @@
 "use client";
 
 import { TB } from "@/lib/tokens";
-import { fmtTime, getMembers } from "@/lib/data";
+import { fmtTime } from "@/lib/time";
+import type { Member } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
 import { useAuth } from "@/lib/auth/auth-store";
@@ -15,11 +17,46 @@ export function DashPhone() {
   const tNav = useTranslations("nav");
   const tDash = useTranslations("dashboard");
   const router = useRouter();
-  const { data: apiMembers } = useMembers();
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
   const { activeMember } = useAuth();
-  const { data: apiEvents } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents(activeMember ? { memberId: activeMember.id } : undefined);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
+  const now = new Date();
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(now);
+  const dateLabel = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" }).format(now);
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const resolveEventMembers = (ids: string[]): Member[] =>
+    ids
+      .map((id) => memberById.get(id))
+      .filter((member): member is Member => Boolean(member));
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load dashboard data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading dashboard..." />;
+  }
+
   return (
     <div
       style={{
@@ -67,10 +104,10 @@ export function DashPhone() {
               letterSpacing: "-0.02em",
             }}
           >
-            Thursday
+            {weekday}
           </div>
           <div style={{ fontSize: 13, color: TB.text2, marginTop: 2 }}>
-            April 22 · 72° · 7 events
+            {dateLabel} · {tDash("eventsShort", { count: events.length })}
           </div>
         </div>
 
@@ -81,8 +118,8 @@ export function DashPhone() {
             </div>
           )}
           {events.slice(0, 5).map((e) => {
-            const ms = getMembers(e.members);
-            const accent = ms.length > 1 ? TB.primary : ms[0].color;
+            const ms = resolveEventMembers(e.members);
+            const accent = ms.length > 1 ? TB.primary : ms[0]?.color ?? TB.primary;
             return (
               <Card
                 key={e.id}
@@ -145,7 +182,7 @@ export function DashPhone() {
                 letterSpacing: "0.06em",
               }}
             >
-              TONIGHT · 6:30
+              MEALS
             </div>
             <div
               style={{
@@ -155,7 +192,7 @@ export function DashPhone() {
                 marginTop: 2,
               }}
             >
-              Spaghetti Carbonara
+              No dinner planned
             </div>
           </div>
           <div style={{ padding: "0 12px", display: "flex", alignItems: "center" }}>

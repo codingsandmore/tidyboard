@@ -24,6 +24,8 @@ The home dashboard is the family command center. It shows household activity fro
 
 Kiosk mode is intended for a shared tablet or wall display. `/dashboard/kiosk` and the kiosk entry render a true full-screen dashboard; they are not phone frames, tablet frames, scene previews, or static preview chrome. The kiosk uses the household's live members, calendar events, routines, lists, meal plan, recipes, and weather. If a section has no household data yet, it shows an empty state that tells the family what to add next. It should not invent events, meals, names, stars, chores, or schedules.
 
+If the backend or a required API request fails, Tidyboard reports the error or shows the real empty state for that account. Production routes must not replace failures with demo households, sample events, sample recipes, or sample member data.
+
 Selecting a member on the kiosk filters the schedule to that member while keeping shared household events visible. Members can use the kiosk flow to identify themselves before accessing member-scoped actions.
 
 ## Member Context

@@ -7,7 +7,6 @@ import { TB } from "@/lib/tokens";
 import { Onboarding, ONBOARDING_LABELS, type FamilyMemberDraft } from "@/components/screens/onboarding";
 import { useAuth } from "@/lib/auth/auth-store";
 import { api } from "@/lib/api/client";
-import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useSearchParams } from "next/navigation";
 
 const TOTAL = 7;
@@ -108,13 +107,6 @@ export default function OnboardingPage() {
 
   async function advance() {
     setError(null);
-
-    // Local static builds can walk the wizard without a backend.
-    if (isApiFallbackMode()) {
-      if (step < TOTAL - 1) setStep(step + 1);
-      else router.push("/");
-      return;
-    }
 
     setLoading(true);
     try {

@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch available households in the background — non-fatal if it fails.
       api.get<{ id: string; name: string }[]>("/v1/me/households")
         .then((hhs) => setAvailableHouseholds(hhs.map((h) => ({ id: h.id, name: h.name }))))
-        .catch(() => {/* leave empty — single-household fallback */});
+        .catch(() => {/* leave empty; callers surface household-specific failures */});
       return true;
     } catch {
       return false;

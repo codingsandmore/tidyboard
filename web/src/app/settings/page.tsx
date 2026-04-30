@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { useSubscription } from "@/lib/api/use-subscription";
 import { api } from "@/lib/api/client";
 import { useWS } from "@/lib/ws/ws-provider";
-import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 import { AISettingsCard } from "./ai-section";
 import { InviteModal } from "./invite-modal";
@@ -340,9 +339,6 @@ function BillingCard() {
 function ConnectionCard() {
   const { status } = useWS();
   const t = useTranslations("settings");
-
-  // Hidden in fallback/demo mode — no backend to connect to
-  if (isApiFallbackMode()) return null;
 
   type Dot = { color: string; label: string };
   const dot: Dot =
@@ -732,14 +728,14 @@ function FamilyCard() {
         >
           <input
             type="text"
-            placeholder="Full name (e.g. Jackson Smith)"
+            placeholder="Full name"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             style={inputStyle}
           />
           <input
             type="text"
-            placeholder="Display name (e.g. Jackson)"
+            placeholder="Display name"
             value={form.displayName}
             onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
             style={inputStyle}

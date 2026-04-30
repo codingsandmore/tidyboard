@@ -1,21 +1,15 @@
 /**
  * React Query hooks for every Tidyboard backend endpoint.
  *
- * While the backend is being built, each hook falls back to sample data from
- * data.ts (via fallback.ts) when:
- *   - NEXT_PUBLIC_API_URL is "" (fallback mode), OR
- *   - the API call fails (network error / backend down).
- *
- * Screens continue to import { TBD } from "@/lib/data" for now.
- * Migration guide: see src/lib/api/README.md.
+ * API failures surface as errors. Production routes must never silently
+ * substitute sample household data.
  */
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import { fallback, isApiFallbackMode } from "./fallback";
+import { fallback } from "./fallback";
 import { apiShoppingListItemToShoppingItem, apiShoppingListToShopping, type ApiShoppingList, type ApiShoppingListItem } from "./shopping";
-import type { ApiError } from "./types";
 import type {
   TBDEvent,
   Member,
@@ -109,46 +103,22 @@ export const qk = {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Returns true when `err` is an ApiError plain object (duck-type check). */
-function isApiError(err: unknown): err is ApiError {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "status" in err &&
-    typeof (err as ApiError).status === "number"
-  );
-}
-
-/** Wraps an API call and returns fallback data on network/5xx errors.
- *  Auth errors (401/403) are re-thrown so the auth layer can redirect to login. */
+/** Compatibility wrapper; API failures intentionally propagate to callers. */
 async function withFallback<T>(
   apiFn: () => Promise<T>,
   fallbackFn: () => T
 ): Promise<T> {
-  if (isApiFallbackMode()) return fallbackFn();
-  try {
-    return await apiFn();
-  } catch (err) {
-    if (isApiError(err) && (err.status === 401 || err.status === 403)) {
-      throw err; // let the auth layer handle it
-    }
-    return fallbackFn();
-  }
+  void fallbackFn;
+  return apiFn();
 }
 
-/** Production surfaces that must never show sample data use this helper. */
+/** Compatibility wrapper; API failures intentionally propagate to callers. */
 async function withoutSampleFallback<T>(
   apiFn: () => Promise<T>,
   emptyValue: T
 ): Promise<T> {
-  if (isApiFallbackMode()) return emptyValue;
-  try {
-    return await apiFn();
-  } catch (err) {
-    if (isApiError(err) && (err.status === 401 || err.status === 403)) {
-      throw err;
-    }
-    return emptyValue;
-  }
+  void emptyValue;
+  return apiFn();
 }
 
 // ── Read hooks ─────────────────────────────────────────────────────────────

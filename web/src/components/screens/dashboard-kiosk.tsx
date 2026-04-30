@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
+import { fmtTime } from "@/lib/time";
 import {
-  fmtTime,
   type MealPlan,
   type Member,
   type Recipe,

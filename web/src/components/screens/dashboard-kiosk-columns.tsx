@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
-import { fmtTime } from "@/lib/data";
+import { fmtTime } from "@/lib/time";
 import { Icon } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
@@ -22,6 +22,23 @@ export function DashKioskColumns() {
   const startH = 7;
   const endH = 21;
   const toY = (h: number) => ((h - startH) / (endH - startH)) * 100;
+  const now = new Date();
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(now);
+  const dateTimeLabel = new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(now);
+  const nowFractionalHour = now.getHours() + now.getMinutes() / 60;
+  const toFractionalHour = (value: string) => {
+    if (value.includes("T")) {
+      const date = new Date(value);
+      return date.getHours() + date.getMinutes() / 60;
+    }
+    const [h = 0, m = 0] = value.split(":").map(Number);
+    return h + m / 60;
+  };
 
   return (
     <div
@@ -55,13 +72,13 @@ export function DashKioskColumns() {
               lineHeight: 1,
             }}
           >
-            Thursday
+            {weekday}
           </div>
           <div style={{ fontSize: 13, color: TB.text2, marginTop: 4 }}>
-            April 22 · 10:34 AM · 72° partly sunny
+            {dateTimeLabel}
           </div>
         </div>
-        <Btn kind="secondary" size="sm" icon="plus" onClick={() => router.push("/calendar/event?new=1")}>
+        <Btn kind="secondary" size="sm" icon="plus" onClick={() => router.push("/calendar?new=event")}>
           {t("event")}
         </Btn>
       </div>
@@ -139,7 +156,7 @@ export function DashKioskColumns() {
                     position: "absolute",
                     left: 0,
                     right: 0,
-                    top: `${toY(10 + 34 / 60)}%`,
+                    top: `${toY(nowFractionalHour)}%`,
                     height: 2,
                     background: TB.destructive,
                     zIndex: 2,
@@ -158,10 +175,10 @@ export function DashKioskColumns() {
                   />
                 </div>
                 {evs.map((e) => {
-                  const [sh, sm] = e.start.split(":").map(Number);
-                  const [eh, em] = e.end.split(":").map(Number);
-                  const top = toY(sh + sm / 60);
-                  const height = toY(eh + em / 60) - top;
+                  const start = toFractionalHour(e.start_time ?? e.start);
+                  const end = toFractionalHour(e.end_time ?? e.end);
+                  const top = toY(start);
+                  const height = Math.max(4, toY(end) - top);
                   return (
                     <div
                       key={e.id}

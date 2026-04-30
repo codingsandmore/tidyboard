@@ -3,19 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 import { TB } from "@/lib/tokens";
-import { TBD } from "@/lib/data";
 import { H } from "@/components/ui/heading";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { useRecipes } from "@/lib/api/hooks";
 import { CollectionSidebar, CollectionRecipesView, AddToCollectionMenu } from "./recipe-collections";
 import type { Recipe } from "@/lib/data";
 
 export function RecipesWithCollections() {
-  const { data: recipes } = useRecipes();
-  const allRecipes: Recipe[] = recipes ?? TBD.recipes;
+  const { data: recipes, error, isPending, refetch } = useRecipes();
+  const allRecipes: Recipe[] = recipes ?? [];
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [menuRecipe, setMenuRecipe] = useState<Recipe | null>(null);
+
+  if (error) {
+    return <DataErrorState title="Unable to load recipes" error={error} onRetry={() => void refetch()} />;
+  }
+
+  if (isPending) {
+    return <DataLoadingState label="Loading recipes..." />;
+  }
 
   return (
     <div
@@ -104,6 +112,11 @@ export function RecipesWithCollections() {
                   gap: 16,
                 }}
               >
+                {allRecipes.length === 0 && (
+                  <div style={{ color: TB.text2, fontSize: 14 }}>
+                    No recipes yet. Add recipes from your household account.
+                  </div>
+                )}
                 {allRecipes.map((r) => (
                   <div key={r.id} style={{ position: "relative" }}>
                     <Link

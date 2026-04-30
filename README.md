@@ -35,9 +35,6 @@ make up
 
 # Run database migrations
 make migrate
-
-# (Optional) Load Smith family sample data
-make seed
 ```
 
 Visit the API: http://localhost:8080/health
@@ -102,7 +99,6 @@ tidyboard/
 ├── migrations/            # goose SQL migrations
 ├── sql/
 │   ├── queries/           # sqlc source SQL
-│   └── seed/              # Sample data SQL
 ├── services/
 │   ├── sync-worker/       # Python CalDAV service
 │   └── recipe-scraper/    # Python recipe scraper
@@ -124,7 +120,6 @@ make up           # Start all services (docker compose up -d)
 make down         # Stop all services
 make logs         # Tail logs from all services
 make migrate      # Run goose migrations
-make seed         # Load Smith family sample data
 make web-dev      # Start Next.js dev server
 make web-build    # Build Next.js production bundle
 make test         # Run Go + Python tests

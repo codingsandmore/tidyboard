@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate seed web-dev web-build test lint \
+.PHONY: up down logs migrate web-dev web-build test lint \
         loadtest-smoke loadtest-load loadtest-stress loadtest-soak \
         loadtest-spike loadtest-auth loadtest-events loadtest-baseline \
         e2e-real help
@@ -28,11 +28,6 @@ migrate:
 		-e GOOSE_DRIVER=postgres \
 		-e GOOSE_DBSTRING="host=postgres port=5432 dbname=tidyboard user=tidyboard password=$${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password} sslmode=disable" \
 		tidyboard migrate up
-
-## seed: Load the Smith family sample data into Postgres
-seed:
-	docker compose exec postgres \
-		psql -U tidyboard -d tidyboard -f /dev/stdin < sql/seed/smith_family.sql
 
 # ── Web frontend ──────────────────────────────────────────────────────────────
 

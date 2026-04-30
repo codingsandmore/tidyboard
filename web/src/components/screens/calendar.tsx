@@ -3,16 +3,16 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { TB } from "@/lib/tokens";
-import { TBD, fmtTime, getMember, getMembers, type TBDEvent } from "@/lib/data";
-// TBD import: TBD.week used only in isApiFallbackMode() path; CalAgenda static group fixtures
+import { fmtTime } from "@/lib/time";
+import type { Member, TBDEvent } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
+import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
-import { isApiFallbackMode } from "@/lib/api/fallback";
 import { useTranslations } from "next-intl";
 
 type View = "Day" | "Week" | "Month" | "Agenda";
@@ -100,8 +100,18 @@ export function CalDay({
     return { start: start.toISOString(), end: end.toISOString() };
   })();
 
-  const { data: apiMembers } = useMembers();
-  const { data: apiEvents } = useEvents(dateRange);
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents(dateRange);
   const members = apiMembers ?? [];
   const events = apiEvents ?? [];
 
@@ -109,6 +119,24 @@ export function CalDay({
   const startH = 7;
   const endH = 21;
   const toY = (h: number) => ((h - startH) / (endH - startH)) * 100;
+
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load calendar data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+        dark={dark}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading calendar..." dark={dark} />;
+  }
 
   return (
     <div
@@ -346,6 +374,16 @@ function toFractionalHours(timeStr: string): number {
   return (h ?? 0) + (m ?? 0) / 60;
 }
 
+function memberLookup(members: Member[]): Map<string, Member> {
+  return new Map(members.map((member) => [member.id, member]));
+}
+
+function resolveMembers(ids: string[], memberById: Map<string, Member>): Member[] {
+  return ids
+    .map((id) => memberById.get(id))
+    .filter((member): member is Member => Boolean(member));
+}
+
 export function CalWeek({
   onViewChange,
   onEventOpen,
@@ -375,13 +413,24 @@ export function CalWeek({
     setWeekStart(next);
   };
 
-  const { data: apiEvents } = useEvents({
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents({
     start: weekStart.toISOString(),
     end: weekEnd.toISOString(),
   });
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const membersById = memberLookup(apiMembers ?? []);
 
-  // Build a map from day-of-week index (0=Sun…6=Sat) to events for that day.
-  // In fallback mode we reuse TBD.week instead of deriving from the flat list.
+  // Build a map from day-of-week index (0=Sun…6=Sat) to real events.
   const today = new Date();
 
   // Build 7 columns: one per day of the current week
@@ -394,41 +443,40 @@ export function CalWeek({
       colDate.getMonth() === today.getMonth() &&
       colDate.getDate() === today.getDate();
 
-    // Derive events for this column
-    let colEvents: TBDEvent[];
-    if (isApiFallbackMode()) {
-      // In fallback mode keep using TBD.week fixture for visual fidelity
-      const tbdDay = TBD.week[dowIndex];
-      colEvents = tbdDay
-        ? tbdDay.items.map((it, i) => ({
-            id: `tbd-${dowKey}-${i}`,
-            title: it.t,
-            start: `${Math.floor(it.h)}:${(it.h % 1) * 60 === 0 ? "00" : "30"}`,
-            end: `${Math.floor(it.h) + 1}:00`,
-            members: it.m === "all" ? [] : [it.m],
-          }))
-        : [];
-    } else {
-      // Derive from real API events: match events whose start date falls on this column's date
-      colEvents = (apiEvents ?? [])
-        .filter((e) => {
-          const evStart = e.start_time ?? (e.start?.includes("T") ? e.start : null);
-          if (evStart) {
-            const d = new Date(evStart);
-            return (
-              d.getFullYear() === colDate.getFullYear() &&
-              d.getMonth() === colDate.getMonth() &&
-              d.getDate() === colDate.getDate()
-            );
-          }
-          // Legacy HH:mm events have no date — skip them in live mode
-          return false;
-        })
-        .sort((a, b) => toFractionalHours(a.start_time ?? a.start) - toFractionalHours(b.start_time ?? b.start));
-    }
+    const colEvents = (apiEvents ?? [])
+      .filter((e) => {
+        const evStart = e.start_time ?? (e.start?.includes("T") ? e.start : null);
+        if (evStart) {
+          const d = new Date(evStart);
+          return (
+            d.getFullYear() === colDate.getFullYear() &&
+            d.getMonth() === colDate.getMonth() &&
+            d.getDate() === colDate.getDate()
+          );
+        }
+        return false;
+      })
+      .sort((a, b) => toFractionalHours(a.start_time ?? a.start) - toFractionalHours(b.start_time ?? b.start));
 
     return { dowKey, dowIndex, colDate, dateNum, isToday, colEvents };
   });
+
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load calendar data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading calendar..." />;
+  }
 
   return (
     <div
@@ -543,7 +591,7 @@ export function CalWeek({
             >
               {colEvents.map((ev) => {
                 const memberIds = ev.members ?? [];
-                const firstMember = memberIds.length > 0 ? getMember(memberIds[0]) : null;
+                const firstMember = memberIds.length > 0 ? membersById.get(memberIds[0]) : null;
                 const c = firstMember ? firstMember.color : TB.primary;
                 const startH = toFractionalHours(ev.start_time ?? ev.start);
                 const mins = Math.round((startH % 1) * 60);
@@ -614,10 +662,22 @@ export function CalMonth({
   rangeStart.setHours(0, 0, 0, 0);
   const rangeEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
   rangeEnd.setHours(23, 59, 59, 999);
-  const { data: apiEvents } = useEvents({
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents({
     start: rangeStart.toISOString(),
     end: rangeEnd.toISOString(),
   });
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const membersById = memberLookup(apiMembers ?? []);
   const days: { d: number; cur: boolean; date: Date }[] = [];
   for (let i = 0; i < visibleCells; i++) {
     const dayNum = i - firstWeekday + 1;
@@ -633,25 +693,7 @@ export function CalMonth({
   };
   const isTodayMonth =
     today.getFullYear() === anchor.getFullYear() && today.getMonth() === anchor.getMonth();
-  const evMap: Record<number, { c: string }[]> = {
-    19: [{ c: "#3B82F6" }, { c: "#F59E0B" }],
-    20: [{ c: "#EF4444" }, { c: "#22C55E" }],
-    21: [{ c: "#3B82F6" }, { c: "#F59E0B" }],
-    22: [{ c: "#3B82F6" }, { c: "#EF4444" }, { c: "#22C55E" }, { c: "#F59E0B" }],
-    23: [{ c: "#EF4444" }],
-    24: [{ c: "#22C55E" }, { c: "#F59E0B" }],
-    25: [{ c: "#3B82F6" }, { c: "#EF4444" }, { c: "#22C55E" }, { c: "#F59E0B" }],
-    10: [{ c: "#EF4444" }],
-    11: [{ c: "#22C55E" }],
-    14: [{ c: "#3B82F6" }],
-    15: [{ c: "#EF4444" }, { c: "#F59E0B" }],
-    16: [{ c: "#22C55E" }],
-    17: [{ c: "#3B82F6" }],
-    28: [{ c: "#EF4444" }, { c: "#F59E0B" }],
-    30: [{ c: "#3B82F6" }],
-  };
   const eventsForDay = (date: Date) => {
-    if (isApiFallbackMode()) return [];
     return (apiEvents ?? [])
       .filter((event) => {
         const startValue = event.start_time ?? (event.start?.includes("T") ? event.start : null);
@@ -669,6 +711,23 @@ export function CalMonth({
         return new Date(aStart).getTime() - new Date(bStart).getTime();
       });
   };
+
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load calendar data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading calendar..." />;
+  }
 
   return (
     <div
@@ -756,7 +815,6 @@ export function CalMonth({
             day.cur &&
             isTodayMonth &&
             day.d === today.getDate();
-          const dotEvents = day.cur ? evMap[day.d] ?? [] : [];
           const dayEvents = day.cur ? eventsForDay(day.date) : [];
           // Spillover days at the start/end of the visible 5-week grid show
           // the right-edge day-of-month from the adjacent month.
@@ -797,54 +855,38 @@ export function CalMonth({
               >
                 {dispNum}
               </div>
-              {isApiFallbackMode() ? (
-                <div style={{ display: "flex", gap: 3, marginTop: 6, flexWrap: "wrap" }}>
-                  {dotEvents.slice(0, 4).map((e, j) => (
-                    <div
-                      key={j}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                {dayEvents.slice(0, 3).map((event) => {
+                  const member = event.members?.[0] ? membersById.get(event.members[0]) : undefined;
+                  const accent = member?.color ?? TB.primary;
+                  return (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => onEventOpen?.(event)}
                       style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: e.c,
+                        border: "none",
+                        borderLeft: `2px solid ${accent}`,
+                        borderRadius: 4,
+                        background: accent + "14",
+                        color: TB.text,
+                        cursor: "pointer",
+                        fontFamily: TB.fontBody,
+                        fontSize: 10,
+                        fontWeight: 550,
+                        overflow: "hidden",
+                        padding: "3px 5px",
+                        textAlign: "left",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        width: "100%",
                       }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
-                  {dayEvents.slice(0, 3).map((event) => {
-                    const member = event.members?.[0] ? getMember(event.members[0]) : undefined;
-                    const accent = member?.color ?? TB.primary;
-                    return (
-                      <button
-                        key={event.id}
-                        type="button"
-                        onClick={() => onEventOpen?.(event)}
-                        style={{
-                          border: "none",
-                          borderLeft: `2px solid ${accent}`,
-                          borderRadius: 4,
-                          background: accent + "14",
-                          color: TB.text,
-                          cursor: "pointer",
-                          fontFamily: TB.fontBody,
-                          fontSize: 10,
-                          fontWeight: 550,
-                          overflow: "hidden",
-                          padding: "3px 5px",
-                          textAlign: "left",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          width: "100%",
-                        }}
-                      >
-                        {event.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                    >
+                      {event.title}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
@@ -868,55 +910,39 @@ export function CalAgenda({
   const end = endDate.toISOString().slice(0, 10);
 
   const [query, setQuery] = useState("");
-  const { data: apiEvents } = useEvents({ start, end });
+  const {
+    data: apiEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents({ start, end });
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const membersById = memberLookup(apiMembers ?? []);
 
   const todayEvents: TBDEvent[] = apiEvents ?? [];
-
-  const allGroups: { label: string; items: TBDEvent[] }[] = [
-    { label: `${t("today").toUpperCase()} · THURSDAY, APR 22`, items: todayEvents },
-    {
-      label: "TOMORROW · FRIDAY, APR 23",
-      items: [
-        {
-          id: "f1",
-          title: "Book club",
-          start: "20:00",
-          end: "21:30",
-          members: ["mom"],
-          location: "The Reading Room",
-        },
-        {
-          id: "f2",
-          title: "Team offsite prep",
-          start: "10:00",
-          end: "11:00",
-          members: ["dad"],
-          location: "Zoom",
-        },
-      ],
-    },
-    {
-      label: "SATURDAY, APR 24",
-      items: [
-        {
-          id: "s1",
-          title: "Park visit",
-          start: "10:00",
-          end: "12:00",
-          members: ["dad", "mom", "jackson", "emma"],
-          location: "Golden Gate Park",
-        },
-        {
-          id: "s2",
-          title: "Playdate — Maya",
-          start: "14:00",
-          end: "16:00",
-          members: ["emma"],
-          location: "Maya's house",
-        },
-      ],
-    },
-  ];
+  const eventsByDate = new Map<string, TBDEvent[]>();
+  for (const event of todayEvents) {
+    const startValue = event.start_time ?? (event.start?.includes("T") ? event.start : null);
+    const dateKey = startValue ? new Date(startValue).toISOString().slice(0, 10) : start;
+    eventsByDate.set(dateKey, [...(eventsByDate.get(dateKey) ?? []), event]);
+  }
+  const allGroups: { label: string; items: TBDEvent[] }[] = Array.from(eventsByDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateKey, items]) => {
+      const date = new Date(`${dateKey}T00:00:00`);
+      const dateLabel = date.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      }).toUpperCase();
+      const label = dateKey === start ? `${t("today").toUpperCase()} · ${dateLabel}` : dateLabel;
+      return { label, items };
+    });
 
   const q = query.trim().toLowerCase();
   const groups = q
@@ -931,6 +957,23 @@ export function CalAgenda({
         }))
         .filter((g) => g.items.length > 0)
     : allGroups;
+
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load calendar data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading calendar..." />;
+  }
 
   return (
     <div
@@ -975,6 +1018,11 @@ export function CalAgenda({
         />
       </div>
       <div style={{ flex: 1, overflow: "auto", padding: "16px 20px" }}>
+        {groups.length === 0 && (
+          <div style={{ fontSize: 13, color: TB.text2, padding: "8px 0" }}>
+            {t("noEventsYet")}
+          </div>
+        )}
         {groups.map((group) => (
           <div key={group.label} style={{ marginBottom: 22 }}>
             <div
@@ -995,7 +1043,7 @@ export function CalAgenda({
                 </div>
               )}
               {group.items.map((e) => {
-                const ms = getMembers(e.members);
+                const ms = resolveMembers(e.members, membersById);
                 return (
                   <Card
                     key={e.id}
@@ -1079,8 +1127,18 @@ export type EventModalProps = {
 export function EventModal({ event, onClose }: EventModalProps) {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
-  const { data: apiMembers } = useMembers();
-  const { data: allEvents } = useEvents();
+  const {
+    data: apiMembers,
+    error: membersError,
+    isPending: membersPending,
+    refetch: refetchMembers,
+  } = useMembers();
+  const {
+    data: allEvents,
+    error: eventsError,
+    isPending: eventsPending,
+    refetch: refetchEvents,
+  } = useEvents();
   const members = apiMembers ?? [];
 
   const now = new Date();
@@ -1211,6 +1269,23 @@ export function EventModal({ event, onClose }: EventModalProps) {
     outline: "none",
     boxSizing: "border-box",
   };
+
+  if (membersError || eventsError) {
+    return (
+      <DataErrorState
+        title="Unable to load event data"
+        error={membersError ?? eventsError}
+        onRetry={() => {
+          void refetchMembers();
+          void refetchEvents();
+        }}
+      />
+    );
+  }
+
+  if (membersPending || eventsPending) {
+    return <DataLoadingState label="Loading event data..." />;
+  }
 
   return (
     <div

@@ -17,9 +17,9 @@ function KioskGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const kioskEnabled = hh?.settings?.kiosk_mode_enabled ?? false;
-  // activeMember falls back to member in the provider, so if they differ
+  // activeMember defaults to member in the provider, so if they differ
   // it means someone explicitly set it; but if kiosk is enabled we require
-  // explicit activeMember (not just the fallback).
+  // explicit activeMember (not just the signed-in profile default).
   const hasActiveMember = Boolean(activeMember && activeMember.id === member?.id
     ? false  // same as signed-in member — need explicit switch
     : activeMember);

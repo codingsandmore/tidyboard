@@ -23,7 +23,7 @@ describe("live-only API hooks", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns empty values instead of sample household data when production reads fail", async () => {
+  it("surfaces errors instead of sample household data when production reads fail", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("backend unavailable")));
 
     const members = renderHook(() => useLiveMembers(), { wrapper: wrapper() });
@@ -33,18 +33,18 @@ describe("live-only API hooks", () => {
     const recipes = renderHook(() => useLiveRecipes(), { wrapper: wrapper() });
     const mealPlan = renderHook(() => useLiveMealPlan("2026-01-05"), { wrapper: wrapper() });
 
-    await waitFor(() => expect(members.result.current.isSuccess).toBe(true));
-    await waitFor(() => expect(events.result.current.isSuccess).toBe(true));
-    await waitFor(() => expect(routines.result.current.isSuccess).toBe(true));
-    await waitFor(() => expect(lists.result.current.isSuccess).toBe(true));
-    await waitFor(() => expect(recipes.result.current.isSuccess).toBe(true));
-    await waitFor(() => expect(mealPlan.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(members.result.current.isError).toBe(true));
+    await waitFor(() => expect(events.result.current.isError).toBe(true));
+    await waitFor(() => expect(routines.result.current.isError).toBe(true));
+    await waitFor(() => expect(lists.result.current.isError).toBe(true));
+    await waitFor(() => expect(recipes.result.current.isError).toBe(true));
+    await waitFor(() => expect(mealPlan.result.current.isError).toBe(true));
 
-    expect(members.result.current.data).toEqual([]);
-    expect(events.result.current.data).toEqual([]);
-    expect(routines.result.current.data).toEqual([]);
-    expect(lists.result.current.data).toEqual([]);
-    expect(recipes.result.current.data).toEqual([]);
-    expect(mealPlan.result.current.data?.grid.flat().every((recipeId) => recipeId === null)).toBe(true);
+    expect(members.result.current.data).toBeUndefined();
+    expect(events.result.current.data).toBeUndefined();
+    expect(routines.result.current.data).toBeUndefined();
+    expect(lists.result.current.data).toBeUndefined();
+    expect(recipes.result.current.data).toBeUndefined();
+    expect(mealPlan.result.current.data).toBeUndefined();
   });
 });

@@ -158,7 +158,7 @@ describe("FamilyCard", () => {
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
     expect(screen.getByTestId("member-form")).toBeTruthy();
-    expect(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Full name")).toBeTruthy();
   });
 
   it("Cancel button hides the form", () => {
@@ -181,7 +181,7 @@ describe("FamilyCard", () => {
   it("shows validation error when display name is empty", async () => {
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Emma Smith" },
     });
     // display name left empty
@@ -195,10 +195,10 @@ describe("FamilyCard", () => {
     createMemberMock.mockResolvedValue({ id: "m3", name: "Emma Smith" });
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Emma Smith" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Display name (e.g. Jackson)"), {
+    fireEvent.change(screen.getByPlaceholderText("Display name"), {
       target: { value: "Emma" },
     });
     fireEvent.submit(screen.getByTestId("member-form"));
@@ -213,10 +213,10 @@ describe("FamilyCard", () => {
     createMemberMock.mockResolvedValue({ id: "m3" });
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Emma Smith" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Display name (e.g. Jackson)"), {
+    fireEvent.change(screen.getByPlaceholderText("Display name"), {
       target: { value: "Emma" },
     });
     fireEvent.submit(screen.getByTestId("member-form"));
@@ -229,10 +229,10 @@ describe("FamilyCard", () => {
     createMemberMock.mockRejectedValue(new Error("network error"));
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Emma Smith" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Display name (e.g. Jackson)"), {
+    fireEvent.change(screen.getByPlaceholderText("Display name"), {
       target: { value: "Emma" },
     });
     fireEvent.submit(screen.getByTestId("member-form"));
@@ -246,10 +246,10 @@ describe("FamilyCard", () => {
     fireEvent.click(screen.getByTestId("edit-member-m1"));
     expect(screen.getByTestId("member-form")).toBeTruthy();
     expect(
-      (screen.getByPlaceholderText("Full name (e.g. Jackson Smith)") as HTMLInputElement).value
+      (screen.getByPlaceholderText("Full name") as HTMLInputElement).value
     ).toBe("Sarah Smith");
     expect(
-      (screen.getByPlaceholderText("Display name (e.g. Jackson)") as HTMLInputElement).value
+      (screen.getByPlaceholderText("Display name") as HTMLInputElement).value
     ).toBe("Sarah");
   });
 
@@ -257,7 +257,7 @@ describe("FamilyCard", () => {
     updateMemberMock.mockResolvedValue({ id: "m1" });
     renderSettings();
     fireEvent.click(screen.getByTestId("edit-member-m1"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Sarah Jones" },
     });
     fireEvent.submit(screen.getByTestId("member-form"));
@@ -282,10 +282,10 @@ describe("FamilyCard", () => {
   it("PIN validation rejects non-numeric PIN", async () => {
     renderSettings();
     fireEvent.click(screen.getByTestId("add-member-btn"));
-    fireEvent.change(screen.getByPlaceholderText("Full name (e.g. Jackson Smith)"), {
+    fireEvent.change(screen.getByPlaceholderText("Full name"), {
       target: { value: "Emma Smith" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Display name (e.g. Jackson)"), {
+    fireEvent.change(screen.getByPlaceholderText("Display name"), {
       target: { value: "Emma" },
     });
     fireEvent.change(screen.getByPlaceholderText("PIN (4-6 digits, optional)"), {
