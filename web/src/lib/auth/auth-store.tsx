@@ -69,6 +69,8 @@ export interface AuthState {
   signIn(returnTo?: string): Promise<void>;
   /** Set the Cognito-issued id_token after the callback page exchanges it. */
   acceptToken(idToken: string): Promise<void>;
+  /** Re-read /v1/auth/me after onboarding creates household/member records. */
+  refresh(): Promise<boolean>;
   /** Kiosk PIN auth — backend issues a member-scoped JWT, sets activeMember. */
   pinLogin(memberId: string, pin: string): Promise<void>;
   /** Clear local state + redirect to Cognito /logout. */
@@ -112,6 +114,7 @@ const AuthContext = createContext<AuthState>({
   lockKiosk: () => {},
   signIn: async () => {},
   acceptToken: async () => {},
+  refresh: async () => false,
   pinLogin: async () => {},
   logout: () => {},
 });
@@ -272,6 +275,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [hydrate],
   );
 
+  const refresh = useCallback(async (): Promise<boolean> => {
+    return hydrate();
+  }, [hydrate]);
+
   const pinLogin = useCallback(async (memberId: string, pin: string): Promise<void> => {
     const res = await api.post<PinResponse>("/v1/auth/pin", { member_id: memberId, pin });
     persistToken(res.token);
@@ -331,7 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         availableHouseholds,
         setActiveMember,
         lockKiosk,
-        signIn, acceptToken, pinLogin, logout,
+        signIn, acceptToken, refresh, pinLogin, logout,
       }}
     >
       {children}

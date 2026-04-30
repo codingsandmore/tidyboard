@@ -51,7 +51,7 @@ async function addMember(
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { status: authStatus, account } = useAuth();
+  const { status: authStatus, account, refresh } = useAuth();
   const t = useTranslations();
 
   // Onboarding requires a signed-in Cognito user — sign-up + email/password is
@@ -150,6 +150,7 @@ export default function OnboardingPage() {
           },
           account?.id
         );
+        await refresh();
       } else if (step === 4 && householdId) {
         if (!rosterReviewed) {
           throw new Error("Review the roster before continuing.");

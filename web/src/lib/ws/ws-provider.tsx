@@ -3,7 +3,8 @@
 /**
  * WSProvider — real-time WebSocket connection for Tidyboard.
  *
- * Opens a WS connection to /v1/ws when the user is authenticated.
+ * Opens a WS connection to /v1/ws when the user is authenticated and has
+ * completed household/member onboarding.
  * On incoming frames, invalidates the relevant React Query caches so
  * screens refresh without a full page reload.
  *
@@ -164,8 +165,8 @@ export function WSProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
     // Demo/fallback mode — no backend
     if (isApiFallbackMode()) return;
-    // Not authenticated yet
-    if (auth.status !== "authenticated" || !auth.token) {
+    // Not authenticated yet, or authenticated but still mid-onboarding.
+    if (auth.status !== "authenticated" || !auth.token || !auth.household?.id) {
       setStatus("idle");
       return;
     }
@@ -249,7 +250,7 @@ export function WSProvider({ children }: { children: ReactNode }) {
     };
     // reconnectTick triggers manual reconnect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.status, auth.token, handleInvalidation, reconnectTick]);
+  }, [auth.status, auth.token, auth.household?.id, handleInvalidation, reconnectTick]);
 
   return (
     <WSContext.Provider value={{ status, reconnect, lastEvent }}>
