@@ -8,6 +8,8 @@ on:
 jobs:
   chromatic:
     runs-on: ubuntu-latest
+    env:
+      CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
     defaults:
       run:
         working-directory: web
@@ -22,11 +24,15 @@ jobs:
           cache-dependency-path: web/package-lock.json
       # storybook 8.x rejects next@16 peer; safe to ignore until storybook 9 ships next@16 support
       - run: npm ci --legacy-peer-deps
+      - name: Skip Chromatic when project token is unavailable
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN == '' }}
+        run: echo "CHROMATIC_PROJECT_TOKEN is not configured; skipping Chromatic upload."
       - name: Run Chromatic
+        if: ${{ env.CHROMATIC_PROJECT_TOKEN != '' }}
         uses: chromaui/action@v11
         with:
           workingDir: web
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          projectToken: ${{ env.CHROMATIC_PROJECT_TOKEN }}
           exitOnceUploaded: true
           onlyChanged: true
           storybookBuildDir: storybook-static
