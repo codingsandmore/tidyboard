@@ -31,6 +31,13 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
+            echo "==> Ensuring production auth rate limit..."
+            if grep -q '^TIDYBOARD_AUTH_RATE_LIMIT_PER_MIN=' .env; then
+              sed -i 's/^TIDYBOARD_AUTH_RATE_LIMIT_PER_MIN=.*/TIDYBOARD_AUTH_RATE_LIMIT_PER_MIN=300/' .env
+            else
+              printf '\nTIDYBOARD_AUTH_RATE_LIMIT_PER_MIN=300\n' >> .env
+            fi
+
             # Ensure swap exists. The t4g.small only has 2GB RAM and a
             # parallel `docker compose up --build` of all services has
             # OOM-killed sshd / dockerd in the past (see project memory:

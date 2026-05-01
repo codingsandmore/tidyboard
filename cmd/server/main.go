@@ -230,7 +230,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	if redisAvailable {
 		limitPerMin := cfg.Auth.RateLimitPerMin
 		if limitPerMin <= 0 {
-			limitPerMin = 60
+			limitPerMin = 300
 		}
 		accountLimiter = middleware.NewAccountRateLimiter(redisClient, limitPerMin)
 	}
