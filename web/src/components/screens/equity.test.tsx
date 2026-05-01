@@ -17,6 +17,10 @@ vi.mock("@/lib/auth/auth-store", () => ({
   useAuth: () => ({ logout: mockLogout, member: null, household: null, status: "authenticated", account: null }),
 }));
 
+// Mutable refs the tests can override per-suite to simulate hook responses.
+const mockContribution: { current: unknown } = { current: undefined };
+const mockHousekeeper: { current: unknown } = { current: undefined };
+
 vi.mock("@/lib/api/hooks", () => ({
   useEquity: () => ({ data: TBD.equity }),
   useRace: () => ({ data: TBD.race }),
@@ -24,6 +28,8 @@ vi.mock("@/lib/api/hooks", () => ({
   useEquityDashboard: () => ({ data: undefined }),
   useRebalanceSuggestions: () => ({ data: undefined }),
   useMembers: () => ({ data: TBD.members }),
+  useEquityContribution: () => ({ data: mockContribution.current }),
+  useHousekeeperEstimate: () => ({ data: mockHousekeeper.current }),
 }));
 
 function createWrapper() {
@@ -134,6 +140,121 @@ describe("Race", () => {
     renderWithQuery(<Race />);
     expect(screen.getByText("Jackson")).toBeTruthy();
     expect(screen.getByText("Emma")).toBeTruthy();
+  });
+});
+
+describe("Equity — Contribution tab", () => {
+  beforeEach(() => {
+    mockContribution.current = undefined;
+    mockHousekeeper.current = undefined;
+  });
+
+  it("renders a Contribution tab control", () => {
+    renderWithQuery(<Equity />);
+    expect(screen.getByRole("tab", { name: /contribution/i })).toBeTruthy();
+  });
+
+  it("switching to Contribution renders per-member bars with hours and percentage", () => {
+    mockContribution.current = [
+      { member_id: "mom", total_minutes: 18 * 60, percentage_minutes: 56 },
+      { member_id: "dad", total_minutes: 14 * 60, percentage_minutes: 44 },
+    ];
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    // Member rows
+    expect(screen.getByTestId("contribution-bar-mom")).toBeTruthy();
+    expect(screen.getByTestId("contribution-bar-dad")).toBeTruthy();
+    // Hours rendered (18h, 14h)
+    expect(screen.getAllByText(/18\.0h|18h/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/14\.0h|14h/).length).toBeGreaterThan(0);
+    // Percentage rendered (56% / 44%)
+    expect(screen.getByText(/56%/)).toBeTruthy();
+    expect(screen.getByText(/44%/)).toBeTruthy();
+  });
+
+  it("renders dollar band when total_cents_min/max are present", () => {
+    mockContribution.current = [
+      {
+        member_id: "mom",
+        total_minutes: 18 * 60,
+        percentage_minutes: 56,
+        total_cents_min: 36000, // $360
+        total_cents_max: 54000, // $540
+        percentage_cents: 60,
+      },
+      { member_id: "dad", total_minutes: 14 * 60, percentage_minutes: 44 },
+    ];
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    expect(screen.getByText(/\$360.*\$540|\$360–\$540|\$360 – \$540/)).toBeTruthy();
+  });
+
+  it("shows rebalance suggestion when an adult exceeds 70% of contribution-by-minutes", () => {
+    mockContribution.current = [
+      { member_id: "mom", total_minutes: 30 * 60, percentage_minutes: 75 },
+      { member_id: "dad", total_minutes: 10 * 60, percentage_minutes: 25 },
+    ];
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    expect(
+      screen.getByText(/consider rebalancing|rebalance|over.?loaded|carrying/i),
+    ).toBeTruthy();
+  });
+
+  it("does NOT show rebalance suggestion when contribution is balanced", () => {
+    mockContribution.current = [
+      { member_id: "mom", total_minutes: 18 * 60, percentage_minutes: 56 },
+      { member_id: "dad", total_minutes: 14 * 60, percentage_minutes: 44 },
+    ];
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    expect(screen.queryByText(/consider rebalancing/i)).toBeNull();
+  });
+});
+
+describe("Equity — Housekeeper card", () => {
+  beforeEach(() => {
+    mockContribution.current = [
+      { member_id: "mom", total_minutes: 18 * 60, percentage_minutes: 56 },
+      { member_id: "dad", total_minutes: 14 * 60, percentage_minutes: 44 },
+    ];
+    mockHousekeeper.current = undefined;
+  });
+
+  it("renders the Housekeeper card with total estimated cost in dollars", () => {
+    mockHousekeeper.current = {
+      from: "2026-04-20",
+      to: "2026-04-26",
+      total_estimated_cost_cents: 12500, // $125.00
+      categories: [
+        {
+          category: "Cooking",
+          total_minutes: 240,
+          hourly_rate_cents: 2500,
+          estimated_cost_cents: 10000,
+        },
+        {
+          category: "Cleaning",
+          total_minutes: 60,
+          hourly_rate_cents: 2500,
+          estimated_cost_cents: 2500,
+        },
+      ],
+    };
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    expect(screen.getByText(/housekeeper/i)).toBeTruthy();
+    // Whole-dollar formatting (no cents in headline)
+    expect(screen.getByText(/\$125/)).toBeTruthy();
+    // Per-category line
+    expect(screen.getByText(/cooking/i)).toBeTruthy();
+    expect(screen.getByText(/cleaning/i)).toBeTruthy();
+  });
+
+  it("shows nothing extra when housekeeper estimate is unavailable", () => {
+    renderWithQuery(<Equity />);
+    fireEvent.click(screen.getByRole("tab", { name: /contribution/i }));
+    expect(screen.queryByText(/housekeeper/i)).toBeNull();
   });
 });
 
