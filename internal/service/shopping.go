@@ -133,7 +133,12 @@ func (s *ShoppingService) Generate(ctx context.Context, householdID uuid.UUID, r
 	var keyOrder []aggregateKey
 
 	for _, row := range rows {
-		amt := numericToFloat(row.Amount)
+		// Scale by meal-plan multiplier. A zero/empty multiplier is treated as 1
+		// so that pre-existing meal plan rows without explicit values continue
+		// to behave as if they had a single serving / single batch.
+		multiplier := defaultPositive(numericToFloat(row.ServingMultiplier), 1) *
+			defaultPositive(numericToFloat(row.BatchQuantity), 1)
+		amt := numericToFloat(row.Amount) * multiplier
 		key := itemAggregateKey(row.Name, row.Unit, row.Aisle)
 		if _, exists := totals[key]; !exists {
 			totals[key] = &aggregated{}
@@ -337,6 +342,16 @@ func numericToFloat(n pgtype.Numeric) float64 {
 
 func numericString(f float64) string {
 	return fmt.Sprintf("%.6g", f)
+}
+
+// defaultPositive returns value when it's strictly positive, otherwise fallback.
+// Used to coerce zero/missing meal-plan multiplier columns into a 1× factor so
+// the shopping list math stays sane when callers omit the field.
+func defaultPositive(value, fallback float64) float64 {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 func itemAggregateKey(name, unit, aisle string) aggregateKey {

@@ -72,7 +72,9 @@ SELECT
     ri.unit,
     ri.optional,
     r.title      AS recipe_title,
-    COALESCE(ic.category, '') AS aisle
+    COALESCE(ic.category, '') AS aisle,
+    mpe.serving_multiplier,
+    mpe.batch_quantity
 FROM meal_plan_entries mpe
 JOIN recipes            r   ON r.id = mpe.recipe_id
 JOIN recipe_ingredients ri  ON ri.recipe_id = r.id

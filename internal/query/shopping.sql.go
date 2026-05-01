@@ -192,7 +192,9 @@ SELECT
     ri.unit,
     ri.optional,
     r.title      AS recipe_title,
-    COALESCE(ic.category, '') AS aisle
+    COALESCE(ic.category, '') AS aisle,
+    mpe.serving_multiplier,
+    mpe.batch_quantity
 FROM meal_plan_entries mpe
 JOIN recipes            r   ON r.id = mpe.recipe_id
 JOIN recipe_ingredients ri  ON ri.recipe_id = r.id
@@ -211,13 +213,15 @@ type ListIngredientsForMealPlanRangeParams struct {
 }
 
 type ListIngredientsForMealPlanRangeRow struct {
-	RecipeID    uuid.UUID      `json:"recipe_id"`
-	Name        string         `json:"name"`
-	Amount      pgtype.Numeric `json:"amount"`
-	Unit        string         `json:"unit"`
-	Optional    bool           `json:"optional"`
-	RecipeTitle string         `json:"recipe_title"`
-	Aisle       string         `json:"aisle"`
+	RecipeID          uuid.UUID      `json:"recipe_id"`
+	Name              string         `json:"name"`
+	Amount            pgtype.Numeric `json:"amount"`
+	Unit              string         `json:"unit"`
+	Optional          bool           `json:"optional"`
+	RecipeTitle       string         `json:"recipe_title"`
+	Aisle             string         `json:"aisle"`
+	ServingMultiplier pgtype.Numeric `json:"serving_multiplier"`
+	BatchQuantity     pgtype.Numeric `json:"batch_quantity"`
 }
 
 // Ingredient join for shopping list generation:
@@ -240,6 +244,8 @@ func (q *Queries) ListIngredientsForMealPlanRange(ctx context.Context, arg ListI
 			&i.Optional,
 			&i.RecipeTitle,
 			&i.Aisle,
+			&i.ServingMultiplier,
+			&i.BatchQuantity,
 		); err != nil {
 			return nil, err
 		}
