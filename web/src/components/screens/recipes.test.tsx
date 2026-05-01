@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const startJobMutateMock = vi.fn();
+const upsertMutateMock = vi.fn();
 const upsertMutateAsyncMock = vi.fn().mockResolvedValue({});
 const generateShoppingMutateMock = vi.fn();
 const toggleShoppingMutateMock = vi.fn();
@@ -30,7 +31,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useImportRecipe: () => ({ mutate: vi.fn(), isPending: false }),
   useStartImportJob: () => ({ mutate: startJobMutateMock, isPending: false, data: hookState.startJobData, reset: vi.fn() }),
   useImportJob: () => ({ data: hookState.jobData }),
-  useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
+  useUpsertMealPlanEntry: () => ({ mutate: upsertMutateMock, mutateAsync: upsertMutateAsyncMock }),
   useDeleteMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}) }),
   useGenerateShoppingList: () => ({ mutate: generateShoppingMutateMock, isPending: false }),
 }));
@@ -94,6 +95,41 @@ describe("RecipeImport", () => {
       "https://example.com/recipe",
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
+  });
+
+  // ── Issue #117: structured error rendering on import-job startup failure ─
+  it("startImportJob onError surfaces structured ApiError details (status/code/message/requestId)", async () => {
+    const apiError = {
+      code: "rate_limited",
+      message: "Too many import attempts. Please wait a minute.",
+      status: 500,
+      requestId: "req-import-start-zzz",
+      url: "/v1/recipes/import",
+      method: "POST",
+    };
+    startJobMutateMock.mockImplementation((_url, options) => {
+      options?.onError?.(apiError);
+    });
+
+    renderWithQuery(<RecipeImport />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, {
+      target: { value: "https://example.com/recipe" },
+    });
+    fireEvent.click(screen.getByText("Import recipe"));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId("error-alert");
+      expect(alert).toBeTruthy();
+      expect(alert.textContent ?? "").toContain("500");
+      expect(alert.textContent ?? "").toContain("rate_limited");
+      expect(alert.textContent ?? "").toContain(
+        "Too many import attempts. Please wait a minute."
+      );
+      expect(alert.textContent ?? "").toContain("req-import-start-zzz");
+    });
+
+    expect(screen.queryByText(/Failed to (start )?import/i)).toBeNull();
   });
 
   it("renders the failure panel with the verbatim server error message", () => {
@@ -193,6 +229,7 @@ beforeEach(() => {
   hookState.mealPlan = null;
   generateShoppingMutateMock.mockReset();
   toggleShoppingMutateMock.mockReset();
+  upsertMutateMock.mockReset();
 });
 
 afterEach(() => {
@@ -369,6 +406,44 @@ describe("MealPlan", () => {
     await waitFor(() => {
       expect(screen.getByText(/Planned recipes need ingredients/i)).toBeTruthy();
     });
+  });
+
+  // ── Issue #117: structured error rendering on meal-plan upsert failure ──
+  it("upsertMealPlan onError surfaces structured ApiError details (status/code/message/requestId)", async () => {
+    hookState.mealPlan = {
+      weekOf: "2026-04-27",
+      rows: ["Breakfast", "Lunch", "Dinner", "Snack"],
+      grid: Array.from({ length: 4 }, () => Array(7).fill(null)),
+    };
+    const apiError = {
+      code: "recipe_not_found",
+      message: "Recipe r1 does not belong to this household.",
+      status: 500,
+      requestId: "req-mealplan-upsert-abc",
+      url: "/v1/meal-plan/entries",
+      method: "POST",
+    };
+    upsertMutateMock.mockImplementation((_payload, options) => {
+      options?.onError?.(apiError);
+    });
+
+    renderWithQuery(<MealPlan />);
+    // Clicking an empty cell opens the picker; picking r1 fires upsertMealPlan.mutate.
+    fireEvent.click(screen.getByTestId("meal-cell-0-0"));
+    fireEvent.click(screen.getByTestId("pick-recipe-r1"));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId("error-alert");
+      expect(alert).toBeTruthy();
+      expect(alert.textContent ?? "").toContain("500");
+      expect(alert.textContent ?? "").toContain("recipe_not_found");
+      expect(alert.textContent ?? "").toContain(
+        "Recipe r1 does not belong to this household."
+      );
+      expect(alert.textContent ?? "").toContain("req-mealplan-upsert-abc");
+    });
+
+    expect(screen.queryByText(/Failed to (save|update) meal plan/i)).toBeNull();
   });
 });
 

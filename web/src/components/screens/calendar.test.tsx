@@ -388,4 +388,44 @@ describe("EventModal", () => {
       );
     });
   });
+
+  // ── Issue #117: structured error rendering on create-event failure ────
+  it("create-event onError surfaces structured ApiError details (status/code/message/requestId)", async () => {
+    const apiError = {
+      code: "validation_failed",
+      message: "End time must be after start time.",
+      status: 500,
+      requestId: "req-evt-create-xyz",
+      url: "/v1/events",
+      method: "POST",
+    };
+    mutateFn.mockImplementation(
+      (_vars: unknown, opts?: { onError?: (e: unknown) => void }) => {
+        opts?.onError?.(apiError);
+      }
+    );
+
+    renderWithQuery(<EventModal onClose={vi.fn()} />);
+
+    const titleInput = screen.getByPlaceholderText(/event title/i);
+    fireEvent.change(titleInput, { target: { value: "Soccer carpool" } });
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      const alert = screen.getByTestId("error-alert");
+      expect(alert).toBeTruthy();
+      // status, code, message, requestId all surface.
+      expect(alert.textContent ?? "").toContain("500");
+      expect(alert.textContent ?? "").toContain("validation_failed");
+      expect(alert.textContent ?? "").toContain(
+        "End time must be after start time."
+      );
+      expect(alert.textContent ?? "").toContain("req-evt-create-xyz");
+    });
+
+    // Generic "Failed to <verb>" copy must not be used in favour of the
+    // structured ErrorAlert.
+    expect(screen.queryByText(/Failed to (create|save) event/i)).toBeNull();
+  });
 });

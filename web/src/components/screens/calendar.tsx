@@ -12,6 +12,7 @@ import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 
@@ -1180,6 +1181,9 @@ export function EventModal({ event, onClose }: EventModalProps) {
   const [recurrence, setRecurrence] = useState<string>(event?.recurrence_rule ?? "");
   const [assignedMembers, setAssignedMembers] = useState<string[]>(initialAssignees);
   const [error, setError] = useState("");
+  // Issue #117: structured server-error surface (network/validation/etc).
+  // Distinct from `error`, which is the form's local validation string.
+  const [mutationError, setMutationError] = useState<unknown>(null);
 
   useEffect(() => {
     setTitle(event?.title ?? "");
@@ -1190,6 +1194,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
     setRecurrence(event?.recurrence_rule ?? "");
     setAssignedMembers(initialAssignees());
     setError("");
+    setMutationError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     event?.id,
@@ -1248,6 +1253,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
       return;
     }
     setError("");
+    setMutationError(null);
     const start_time = new Date(startTime).toISOString();
     const end_time = new Date(endTime).toISOString();
 
@@ -1263,7 +1269,10 @@ export function EventModal({ event, onClose }: EventModalProps) {
           recurrence_rule: recurrence,
           assigned_members: assignedMembers,
         },
-        { onSuccess: onClose }
+        {
+          onSuccess: onClose,
+          onError: (err) => setMutationError(err),
+        }
       );
     } else {
       createEvent.mutate(
@@ -1276,14 +1285,21 @@ export function EventModal({ event, onClose }: EventModalProps) {
           ...(recurrence ? { recurrence_rule: recurrence } : {}),
           assigned_members: assignedMembers,
         },
-        { onSuccess: onClose }
+        {
+          onSuccess: onClose,
+          onError: (err) => setMutationError(err),
+        }
       );
     }
   };
 
   const handleDelete = () => {
     if (!event?.id) return;
-    deleteEvent.mutate(event.id, { onSuccess: onClose });
+    setMutationError(null);
+    deleteEvent.mutate(event.id, {
+      onSuccess: onClose,
+      onError: (err) => setMutationError(err),
+    });
   };
 
   const inputStyle: CSSProperties = {
@@ -1358,6 +1374,14 @@ export function EventModal({ event, onClose }: EventModalProps) {
         </div>
 
         <div style={{ padding: 20 }}>
+          {/* Server-error surface (issue #117). Renders the full ApiError —
+              status, code, message, request-id — so users can copy & report
+              without the screen falling back to a "Failed to save" string. */}
+          {mutationError != null && (
+            <div style={{ marginBottom: 12 }}>
+              <ErrorAlert error={mutationError} />
+            </div>
+          )}
           {/* Conflict warning — real time-overlap detection */}
           {conflicts.length > 0 && (
             <div

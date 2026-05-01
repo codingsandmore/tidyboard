@@ -149,10 +149,14 @@ describe("MealPlan edit popover", () => {
 
     expect(confirmSpy).toHaveBeenCalled();
     await waitFor(() => {
-      expect(deleteMutateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "mpe-1" })
-      );
+      expect(deleteMutateMock).toHaveBeenCalled();
     });
+    // Issue #117: the screen now also passes an `onError` options object
+    // alongside the payload so it can surface server failures via
+    // <ErrorAlert/>. Assert on the payload (1st arg) instead of pinning the
+    // exact call shape with toHaveBeenCalledWith.
+    const deletePayload = deleteMutateMock.mock.calls[0][0];
+    expect(deletePayload).toEqual(expect.objectContaining({ id: "mpe-1" }));
     confirmSpy.mockRestore();
   });
 
