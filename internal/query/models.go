@@ -127,6 +127,12 @@ type ChoreCompletion struct {
 	Closed              bool               `json:"closed"`
 }
 
+type ChorePet struct {
+	ChoreID   uuid.UUID          `json:"chore_id"`
+	PetID     uuid.UUID          `json:"pet_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type DomainOwnership struct {
 	ID                 uuid.UUID          `json:"id"`
 	HouseholdID        uuid.UUID          `json:"household_id"`
