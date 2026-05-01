@@ -1458,6 +1458,18 @@ export function useArchiveChore() {
   });
 }
 
+/** Replace the set of pets linked to a chore. Backend #133:
+ *  POST /v1/chores/{id}/pets with { pet_member_ids: [...] }; the backend
+ *  performs a full replace-set, so callers pass the desired end-state. */
+export function useSetChorePets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ choreId, petMemberIds }: { choreId: string; petMemberIds: string[] }) =>
+      api.post<ApiChore>(`/v1/chores/${choreId}/pets`, { pet_member_ids: petMemberIds }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chores"] }),
+  });
+}
+
 // ── Chore time tracking ───────────────────────────────────────────────────
 // Endpoints landed in #134; see internal/handler/chore_time_entries.go.
 

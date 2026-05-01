@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
 import {
-  useMembers, useChores, useCreateChore, useArchiveChore,
+  useMembers, useChores, useCreateChore, useArchiveChore, useSetChorePets,
 } from "@/lib/api/hooks";
 
 const FREQUENCIES = [
@@ -15,12 +15,68 @@ const FREQUENCIES = [
   { value: "weekly", label: "Weekly" },
 ];
 
+/** Tiny inline pet multi-select. We keep this colocated rather than promoting
+ *  to a shared `<MemberMultiSelect/>`: the wider primitive doesn't exist yet,
+ *  and the chore form is the only consumer today. Spec D.3 only calls for
+ *  toggle-style picks; the parent wires the resulting id-array into
+ *  `useSetChorePets` after the chore is created. */
+function PetMultiSelect({
+  pets,
+  selected,
+  onToggle,
+}: {
+  pets: { id: string; name: string; color?: string }[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  if (pets.length === 0) return null;
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: TB.text2, marginBottom: 4 }}>
+        Pets (optional)
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {pets.map((p) => {
+          const isOn = selected.has(p.id);
+          return (
+            <label
+              key={p.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 8px",
+                fontSize: 12,
+                border: `1px solid ${isOn ? (p.color ?? TB.primary) : TB.border}`,
+                background: isOn ? (p.color ?? TB.primary) + "22" : TB.surface,
+                borderRadius: 999,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isOn}
+                onChange={() => onToggle(p.id)}
+                aria-label={p.name}
+                style={{ margin: 0 }}
+              />
+              {p.name}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ChoresAdmin() {
   const { data: members = [] } = useMembers();
   const kids = members.filter((m) => m.role === "child");
+  const pets = members.filter((m) => m.role === "pet");
   const { data: chores = [] } = useChores();
   const createChore = useCreateChore();
   const archive = useArchiveChore();
+  const setChorePets = useSetChorePets();
 
   const [showForm, setShowForm] = useState(false);
   const [memberId, setMemberId] = useState(kids[0]?.id ?? "");
@@ -28,12 +84,34 @@ export function ChoresAdmin() {
   const [weight, setWeight] = useState(3);
   const [frequencyKind, setFrequencyKind] = useState("daily");
   const [autoApprove, setAutoApprove] = useState(true);
+  const [petIds, setPetIds] = useState<Set<string>>(new Set());
+
+  function togglePet(id: string) {
+    setPetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function submit() {
     if (!name || !memberId) return;
     createChore.mutate(
       { member_id: memberId, name, weight, frequency_kind: frequencyKind, auto_approve: autoApprove },
-      { onSuccess: () => { setName(""); setShowForm(false); } }
+      {
+        onSuccess: (chore) => {
+          // Replace-set linked pets only when the user picked any. The
+          // backend treats an empty body as "clear all", so we skip the
+          // call entirely in the no-op case to keep the audit log clean.
+          if (petIds.size > 0 && chore?.id) {
+            setChorePets.mutate({ choreId: chore.id, petMemberIds: Array.from(petIds) });
+          }
+          setName("");
+          setPetIds(new Set());
+          setShowForm(false);
+        },
+      }
     );
   }
 
@@ -57,6 +135,7 @@ export function ChoresAdmin() {
           <select value={frequencyKind} onChange={(e) => setFrequencyKind(e.target.value)} style={{ padding: "6px 8px", border: `1px solid ${TB.border}`, borderRadius: 6 }}>
             {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select>
+          <PetMultiSelect pets={pets} selected={petIds} onToggle={togglePet} />
           <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
             <input type="checkbox" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)}/>
             Auto-approve completions (kid taps → wallet credit immediately)
@@ -68,11 +147,19 @@ export function ChoresAdmin() {
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
         {chores.filter((c) => !c.archived_at).map((c) => {
           const owner = members.find((m) => m.id === c.member_id);
+          const linkedPets = (c.pet_member_ids ?? [])
+            .map((id) => members.find((m) => m.id === id))
+            .filter((m): m is NonNullable<typeof m> => Boolean(m));
           return (
             <Card key={c.id} pad={10} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: TB.text2 }}>{owner?.name ?? "?"} · weight {c.weight} · {c.frequency_kind}{c.auto_approve ? " · auto" : ""}</div>
+                <div style={{ fontSize: 11, color: TB.text2 }}>
+                  {owner?.name ?? "?"} · weight {c.weight} · {c.frequency_kind}{c.auto_approve ? " · auto" : ""}
+                  {linkedPets.length > 0 && (
+                    <> · pets: {linkedPets.map((p) => p.name).join(", ")}</>
+                  )}
+                </div>
               </div>
               <Btn kind="ghost" size="sm" onClick={() => archive.mutate({ id: c.id })}>Archive</Btn>
             </Card>

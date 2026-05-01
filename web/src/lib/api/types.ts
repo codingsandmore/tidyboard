@@ -342,6 +342,8 @@ export interface ApiChore {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Pet member ids linked to this chore (replace-set; backend #133). */
+  pet_member_ids?: string[];
 }
 
 export interface ApiChoreCompletion {
