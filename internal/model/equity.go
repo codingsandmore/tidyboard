@@ -153,3 +153,29 @@ type RebalanceSuggestion struct {
 	EstMinutes   int        `json:"est_minutes"`
 	Reason       string     `json:"reason"`
 }
+
+// ── Equity Contribution (Section E.1+E.2) ────────────────────────────────────
+
+// MemberContribution is one member's row in the contribution aggregate. Cents
+// fields are pointer types with `omitempty` so the JSON response OMITS them
+// entirely (drops the keys, doesn't return zero) when:
+//  1. the member has no hourly_rate_cents_min/max set, OR
+//  2. the viewer lacks privacy clearance (non-self, non-admin).
+//
+// The rate values themselves are NEVER returned — only the derived cents
+// totals. See Section G of docs/specs/2026-05-01-fairplay-design.md.
+type MemberContribution struct {
+	MemberID          uuid.UUID `json:"member_id"`
+	TotalMinutes      int64     `json:"total_minutes"`
+	PercentageMinutes float64   `json:"percentage_minutes"`
+	TotalCentsMin     *int64    `json:"total_cents_min,omitempty"`
+	TotalCentsMax     *int64    `json:"total_cents_max,omitempty"`
+	PercentageCents   *float64  `json:"percentage_cents,omitempty"`
+}
+
+// EquityContributionResponse is the body for GET /v1/equity/contribution.
+type EquityContributionResponse struct {
+	From    string               `json:"from"` // ISO date
+	To      string               `json:"to"`   // ISO date
+	Members []MemberContribution `json:"members"`
+}
