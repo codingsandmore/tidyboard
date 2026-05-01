@@ -43,6 +43,7 @@ covered feature.
 | Update member | PATCH /v1/members/:id | PART | OK | NO | NO | |
 | Delete member | DELETE /v1/members/:id | PART | OK | NO | NO | |
 | Invite by code | POST /v1/invites | PART | OK | NO | NO | |
+| Hourly salary range (private) | PATCH /v1/members/:id (hourly_rate_cents_*) | PART | PART | NO | NO | in flight cycle 3 — issue #135 (backend) + #143 (UI) |
 
 ## 3. Pets
 
@@ -51,6 +52,7 @@ covered feature.
 | Pet member (read-only schema) | GET /v1/members | PART | OK | NO | PART | role='pet'; Dino in fixture |
 | Pet edit/profile UI | n/a | NO | NO | NO | NO | feature not built; future cycle |
 | Feeding tracker | n/a | NO | NO | NO | NO | feature not built; future cycle |
+| Pet-chore linkage | POST /v1/chores/:id/pets | PART | PART | NO | NO | in flight cycle 3 — issue #133 (backend) + #141 (UI) |
 
 ## 4. Calendar & Events
 
@@ -108,8 +110,12 @@ covered feature.
 | Wallet transactions | GET /v1/wallet/:memberId/transactions | OK | OK | NO | NO | |
 | Allowance | GET/POST /v1/allowance | PART | OK | NO | NO | |
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
+| Chore time tracking (start/stop) | POST /v1/chores/:id/timer/* | PART | PART | NO | NO | in flight cycle 3 — issue #134 (backend) + #142 (UI) |
+| Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
 
 ## 9. Points & Rewards
+
+> Wallet/payout correctness audit is in flight as cycle 3 issue #137; tracked in section 8.
 
 | Feature | Route(s) | Unit | Integration | E2E:dev | E2E:prod | Notes |
 |---|---|---|---|---|---|---|
@@ -148,6 +154,7 @@ covered feature.
 | ErrorAlert UI | (cross-cutting) | PART | n/a | NO | NO | |
 | Metrics endpoint | /metrics | OK | n/a | NO | PART | smoke |
 | Health endpoint | /healthz | OK | OK | NO | OK | |
+| GitHub bug-report (from ErrorAlert) | POST /v1/bug-reports | PART | PART | NO | NO | in flight cycle 3 — issue #136 (backend) + #140 (UI) |
 
 ## 13. Sync & Backup
 

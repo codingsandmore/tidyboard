@@ -66,3 +66,21 @@ Spec: `docs/specs/2026-05-01-flintstones-design.md`, section G.
 When an autospec issue widens a shared TS type (adds an optional field), the test plan MUST cover every existing reader of the field — not just the new writer. The minimum bar: at least one Vitest fixture must reflect the live API shape (the new field present, old field absent or undefined). This is enforced by the Flintstones fixture (`web/src/test/fixtures/flintstones.ts`): any consumer that direct-accesses an optional field will crash that fixture's tests.
 
 Spec: `docs/specs/2026-05-01-flintstones-design.md`, section G.
+
+## Hourly rate privacy
+
+`members.hourly_rate_cents_min`/`max` are private. Handlers MUST gate read access to (a) the rate-owner themselves, or (b) a household admin (role='owner' or 'admin'). Never log these values. Never include them in audit-log details.
+
+Spec: `docs/specs/2026-05-01-fairplay-design.md`, section G + AGENTS.md additions.
+
+## Bug-report token
+
+`GITHUB_BUG_REPORT_TOKEN` env is required for the bug-report endpoint; the endpoint returns 503 with a clear message if the token is missing. The token is a fine-scoped PAT (`repo:issues:write` only). Do NOT log the token; do NOT include it in error envelopes.
+
+Spec: `docs/specs/2026-05-01-fairplay-design.md`, section A + AGENTS.md additions.
+
+## Time-tracking semantic
+
+A member can have at most ONE open `chore_time_entries` row per chore at a time. Attempting to start a second open entry returns 409 with `code:"timer_already_running"`. Stopping an entry sets `ended_at = now()` server-side; the client doesn't propose the value.
+
+Spec: `docs/specs/2026-05-01-fairplay-design.md`, section F + AGENTS.md additions.
