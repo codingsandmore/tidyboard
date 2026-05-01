@@ -129,6 +129,11 @@ type Querier interface {
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
 	GetMember(ctx context.Context, arg GetMemberParams) (Member, error)
 	GetMemberByAccountAndHousehold(ctx context.Context, arg GetMemberByAccountAndHouseholdParams) (Member, error)
+	// Returns rows for the supplied member IDs scoped to a single household.
+	// Used to validate that assigned_members on events/chores belong to the
+	// caller's household. Foreign or unknown IDs are simply absent from the
+	// result; the caller compares input vs returned cardinality to detect them.
+	GetMembersByIDs(ctx context.Context, arg GetMembersByIDsParams) ([]Member, error)
 	// sql/queries/wallet.sql
 	// ── Wallets ─────────────────────────────────────────────────────────────────
 	GetOrCreateWallet(ctx context.Context, memberID uuid.UUID) (Wallet, error)

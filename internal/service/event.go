@@ -137,15 +137,55 @@ func ExpandRRule(base *model.Event, windowStart, windowEnd time.Time) ([]*model.
 	return out, nil
 }
 
+// validateAssignedMembers verifies that every UUID in ids belongs to a member
+// of householdID, returns the deduplicated set in stable insertion order, and
+// returns ErrInvalidMember if any ID is unknown or foreign. An empty/nil input
+// returns an empty slice with no error and no DB round-trip.
+func (s *EventService) validateAssignedMembers(ctx context.Context, householdID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	if len(ids) == 0 {
+		return []uuid.UUID{}, nil
+	}
+	// Dedupe while preserving the caller's first-seen order.
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	deduped := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduped = append(deduped, id)
+	}
+
+	rows, err := s.q.GetMembersByIDs(ctx, query.GetMembersByIDsParams{
+		HouseholdID: householdID,
+		Ids:         deduped,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("validating assigned members: %w", err)
+	}
+	if len(rows) != len(deduped) {
+		return nil, ErrInvalidMember
+	}
+	// Defensive: every returned row must match the household. The query
+	// already filters on household_id, but the cardinality check above is
+	// the primary signal — this guards against future query drift.
+	for _, r := range rows {
+		if r.HouseholdID != householdID {
+			return nil, ErrInvalidMember
+		}
+	}
+	return deduped, nil
+}
+
 // Create inserts a new event.
 func (s *EventService) Create(ctx context.Context, householdID uuid.UUID, req model.CreateEventRequest) (*model.Event, error) {
 	var calID *uuid.NullUUID
 	if req.CalendarID != nil {
 		calID = &uuid.NullUUID{UUID: *req.CalendarID, Valid: true}
 	}
-	assignedMembers := req.AssignedMembers
-	if assignedMembers == nil {
-		assignedMembers = []uuid.UUID{}
+	assignedMembers, err := s.validateAssignedMembers(ctx, householdID, req.AssignedMembers)
+	if err != nil {
+		return nil, err
 	}
 
 	e, err := s.q.CreateEvent(ctx, query.CreateEventParams{
@@ -194,6 +234,17 @@ func (s *EventService) Get(ctx context.Context, householdID, eventID uuid.UUID) 
 
 // Update patches event fields.
 func (s *EventService) Update(ctx context.Context, householdID, eventID uuid.UUID, req model.UpdateEventRequest) (*model.Event, error) {
+	// Only validate/replace assigned_members when the caller explicitly sent
+	// the field. A nil slice means "leave the column untouched" — the SQL
+	// uses COALESCE(narg, existing). An empty slice means "clear it".
+	var assignedMembers []uuid.UUID
+	if req.AssignedMembers != nil {
+		validated, err := s.validateAssignedMembers(ctx, householdID, req.AssignedMembers)
+		if err != nil {
+			return nil, err
+		}
+		assignedMembers = validated
+	}
 	arg := query.UpdateEventParams{
 		ID:              eventID,
 		HouseholdID:     householdID,
@@ -202,7 +253,7 @@ func (s *EventService) Update(ctx context.Context, householdID, eventID uuid.UUI
 		AllDay:          req.AllDay,
 		Location:        req.Location,
 		RecurrenceRule:  req.RecurrenceRule,
-		AssignedMembers: req.AssignedMembers,
+		AssignedMembers: assignedMembers,
 	}
 	if req.StartTime != nil {
 		arg.StartTime = pgtype.Timestamptz{Time: *req.StartTime, Valid: true}

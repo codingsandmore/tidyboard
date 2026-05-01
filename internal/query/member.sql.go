@@ -170,6 +170,56 @@ func (q *Queries) GetMemberByAccountAndHousehold(ctx context.Context, arg GetMem
 	return i, err
 }
 
+const getMembersByIDs = `-- name: GetMembersByIDs :many
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
+WHERE household_id = $1 AND id = ANY($2::uuid[])
+`
+
+type GetMembersByIDsParams struct {
+	HouseholdID uuid.UUID   `json:"household_id"`
+	Ids         []uuid.UUID `json:"ids"`
+}
+
+// Returns rows for the supplied member IDs scoped to a single household.
+// Used to validate that assigned_members on events/chores belong to the
+// caller's household. Foreign or unknown IDs are simply absent from the
+// result; the caller compares input vs returned cardinality to detect them.
+func (q *Queries) GetMembersByIDs(ctx context.Context, arg GetMembersByIDsParams) ([]Member, error) {
+	rows, err := q.db.Query(ctx, getMembersByIDs, arg.HouseholdID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Member{}
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.HouseholdID,
+			&i.AccountID,
+			&i.Name,
+			&i.DisplayName,
+			&i.Color,
+			&i.AvatarUrl,
+			&i.Role,
+			&i.AgeGroup,
+			&i.PinHash,
+			&i.EmergencyInfo,
+			&i.NotificationPreferences,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.NtfyTopic,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrimaryMemberByAccount = `-- name: GetPrimaryMemberByAccount :one
 SELECT id, household_id, role FROM members
 WHERE account_id = $1
