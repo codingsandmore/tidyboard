@@ -109,6 +109,65 @@ func (h *RecipeHandler) Import(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, recipe)
 }
 
+// StartImportJob handles POST /v1/recipes/import-jobs — async URL scraping.
+// The handler returns 202 Accepted with the freshly-created job row; clients
+// then poll GET /v1/recipes/import-jobs/{id} until status is terminal.
+func (h *RecipeHandler) StartImportJob(w http.ResponseWriter, r *http.Request) {
+	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		return
+	}
+	memberID, ok := middleware.MemberIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing member context")
+		return
+	}
+
+	var req model.ImportRecipeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return
+	}
+	if req.URL == "" {
+		respond.Error(w, http.StatusBadRequest, "validation_error", "url is required")
+		return
+	}
+
+	job, err := h.svc.StartImportJob(r.Context(), householdID, memberID, req.URL)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to start import job")
+		return
+	}
+	respond.JSON(w, http.StatusAccepted, job)
+}
+
+// GetImportJob handles GET /v1/recipes/import-jobs/{id}.
+func (h *RecipeHandler) GetImportJob(w http.ResponseWriter, r *http.Request) {
+	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid job ID")
+		return
+	}
+
+	job, err := h.svc.GetImportJob(r.Context(), householdID, id)
+	if err != nil {
+		switch err {
+		case service.ErrNotFound:
+			respond.Error(w, http.StatusNotFound, "not_found", "import job not found")
+		default:
+			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch import job")
+		}
+		return
+	}
+	respond.JSON(w, http.StatusOK, job)
+}
+
 // Get handles GET /v1/recipes/:id.
 func (h *RecipeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())

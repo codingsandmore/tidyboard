@@ -11,7 +11,8 @@ import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
-import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useImportRecipe, useGenerateShoppingList } from "@/lib/api/hooks";
+import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useGenerateShoppingList, useStartImportJob, useImportJob } from "@/lib/api/hooks";
+import { ImportStatusPanel, type ImportJob } from "@/components/recipes/ImportStatusPanel";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -47,21 +48,33 @@ export function RecipeImport() {
   const tCommon = useTranslations("common");
   const router = useRouter();
   const [url, setUrl] = useState("");
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState(false);
-  const importMutation = useImportRecipe();
+  const startJob = useStartImportJob();
+  // Track the active job by id; the polling hook resolves the live state.
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = useImportJob(jobId);
+  const liveJob: ImportJob | null = job.data
+    ? {
+        id: job.data.id,
+        status: job.data.status,
+        error_message: job.data.error_message,
+        recipe_id: job.data.recipe_id,
+      }
+    : startJob.data
+    ? {
+        id: startJob.data.id,
+        status: startJob.data.status,
+        error_message: startJob.data.error_message,
+        recipe_id: startJob.data.recipe_id,
+      }
+    : null;
 
   function handleImport() {
     if (!url.trim()) return;
-    setImportError(null);
-    setImportSuccess(false);
-    importMutation.mutate(url.trim(), {
-      onSuccess: () => {
-        setImportSuccess(true);
+    setJobId(null);
+    startJob.mutate(url.trim(), {
+      onSuccess: (data) => {
+        setJobId(data.id);
         setUrl("");
-      },
-      onError: () => {
-        setImportError("Failed to import recipe. Check the URL and try again.");
       },
     });
   }
@@ -120,25 +133,9 @@ export function RecipeImport() {
 
         <Input
           value={url}
-          onChange={(v) => { setUrl(v); setImportError(null); setImportSuccess(false); }}
+          onChange={(v) => { setUrl(v); }}
           style={{ height: 52, fontSize: 14 }}
         />
-        {importError && (
-          <div
-            data-testid="import-error"
-            style={{ marginTop: 8, fontSize: 12, color: TB.destructive }}
-          >
-            {importError}
-          </div>
-        )}
-        {importSuccess && (
-          <div
-            data-testid="import-success"
-            style={{ marginTop: 8, fontSize: 12, color: TB.success }}
-          >
-            {t("importRecipe")} — saved to your collection!
-          </div>
-        )}
         <div style={{ marginTop: 12 }}>
           <Btn
             kind="primary"
@@ -146,9 +143,10 @@ export function RecipeImport() {
             full
             onClick={handleImport}
           >
-            {importMutation.isPending ? "Importing…" : t("importRecipe")}
+            {(startJob.isPending || liveJob?.status === "running") ? "Importing…" : t("importRecipe")}
           </Btn>
         </div>
+        <ImportStatusPanel job={liveJob} />
 
         <div
           style={{

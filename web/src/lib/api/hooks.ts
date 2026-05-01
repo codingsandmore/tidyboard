@@ -797,6 +797,74 @@ export function useImportRecipe() {
   });
 }
 
+// ── Recipe import-job (async polling) hooks ────────────────────────────────
+
+/** Server-side shape of a recipe import job (issue #108). */
+export interface ApiRecipeImportJob {
+  id: string;
+  status: "running" | "succeeded" | "failed";
+  error_message?: string;
+  recipe_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Mutation hook for `POST /v1/recipes/import-jobs`.
+ * Returns the freshly-created job; the consumer should pass `data.id` to
+ * `useImportJob` to start polling for completion.
+ */
+export function useStartImportJob() {
+  return useMutation({
+    mutationFn: (url: string) =>
+      api.post<ApiRecipeImportJob>("/v1/recipes/import-jobs", { url }),
+  });
+}
+
+/**
+ * Polling query hook for `GET /v1/recipes/import-jobs/{id}`.
+ *
+ * Polls every 2 seconds while the job is still running; switches to
+ * exponential backoff (capped at 30 seconds) on transport errors. Polling
+ * stops automatically once the server reports a terminal status
+ * (`succeeded` or `failed`). Recipes list cache is invalidated on success.
+ */
+export function useImportJob(id: string | null | undefined) {
+  const qc = useQueryClient();
+  return useQuery<ApiRecipeImportJob>({
+    queryKey: ["recipe-import-job", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const res = await api.get<ApiRecipeImportJob>(`/v1/recipes/import-jobs/${id}`);
+      // Eagerly invalidate the recipes list when the job completes so a return
+      // to /recipes shows the freshly-imported entry without a manual refresh.
+      if (res.status === "succeeded") {
+        qc.invalidateQueries({ queryKey: qk.recipes() });
+      }
+      return res;
+    },
+    refetchInterval: (query) => {
+      // Stop polling when terminal.
+      const data = query.state.data as ApiRecipeImportJob | undefined;
+      if (data && (data.status === "succeeded" || data.status === "failed")) {
+        return false;
+      }
+      // Exponential backoff on consecutive transport failures, cap 30s.
+      const failures = query.state.fetchFailureCount;
+      if (failures > 0) {
+        return Math.min(2000 * 2 ** (failures - 1), 30_000);
+      }
+      return 2000;
+    },
+    refetchIntervalInBackground: false,
+    // We surface server errors via `error_message`, not via thrown errors,
+    // so a single failed transport poll should not blow up the UI; keep the
+    // last good payload while we retry.
+    retry: false,
+    staleTime: 0,
+  });
+}
+
 // ── Shopping mutation hooks ────────────────────────────────────────────────
 
 export function useGenerateShoppingList() {

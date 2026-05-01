@@ -133,7 +133,10 @@ describe("RecipeImport page integration with polling", () => {
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "https://example.com/recipe" } });
     fireEvent.click(screen.getByText("importRecipe"));
-    expect(startMock).toHaveBeenCalledWith("https://example.com/recipe");
+    expect(startMock).toHaveBeenCalledWith(
+      "https://example.com/recipe",
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
   });
 
   it("renders the success link path when useImportJob returns succeeded + recipe_id", async () => {

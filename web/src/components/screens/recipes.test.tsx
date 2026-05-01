@@ -11,12 +11,14 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
-const importMutateMock = vi.fn();
+const startJobMutateMock = vi.fn();
 const upsertMutateAsyncMock = vi.fn().mockResolvedValue({});
 const generateShoppingMutateMock = vi.fn();
 const toggleShoppingMutateMock = vi.fn();
 const hookState = vi.hoisted(() => ({
   mealPlan: null as unknown,
+  jobData: undefined as unknown,
+  startJobData: undefined as unknown,
 }));
 
 vi.mock("@/lib/api/hooks", () => ({
@@ -25,7 +27,9 @@ vi.mock("@/lib/api/hooks", () => ({
   useMealPlan: () => ({ data: hookState.mealPlan ?? TBD.mealPlan }),
   useShopping: () => ({ data: TBD.shopping }),
   useToggleShoppingItem: () => ({ mutate: toggleShoppingMutateMock }),
-  useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
+  useImportRecipe: () => ({ mutate: vi.fn(), isPending: false }),
+  useStartImportJob: () => ({ mutate: startJobMutateMock, isPending: false, data: hookState.startJobData, reset: vi.fn() }),
+  useImportJob: () => ({ data: hookState.jobData }),
   useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
   useGenerateShoppingList: () => ({ mutate: generateShoppingMutateMock, isPending: false }),
 }));
@@ -42,6 +46,12 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe("RecipeImport", () => {
+  beforeEach(() => {
+    hookState.jobData = undefined;
+    hookState.startJobData = undefined;
+    startJobMutateMock.mockReset();
+  });
+
   it("renders without crashing", () => {
     renderWithQuery(<RecipeImport />);
   });
@@ -71,41 +81,43 @@ describe("RecipeImport", () => {
   it("clicks Import recipe button without crashing", () => {
     renderWithQuery(<RecipeImport />);
     fireEvent.click(screen.getByText("Import recipe"));
-    // Mutation fires in fallback mode — no crash expected
     expect(screen.getByText("Import recipe")).toBeTruthy();
   });
 
-  it("calls importMutation.mutate with the entered URL", () => {
-    importMutateMock.mockImplementation(() => {});
+  it("calls useStartImportJob.mutate with the entered URL", () => {
     renderWithQuery(<RecipeImport />);
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "https://example.com/recipe" } });
     fireEvent.click(screen.getByText("Import recipe"));
-    expect(importMutateMock).toHaveBeenCalledWith(
+    expect(startJobMutateMock).toHaveBeenCalledWith(
       "https://example.com/recipe",
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+      expect.objectContaining({ onSuccess: expect.any(Function) })
     );
   });
 
-  it("shows error message when onError callback is invoked", () => {
-    importMutateMock.mockImplementation((_url: string, opts: { onError: () => void }) => {
-      opts.onError();
-    });
+  it("renders the failure panel with the verbatim server error message", () => {
+    hookState.jobData = {
+      id: "job-99",
+      status: "failed",
+      error_message: "scrape failed: site blocked by robots.txt",
+    };
     renderWithQuery(<RecipeImport />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://example.com/recipe" } });
-    fireEvent.click(screen.getByText("Import recipe"));
-    expect(screen.getByTestId("import-error")).toBeTruthy();
-    expect(screen.getByText(/Failed to import recipe/)).toBeTruthy();
+    const errEl = screen.getByTestId("import-job-error");
+    expect(errEl.textContent).toContain("scrape failed: site blocked by robots.txt");
+    // Verbatim policy: must NOT prepend a generic "Failed to import" wrapper.
+    expect(errEl.textContent ?? "").not.toMatch(/Failed to import/i);
   });
 
-  it("shows success message when onSuccess callback is invoked", () => {
-    importMutateMock.mockImplementation((_url: string, opts: { onSuccess: () => void }) => {
-      opts.onSuccess();
-    });
+  it("renders the success panel with a link to the new recipe", () => {
+    hookState.jobData = {
+      id: "job-100",
+      status: "succeeded",
+      recipe_id: "abc-123",
+    };
     renderWithQuery(<RecipeImport />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "https://example.com/recipe" } });
-    fireEvent.click(screen.getByText("Import recipe"));
-    expect(screen.getByTestId("import-success")).toBeTruthy();
+    const link = screen.getByTestId("import-job-recipe-link");
+    expect(link).toBeTruthy();
+    expect(link.getAttribute("href")).toBe("/recipes/abc-123");
   });
 });
 
