@@ -110,7 +110,7 @@ covered feature.
 | Wallet transactions | GET /v1/wallet/:memberId/transactions | OK | OK | NO | NO | |
 | Allowance | GET/POST /v1/allowance | PART | OK | NO | NO | |
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
-| Chore time tracking (start/stop) | POST /v1/chores/:id/timer/* | PART | PART | NO | NO | in flight cycle 3 — issue #134 (backend) + #142 (UI) |
+| Chore time tracking (start/stop) | POST /v1/chores/:id/timer/*, POST /v1/chores/:id/time-entries, GET /v1/members/:id/time-summary | OK | OK | NO | NO | backend shipped via issue #134; UI tracked in #142 |
 | Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
 
 ## 9. Points & Rewards
