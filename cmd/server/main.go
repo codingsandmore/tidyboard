@@ -138,6 +138,11 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
+	housekeeperSvc, err := service.NewHousekeeperService(q)
+	if err != nil {
+		logger.Error("failed to load housekeeper rates", "err", err)
+		os.Exit(1)
+	}
 	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
 	walletSvc := service.NewWalletService(q, bc, auditSvc)
 	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
@@ -202,6 +207,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
 	equityHandler := handler.NewEquityHandler(equitySvc)
+	housekeeperHandler := handler.NewHousekeeperHandler(housekeeperSvc)
 	notifyHandler := handler.NewNotifyHandler(notifySvc)
 	routineHandler := handler.NewRoutineHandler(routineSvc)
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
@@ -498,6 +504,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Patch("/v1/equity/tasks/{id}", equityHandler.UpdateTask)
 		r.Delete("/v1/equity/tasks/{id}", equityHandler.DeleteTask)
 		r.Post("/v1/equity/tasks/{id}/log", equityHandler.LogTaskTime)
+		r.Get("/v1/equity/housekeeper-estimate", housekeeperHandler.GetEstimate)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)
