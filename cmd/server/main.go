@@ -205,6 +205,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	routineHandler := handler.NewRoutineHandler(routineSvc)
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
 	choreHandler := handler.NewChoreHandler(choreSvc, q)
+	chorePetsSvc := service.NewChorePetsService(q)
+	chorePetsHandler := handler.NewChorePetsHandler(chorePetsSvc)
 	pointsHandler := handler.NewPointsHandler(pointsSvc)
 	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
@@ -432,6 +434,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Delete("/v1/chores/{id}", choreHandler.Archive)
 		r.Post("/v1/chores/{id}/complete", choreHandler.Complete)
 		r.Delete("/v1/chores/{id}/complete/{date}", choreHandler.UndoComplete)
+		r.Get("/v1/chores/{id}/pets", chorePetsHandler.List)
+		r.Post("/v1/chores/{id}/pets", chorePetsHandler.Set)
 
 		// Wallet.
 		r.Get("/v1/wallet/{member_id}", walletHandler.GetWallet)

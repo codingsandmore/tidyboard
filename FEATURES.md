@@ -51,6 +51,7 @@ covered feature.
 | Pet member (read-only schema) | GET /v1/members | PART | OK | NO | PART | role='pet'; Dino in fixture |
 | Pet edit/profile UI | n/a | NO | NO | NO | NO | feature not built; future cycle |
 | Feeding tracker | n/a | NO | NO | NO | NO | feature not built; future cycle |
+| Chore-pet linkage (replace-set) | GET/POST /v1/chores/:id/pets | NO | OK | NO | NO | issue #133 — Fair Play section D |
 
 ## 4. Calendar & Events
 
@@ -108,6 +109,7 @@ covered feature.
 | Wallet transactions | GET /v1/wallet/:memberId/transactions | OK | OK | NO | NO | |
 | Allowance | GET/POST /v1/allowance | PART | OK | NO | NO | |
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
+| Chore-pet linkage | GET/POST /v1/chores/:id/pets | NO | OK | NO | NO | join table chore_pets; replace-set; #133 |
 
 ## 9. Points & Rewards
 
