@@ -15,4 +15,8 @@ var (
 	ErrScraperFailed        = errors.New("recipe scraper returned an error")
 	ErrSyncTimeout          = errors.New("calendar sync worker timed out")
 	ErrSyncFailed           = errors.New("calendar sync worker returned an error")
+	// ErrInvalidMember is returned when a request references a member that
+	// does not exist in the caller's household (either an unknown UUID or a
+	// member that belongs to a different household).
+	ErrInvalidMember = errors.New("invalid member")
 )

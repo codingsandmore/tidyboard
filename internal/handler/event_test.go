@@ -162,6 +162,150 @@ func TestEvent_CreateListInRange_Integration(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp7.StatusCode)
 }
 
+// TestEvent_Create_WithAssignees_Success verifies the happy path: two valid
+// members from the same household can be assigned to a new event and round-trip
+// through both Create and Update payloads.
+func TestEvent_Create_WithAssignees_Success(t *testing.T) {
+	srv, token, householdID := setupEventFixtures(t)
+
+	pool := testutil.SetupTestDB(t)
+	q := query.New(pool)
+
+	// Create two additional members in the same household.
+	memA, err := q.CreateMember(context.Background(), query.CreateMemberParams{
+		ID:                      uuid.New(),
+		HouseholdID:             householdID,
+		Name:                    "Member A",
+		DisplayName:             "MA",
+		Color:                   "#aaa",
+		Role:                    "member",
+		AgeGroup:                "adult",
+		EmergencyInfo:           []byte("{}"),
+		NotificationPreferences: []byte("{}"),
+	})
+	require.NoError(t, err)
+	memB, err := q.CreateMember(context.Background(), query.CreateMemberParams{
+		ID:                      uuid.New(),
+		HouseholdID:             householdID,
+		Name:                    "Member B",
+		DisplayName:             "MB",
+		Color:                   "#bbb",
+		Role:                    "member",
+		AgeGroup:                "adult",
+		EmergencyInfo:           []byte("{}"),
+		NotificationPreferences: []byte("{}"),
+	})
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	start := now.Add(time.Hour)
+	end := now.Add(2 * time.Hour)
+
+	// Create event with both members assigned, plus a duplicate of memA to
+	// exercise the dedupe path.
+	resp := authedPost(t, srv.URL+"/v1/events", token, map[string]any{
+		"title":            "Family Dinner",
+		"start_time":       start.Format(time.RFC3339),
+		"end_time":         end.Format(time.RFC3339),
+		"assigned_members": []string{memA.ID.String(), memB.ID.String(), memA.ID.String()},
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	var created map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
+	eventID := created["id"].(string)
+
+	// Assigned members should round-trip and be deduped.
+	rawAssigned, ok := created["assigned_members"].([]any)
+	require.True(t, ok, "assigned_members missing or wrong type: %v", created["assigned_members"])
+	gotIDs := make([]string, 0, len(rawAssigned))
+	for _, v := range rawAssigned {
+		gotIDs = append(gotIDs, v.(string))
+	}
+	assert.ElementsMatch(t, []string{memA.ID.String(), memB.ID.String()}, gotIDs,
+		"assigned_members should be deduped to the unique set")
+
+	// Update should also accept a valid assignees set.
+	resp2 := authedPatch(t, srv.URL+"/v1/events/"+eventID, token, map[string]any{
+		"assigned_members": []string{memB.ID.String()},
+	})
+	defer resp2.Body.Close()
+	require.Equal(t, http.StatusOK, resp2.StatusCode)
+
+	var updated map[string]any
+	require.NoError(t, json.NewDecoder(resp2.Body).Decode(&updated))
+	rawUpdated, ok := updated["assigned_members"].([]any)
+	require.True(t, ok)
+	require.Len(t, rawUpdated, 1)
+	assert.Equal(t, memB.ID.String(), rawUpdated[0].(string))
+}
+
+// TestEvent_Create_WithForeignHouseholdMember_Returns400 verifies that
+// assigning a member that belongs to a different household is rejected with
+// HTTP 400 and the error code "invalid_member".
+func TestEvent_Create_WithForeignHouseholdMember_Returns400(t *testing.T) {
+	srv, token, _ := setupEventFixtures(t)
+
+	pool := testutil.SetupTestDB(t)
+	q := query.New(pool)
+
+	// Create a second household with its own member that does not belong to
+	// the household scoped on the JWT.
+	hash := "$2a$10$wIq1V7o4.LXZK5bY5b5b5OyZQZ5b5b5b5b5b5b5b5b5b5b5b5b5b"
+	otherAcc, err := q.CreateAccount(context.Background(), query.CreateAccountParams{
+		ID:           uuid.New(),
+		Email:        fmt.Sprintf("evt-other-%s@test.com", uuid.New().String()),
+		PasswordHash: &hash,
+		IsActive:     true,
+	})
+	require.NoError(t, err)
+	otherHH, err := service.NewHouseholdService(q).Create(context.Background(), otherAcc.ID, model.CreateHouseholdRequest{
+		Name:     "Other Family",
+		Timezone: "UTC",
+	})
+	require.NoError(t, err)
+	foreign, err := q.CreateMember(context.Background(), query.CreateMemberParams{
+		ID:                      uuid.New(),
+		HouseholdID:             otherHH.ID,
+		Name:                    "Outsider",
+		DisplayName:             "Out",
+		Color:                   "#ccc",
+		Role:                    "member",
+		AgeGroup:                "adult",
+		EmergencyInfo:           []byte("{}"),
+		NotificationPreferences: []byte("{}"),
+	})
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	resp := authedPost(t, srv.URL+"/v1/events", token, map[string]any{
+		"title":            "Should Fail",
+		"start_time":       now.Add(time.Hour).Format(time.RFC3339),
+		"end_time":         now.Add(2 * time.Hour).Format(time.RFC3339),
+		"assigned_members": []string{foreign.ID.String()},
+	})
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "invalid_member", body["code"], "expected error code invalid_member, got %v", body)
+
+	// A wholly unknown UUID should also be rejected as invalid_member.
+	resp2 := authedPost(t, srv.URL+"/v1/events", token, map[string]any{
+		"title":            "Should Also Fail",
+		"start_time":       now.Add(time.Hour).Format(time.RFC3339),
+		"end_time":         now.Add(2 * time.Hour).Format(time.RFC3339),
+		"assigned_members": []string{uuid.New().String()},
+	})
+	defer resp2.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp2.StatusCode)
+	var body2 map[string]any
+	require.NoError(t, json.NewDecoder(resp2.Body).Decode(&body2))
+	assert.Equal(t, "invalid_member", body2["code"])
+}
+
 func TestEvent_List_OutOfRange(t *testing.T) {
 	srv, token, _ := setupEventFixtures(t)
 

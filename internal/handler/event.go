@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -80,7 +81,12 @@ func (h *EventHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	event, err := h.svc.Create(r.Context(), householdID, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create event")
+		switch {
+		case errors.Is(err, service.ErrInvalidMember):
+			respond.Error(w, http.StatusBadRequest, "invalid_member", "one or more assigned members do not belong to this household")
+		default:
+			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create event")
+		}
 		return
 	}
 	respond.JSON(w, http.StatusCreated, event)
@@ -135,9 +141,11 @@ func (h *EventHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	event, err := h.svc.Update(r.Context(), householdID, id, req)
 	if err != nil {
-		switch err {
-		case service.ErrNotFound:
+		switch {
+		case errors.Is(err, service.ErrNotFound):
 			respond.Error(w, http.StatusNotFound, "not_found", "event not found")
+		case errors.Is(err, service.ErrInvalidMember):
+			respond.Error(w, http.StatusBadRequest, "invalid_member", "one or more assigned members do not belong to this household")
 		default:
 			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update event")
 		}

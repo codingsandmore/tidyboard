@@ -27,6 +27,14 @@ SELECT * FROM members
 WHERE id = $1 AND household_id = $2
 LIMIT 1;
 
+-- name: GetMembersByIDs :many
+-- Returns rows for the supplied member IDs scoped to a single household.
+-- Used to validate that assigned_members on events/chores belong to the
+-- caller's household. Foreign or unknown IDs are simply absent from the
+-- result; the caller compares input vs returned cardinality to detect them.
+SELECT * FROM members
+WHERE household_id = $1 AND id = ANY(@ids::uuid[]);
+
 -- name: ListMembers :many
 SELECT * FROM members
 WHERE household_id = $1
