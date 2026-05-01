@@ -135,11 +135,16 @@ type Querier interface {
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
 	GetMember(ctx context.Context, arg GetMemberParams) (Member, error)
 	GetMemberByAccountAndHousehold(ctx context.Context, arg GetMemberByAccountAndHouseholdParams) (Member, error)
+	// Aggregate completed entries for a member over [from, to) (half-open).
+	// Only counts closed entries (duration_seconds IS NOT NULL).
+	GetMemberTimeSummary(ctx context.Context, arg GetMemberTimeSummaryParams) (GetMemberTimeSummaryRow, error)
+	GetMemberTimeSummaryByChore(ctx context.Context, arg GetMemberTimeSummaryByChoreParams) ([]GetMemberTimeSummaryByChoreRow, error)
 	// Returns rows for the supplied member IDs scoped to a single household.
 	// Used to validate that assigned_members on events/chores belong to the
 	// caller's household. Foreign or unknown IDs are simply absent from the
 	// result; the caller compares input vs returned cardinality to detect them.
 	GetMembersByIDs(ctx context.Context, arg GetMembersByIDsParams) ([]Member, error)
+	GetOpenChoreTimer(ctx context.Context, arg GetOpenChoreTimerParams) (ChoreTimeEntry, error)
 	// sql/queries/wallet.sql
 	// ── Wallets ─────────────────────────────────────────────────────────────────
 	GetOrCreateWallet(ctx context.Context, memberID uuid.UUID) (Wallet, error)
@@ -171,6 +176,7 @@ type Querier interface {
 	// sql/queries/backup.sql
 	// Backup record queries. Run `sqlc generate` to produce Go code in internal/query/.
 	InsertBackupRecord(ctx context.Context, arg InsertBackupRecordParams) (BackupRecord, error)
+	InsertManualTimeEntry(ctx context.Context, arg InsertManualTimeEntryParams) (ChoreTimeEntry, error)
 	InsertShoppingListItem(ctx context.Context, arg InsertShoppingListItemParams) (ShoppingListItem, error)
 	ListAccountAudit(ctx context.Context, arg ListAccountAuditParams) ([]AuditEntry, error)
 	ListActiveRewardCostAdjustments(ctx context.Context, arg ListActiveRewardCostAdjustmentsParams) ([]RewardCostAdjustment, error)
@@ -183,6 +189,7 @@ type Querier interface {
 	ListChoreCompletionsForRange(ctx context.Context, arg ListChoreCompletionsForRangeParams) ([]ChoreCompletion, error)
 	ListChoreCompletionsForWeek(ctx context.Context, arg ListChoreCompletionsForWeekParams) ([]ChoreCompletion, error)
 	ListChorePets(ctx context.Context, choreID uuid.UUID) ([]uuid.UUID, error)
+	ListChoreTimeEntries(ctx context.Context, arg ListChoreTimeEntriesParams) ([]ChoreTimeEntry, error)
 	ListChores(ctx context.Context, arg ListChoresParams) ([]Chore, error)
 	ListCompletionsForDay(ctx context.Context, arg ListCompletionsForDayParams) ([]RoutineCompletion, error)
 	// ── Equity Tasks ─────────────────────────────────────────────────────────────
@@ -238,6 +245,14 @@ type Querier interface {
 	SearchIngredients(ctx context.Context, dollar_1 *string) ([]IngredientCanonical, error)
 	SearchRecipes(ctx context.Context, arg SearchRecipesParams) ([]Recipe, error)
 	SetRedemptionStatus(ctx context.Context, arg SetRedemptionStatusParams) (Redemption, error)
+	// sql/queries/chore_time_entries.sql
+	// Chore time-entry queries: timer start/stop, manual entries, member summaries.
+	// Open a new timer entry. The unique partial index uq_chore_time_entries_open
+	// guarantees at most one open entry per (chore_id, member_id); a duplicate
+	// insert raises a unique-violation that the service maps to 409.
+	StartChoreTimer(ctx context.Context, arg StartChoreTimerParams) (ChoreTimeEntry, error)
+	// Close the latest open entry for (chore_id, member_id). Server-set ended_at.
+	StopChoreTimer(ctx context.Context, arg StopChoreTimerParams) (ChoreTimeEntry, error)
 	SumChorePayoutsForChoreInWeek(ctx context.Context, arg SumChorePayoutsForChoreInWeekParams) (int64, error)
 	// Returns total minutes logged per member within a time window.
 	SumMinutesByMember(ctx context.Context, arg SumMinutesByMemberParams) ([]SumMinutesByMemberRow, error)
