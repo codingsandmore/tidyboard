@@ -23,7 +23,7 @@ func NewBillingHandler(svc *service.BillingService) *BillingHandler {
 func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -31,9 +31,9 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrStripeNotConfigured:
-			respond.Error(w, http.StatusServiceUnavailable, "stripe_disabled", "stripe billing is not enabled")
+			respond.Error(w, r, http.StatusServiceUnavailable, "stripe_disabled", "stripe billing is not enabled")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create checkout session")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create checkout session")
 		}
 		return
 	}
@@ -44,7 +44,7 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 func (h *BillingHandler) Portal(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -52,9 +52,9 @@ func (h *BillingHandler) Portal(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrStripeNotConfigured:
-			respond.Error(w, http.StatusServiceUnavailable, "stripe_disabled", "stripe billing is not enabled")
+			respond.Error(w, r, http.StatusServiceUnavailable, "stripe_disabled", "stripe billing is not enabled")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create portal session")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create portal session")
 		}
 		return
 	}
@@ -66,13 +66,13 @@ func (h *BillingHandler) Portal(w http.ResponseWriter, r *http.Request) {
 func (h *BillingHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "could not read body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "could not read body")
 		return
 	}
 
 	signature := r.Header.Get("Stripe-Signature")
 	if err := h.svc.HandleWebhook(r.Context(), body, signature); err != nil {
-		respond.Error(w, http.StatusBadRequest, "webhook_error", err.Error())
+		respond.Error(w, r, http.StatusBadRequest, "webhook_error", err.Error())
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]string{"received": "ok"})
@@ -82,13 +82,13 @@ func (h *BillingHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 func (h *BillingHandler) Subscription(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	sub, err := h.svc.GetSubscription(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch subscription")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch subscription")
 		return
 	}
 	if sub == nil {

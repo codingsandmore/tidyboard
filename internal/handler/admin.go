@@ -24,13 +24,13 @@ func NewAdminHandler(audit *service.AuditService, backup *service.BackupService)
 // Requires role=admin.
 func (h *AdminHandler) ListAudit(w http.ResponseWriter, r *http.Request) {
 	if middleware.RoleFromCtx(r.Context()) != "admin" {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -49,7 +49,7 @@ func (h *AdminHandler) ListAudit(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := h.audit.ListHousehold(r.Context(), householdID, limit, offset)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list audit entries")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list audit entries")
 		return
 	}
 	respond.JSON(w, http.StatusOK, entries)
@@ -59,12 +59,12 @@ func (h *AdminHandler) ListAudit(w http.ResponseWriter, r *http.Request) {
 // Requires role=admin.
 func (h *AdminHandler) TriggerBackup(w http.ResponseWriter, r *http.Request) {
 	if middleware.RoleFromCtx(r.Context()) != "admin" {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	if h.backup == nil {
-		respond.Error(w, http.StatusServiceUnavailable, "backup_disabled", "backup service is not enabled")
+		respond.Error(w, r, http.StatusServiceUnavailable, "backup_disabled", "backup service is not enabled")
 		return
 	}
 

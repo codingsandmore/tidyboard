@@ -31,7 +31,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	// household_id / member_id / role can legitimately be empty for users
 	// that have logged in via Cognito but haven't created a household yet.
 	if !ok1 {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
@@ -57,7 +57,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) PINLogin(w http.ResponseWriter, r *http.Request) {
 	var req model.PINLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -65,11 +65,11 @@ func (h *AuthHandler) PINLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrInvalidCredentials:
-			respond.Error(w, http.StatusUnauthorized, "invalid_pin", "PIN is incorrect")
+			respond.Error(w, r, http.StatusUnauthorized, "invalid_pin", "PIN is incorrect")
 		case service.ErrPINLocked:
-			respond.Error(w, http.StatusTooManyRequests, "pin_locked", "too many failed attempts — try again later")
+			respond.Error(w, r, http.StatusTooManyRequests, "pin_locked", "too many failed attempts — try again later")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "PIN login failed")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "PIN login failed")
 		}
 		return
 	}

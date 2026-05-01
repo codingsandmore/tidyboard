@@ -26,13 +26,13 @@ func NewMemberHandler(svc *service.MemberService) *MemberHandler {
 func (h *MemberHandler) ListCurrent(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	members, err := h.svc.List(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list members")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list members")
 		return
 	}
 	respond.JSON(w, http.StatusOK, members)
@@ -42,13 +42,13 @@ func (h *MemberHandler) ListCurrent(w http.ResponseWriter, r *http.Request) {
 func (h *MemberHandler) List(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
 	members, err := h.svc.List(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list members")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list members")
 		return
 	}
 	respond.JSON(w, http.StatusOK, members)
@@ -58,17 +58,17 @@ func (h *MemberHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *MemberHandler) Create(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
 	var req model.CreateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name is required")
 		return
 	}
 
@@ -76,9 +76,9 @@ func (h *MemberHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrForbidden:
-			respond.Error(w, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create member")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create member")
 		}
 		return
 	}
@@ -89,12 +89,12 @@ func (h *MemberHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *MemberHandler) Get(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 	memberID, err := uuid.Parse(chi.URLParam(r, "memberID"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member ID")
 		return
 	}
 
@@ -102,9 +102,9 @@ func (h *MemberHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "member not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "member not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch member")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch member")
 		}
 		return
 	}
@@ -115,18 +115,18 @@ func (h *MemberHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 	memberID, err := uuid.Parse(chi.URLParam(r, "memberID"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member ID")
 		return
 	}
 
 	var req model.UpdateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -134,11 +134,11 @@ func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "member not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "member not found")
 		case service.ErrForbidden:
-			respond.Error(w, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "pet profiles cannot have account or PIN credentials")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update member")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update member")
 		}
 		return
 	}
@@ -149,21 +149,21 @@ func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *MemberHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 	memberID, err := uuid.Parse(chi.URLParam(r, "memberID"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member ID")
 		return
 	}
 
 	if err := h.svc.Delete(r.Context(), householdID, memberID); err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "member not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "member not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to delete member")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to delete member")
 		}
 		return
 	}

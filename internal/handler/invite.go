@@ -24,7 +24,7 @@ func NewInviteHandler(svc *service.InviteService) *InviteHandler {
 func (h *InviteHandler) RegenerateInviteCode(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
@@ -32,9 +32,9 @@ func (h *InviteHandler) RegenerateInviteCode(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to regenerate invite code")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to regenerate invite code")
 		}
 		return
 	}
@@ -45,7 +45,7 @@ func (h *InviteHandler) RegenerateInviteCode(w http.ResponseWriter, r *http.Requ
 func (h *InviteHandler) GetByCode(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 	if code == "" {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invite code is required")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invite code is required")
 		return
 	}
 
@@ -53,9 +53,9 @@ func (h *InviteHandler) GetByCode(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found for this code")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found for this code")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to look up household")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to look up household")
 		}
 		return
 	}
@@ -66,13 +66,13 @@ func (h *InviteHandler) GetByCode(w http.ResponseWriter, r *http.Request) {
 func (h *InviteHandler) RequestJoin(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
 	code := chi.URLParam(r, "code")
 	if code == "" {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invite code is required")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invite code is required")
 		return
 	}
 
@@ -81,16 +81,16 @@ func (h *InviteHandler) RequestJoin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found for this code")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found for this code")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to look up household")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to look up household")
 		}
 		return
 	}
 
 	jr, err := h.svc.CreateJoinRequest(r.Context(), preview.HouseholdID, accountID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create join request")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create join request")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, jr)
@@ -100,13 +100,13 @@ func (h *InviteHandler) RequestJoin(w http.ResponseWriter, r *http.Request) {
 func (h *InviteHandler) ListJoinRequests(w http.ResponseWriter, r *http.Request) {
 	householdID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
 	requests, err := h.svc.ListJoinRequests(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list join requests")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list join requests")
 		return
 	}
 	respond.JSON(w, http.StatusOK, requests)
@@ -116,13 +116,13 @@ func (h *InviteHandler) ListJoinRequests(w http.ResponseWriter, r *http.Request)
 func (h *InviteHandler) ApproveJoinRequest(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
 	requestID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid join request ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid join request ID")
 		return
 	}
 
@@ -130,11 +130,11 @@ func (h *InviteHandler) ApproveJoinRequest(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "join request not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "join request not found")
 		case service.ErrForbidden:
-			respond.Error(w, http.StatusConflict, "conflict", "join request is not pending")
+			respond.Error(w, r, http.StatusConflict, "conflict", "join request is not pending")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to approve join request")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to approve join request")
 		}
 		return
 	}
@@ -145,13 +145,13 @@ func (h *InviteHandler) ApproveJoinRequest(w http.ResponseWriter, r *http.Reques
 func (h *InviteHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
 	requestID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid join request ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid join request ID")
 		return
 	}
 
@@ -159,11 +159,11 @@ func (h *InviteHandler) RejectJoinRequest(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "join request not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "join request not found")
 		case service.ErrForbidden:
-			respond.Error(w, http.StatusConflict, "conflict", "join request is not pending")
+			respond.Error(w, r, http.StatusConflict, "conflict", "join request is not pending")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to reject join request")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to reject join request")
 		}
 		return
 	}

@@ -238,8 +238,13 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	// --- Router ---
 	r := chi.NewRouter()
 
-	// Global middleware stack
-	r.Use(chimiddleware.RequestID)
+	// Global middleware stack.
+	//
+	// RequestID is mounted FIRST so every downstream middleware (logging,
+	// auth, recovery) and every handler — including respond.Error — can read
+	// the correlation ID via middleware.FromContext / the X-Request-ID
+	// response header.
+	r.Use(middleware.RequestID())
 	r.Use(chimiddleware.RealIP)
 	r.Use(middleware.InjectRequestMeta())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigins))

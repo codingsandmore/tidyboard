@@ -27,13 +27,13 @@ func NewHouseholdHandler(svc *service.HouseholdService) *HouseholdHandler {
 func (h *HouseholdHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
 	households, err := h.svc.ListByAccount(r.Context(), accountID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list households")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list households")
 		return
 	}
 	respond.JSON(w, http.StatusOK, households)
@@ -43,23 +43,23 @@ func (h *HouseholdHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 func (h *HouseholdHandler) Create(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing account context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing account context")
 		return
 	}
 
 	var req model.CreateHouseholdRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name is required")
 		return
 	}
 
 	household, err := h.svc.Create(r.Context(), accountID, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create household")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create household")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, household)
@@ -69,7 +69,7 @@ func (h *HouseholdHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *HouseholdHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
@@ -77,9 +77,9 @@ func (h *HouseholdHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch household")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch household")
 		}
 		return
 	}
@@ -90,13 +90,13 @@ func (h *HouseholdHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *HouseholdHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
 	var req model.UpdateHouseholdRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -104,9 +104,9 @@ func (h *HouseholdHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update household")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update household")
 		}
 		return
 	}
@@ -117,16 +117,16 @@ func (h *HouseholdHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *HouseholdHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid household ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid household ID")
 		return
 	}
 
 	if err := h.svc.Delete(r.Context(), id); err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "household not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "household not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to delete household")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to delete household")
 		}
 		return
 	}

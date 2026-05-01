@@ -26,7 +26,7 @@ func NewNotifyHandler(svc *service.NotifyService) *NotifyHandler {
 func (h *NotifyHandler) TestNotification(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok || householdID == uuid.Nil {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -34,17 +34,17 @@ func (h *NotifyHandler) TestNotification(w http.ResponseWriter, r *http.Request)
 		MemberID string `json:"member_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	memberID, err := uuid.Parse(body.MemberID)
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
 	if err := h.svc.SendTestNotification(r.Context(), householdID, memberID); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", err.Error())
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "sent"})
@@ -55,13 +55,13 @@ func (h *NotifyHandler) TestNotification(w http.ResponseWriter, r *http.Request)
 func (h *NotifyHandler) UpdateMemberNotify(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok || householdID == uuid.Nil {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member ID")
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *NotifyHandler) UpdateMemberNotify(w http.ResponseWriter, r *http.Reques
 		TasksEnabled  bool    `json:"tasks_enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *NotifyHandler) UpdateMemberNotify(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.svc.UpdateMemberNotify(r.Context(), householdID, memberID, body.NtfyTopic, prefs); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update notify settings")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update notify settings")
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})

@@ -89,7 +89,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		ip := remoteIP(r.RemoteAddr)
 		if !rl.bucket(ip).allow() {
 			w.Header().Set("Retry-After", "60")
-			respond.Error(w, http.StatusTooManyRequests, "rate_limited", "too many requests — slow down")
+			respond.Error(w, r, http.StatusTooManyRequests, "rate_limited", "too many requests — slow down")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -137,7 +137,7 @@ func (al *AccountRateLimiter) Middleware(next http.Handler) http.Handler {
 			ip := remoteIP(r.RemoteAddr)
 			if !al.fallback.bucket(ip).allow() {
 				w.Header().Set("Retry-After", "60")
-				respond.Error(w, http.StatusTooManyRequests, "rate_limited", "too many requests — slow down")
+				respond.Error(w, r, http.StatusTooManyRequests, "rate_limited", "too many requests — slow down")
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -163,7 +163,7 @@ func (al *AccountRateLimiter) Middleware(next http.Handler) http.Handler {
 			w.Header().Set("Retry-After", "60")
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(al.limitPerMin))
 			w.Header().Set("X-RateLimit-Remaining", "0")
-			respond.Error(w, http.StatusTooManyRequests, "rate_limited", "account rate limit exceeded")
+			respond.Error(w, r, http.StatusTooManyRequests, "rate_limited", "account rate limit exceeded")
 			return
 		}
 
