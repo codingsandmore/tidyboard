@@ -194,7 +194,7 @@ export function DashDesktop() {
                 <div style={{ fontSize: 10, color: TB.text2 }}>
                   {m.role === "child"
                     ? `⭐ ${m.stars} · 🔥 ${t("streak", { n: m.streak })}`
-                    : t("eventsShort", { count: events.filter((e) => e.members.includes(m.id)).length })}
+                    : t("eventsShort", { count: events.filter((e) => (e.assigned_members ?? e.members ?? []).includes(m.id)).length })}
                 </div>
               </div>
             </div>
@@ -280,7 +280,7 @@ export function DashDesktop() {
               </div>
             )}
             {events.map((e, i) => {
-              const ms = resolveEventMembers(e.members);
+              const ms = resolveEventMembers(e.assigned_members ?? e.members ?? []);
               return (
                 <div
                   key={e.id}

@@ -433,15 +433,24 @@ function formatEventTime(value: string): string {
   return fmtTime(value);
 }
 
+function eventAssignees(event: TBDEvent): string[] {
+  return event.assigned_members ?? event.members ?? [];
+}
+
 function filterEventsForMember(events: TBDEvent[], memberId: string | null): TBDEvent[] {
   if (!memberId) {
     return events;
   }
-  return events.filter((event) => event.members.length === 0 || event.members.includes(memberId));
+  return events.filter((event) => {
+    const ids = eventAssignees(event);
+    return ids.length === 0 || ids.includes(memberId);
+  });
 }
 
 function getEventMembers(event: TBDEvent, memberById: Map<string, Member>): Member[] {
-  return event.members.map((id) => memberById.get(id)).filter((m): m is Member => Boolean(m));
+  return eventAssignees(event)
+    .map((id) => memberById.get(id))
+    .filter((m): m is Member => Boolean(m));
 }
 
 function findDinnerRecipe(now: Date, mealPlan: MealPlan | undefined, recipes: Recipe[]) {
