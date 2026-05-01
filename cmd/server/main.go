@@ -141,6 +141,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
 	walletSvc := service.NewWalletService(q, bc, auditSvc)
 	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
+	choreTimerSvc := service.NewChoreTimerService(q)
 	pointsSvc := service.NewPointsService(q, bc, auditSvc)
 	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
 
@@ -205,6 +206,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	routineHandler := handler.NewRoutineHandler(routineSvc)
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
 	choreHandler := handler.NewChoreHandler(choreSvc, q)
+	choreTimerHandler := handler.NewChoreTimerHandler(choreTimerSvc, q)
 	pointsHandler := handler.NewPointsHandler(pointsSvc)
 	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
@@ -432,6 +434,11 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Delete("/v1/chores/{id}", choreHandler.Archive)
 		r.Post("/v1/chores/{id}/complete", choreHandler.Complete)
 		r.Delete("/v1/chores/{id}/complete/{date}", choreHandler.UndoComplete)
+		// Chore timers + manual time entries.
+		r.Post("/v1/chores/{id}/timer/start", choreTimerHandler.StartTimer)
+		r.Post("/v1/chores/{id}/timer/stop", choreTimerHandler.StopTimer)
+		r.Post("/v1/chores/{id}/time-entries", choreTimerHandler.CreateManualEntry)
+		r.Get("/v1/members/{id}/time-summary", choreTimerHandler.MemberSummary)
 
 		// Wallet.
 		r.Get("/v1/wallet/{member_id}", walletHandler.GetWallet)
