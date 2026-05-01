@@ -567,10 +567,25 @@ export function useDeleteListItem() {
   });
 }
 
+export type CreateEventInput = {
+  title: string;
+  start_time: string;
+  end_time: string;
+  location?: string;
+  description?: string;
+  all_day?: boolean;
+  recurrence_rule?: string;
+  /**
+   * Household member IDs to assign to the event. Server validates against
+   * household membership and returns 400 on foreign IDs (issue #106).
+   */
+  assigned_members?: string[];
+};
+
 export function useCreateEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (req: { title: string; start_time: string; end_time: string; location?: string; description?: string; all_day?: boolean; recurrence_rule?: string }) =>
+    mutationFn: (req: CreateEventInput) =>
       api.post<TBDEvent>("/v1/events", req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
@@ -578,10 +593,25 @@ export function useCreateEvent() {
   });
 }
 
+export type UpdateEventInput = {
+  id: string;
+  title?: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  description?: string;
+  recurrence_rule?: string;
+  /**
+   * Household member IDs to assign to the event. An empty array clears all
+   * assignees; omit the field to leave existing assignees untouched.
+   */
+  assigned_members?: string[];
+};
+
 export function useUpdateEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...req }: { id: string; title?: string; start_time?: string; end_time?: string; location?: string; description?: string; recurrence_rule?: string }) =>
+    mutationFn: ({ id, ...req }: UpdateEventInput) =>
       api.patch<TBDEvent>(`/v1/events/${id}`, req),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
