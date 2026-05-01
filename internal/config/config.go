@@ -11,6 +11,13 @@ type Config struct {
 	ConfigFile string      `help:"Path to config file" short:"c" type:"path" default:"config.yaml" name:"config"`
 	Version    VersionFlag `help:"Print version and quit" short:"v" name:"version"`
 
+	// DebugErrors gates verbose error envelopes. When true, the panic-recovery
+	// middleware will include a `stack` field in the JSON 500 envelope IF the
+	// caller also sends X-Debug:1. Default false; never enable in production
+	// environments handling untrusted traffic — stacks may leak source paths,
+	// dependency versions, and other debugging surface area.
+	DebugErrors bool `help:"Include stack traces in 500 error envelopes when caller sends X-Debug:1 (dev only)" default:"false" env:"TIDYBOARD_DEBUG_ERRORS" yaml:"debug_errors"`
+
 	Server   ServerConfig   `embed:"" prefix:"server." group:"Server:" yaml:"server"`
 	Database DatabaseConfig `embed:"" prefix:"database." group:"Database:" yaml:"database"`
 	Redis    RedisConfig    `embed:"" prefix:"redis." group:"Redis:" yaml:"redis"`
