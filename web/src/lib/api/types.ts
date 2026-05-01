@@ -355,6 +355,40 @@ export interface ApiChoreCompletion {
   closed: boolean;
 }
 
+/** Single chore time entry as returned by the timer endpoints. */
+export interface ApiChoreTimeEntry {
+  id: string;
+  chore_id: string;
+  member_id: string;
+  /** RFC3339; from pgtype.Timestamptz on the wire */
+  started_at: string;
+  /** Null while the timer is open. */
+  ended_at: string | null;
+  /** Server-computed once ended; null while open. */
+  duration_seconds: number | null;
+  note: string;
+  /** "timer" for live entries, "manual" for admin-recorded ones. */
+  source: string;
+  created_at: string;
+}
+
+/** Per-chore breakdown row in a member time-summary response. */
+export interface ApiMemberTimeSummaryByChore {
+  chore_id: string;
+  entry_count: number;
+  total_seconds: number;
+}
+
+/** Aggregate from GET /v1/members/{id}/time-summary. */
+export interface ApiMemberTimeSummary {
+  member_id: string;
+  from: string;
+  to: string;
+  entry_count: number;
+  total_seconds: number;
+  by_chore: ApiMemberTimeSummaryByChore[];
+}
+
 export interface ApiWallet {
   id: string;
   member_id: string;

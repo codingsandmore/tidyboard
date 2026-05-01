@@ -53,7 +53,10 @@ describe("ChoresKid", () => {
   it("tapping a day cell calls mark mutation", () => {
     mutateMock.mockClear();
     renderWithQuery(<ChoresKid memberId="kid1" />);
-    const cell = screen.getAllByLabelText(/Brush teeth/i)[0];
+    // Day cells have label "Brush teeth Sun" / "Brush teeth Mon" / etc.
+    // The new Start/Stop button uses an aria-label that includes "timer for"
+    // so we filter to day-cell labels only.
+    const cell = screen.getByLabelText(/^Brush teeth Sun$/i);
     fireEvent.click(cell);
     expect(mutateMock).toHaveBeenCalledTimes(1);
     expect(mutateMock.mock.calls[0][0]).toMatchObject({ choreId: "c1" });
