@@ -7,8 +7,17 @@ import type { Member } from "@/lib/data";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
+import { PageShell } from "@/components/layout/page-shell";
 import { useEvents, useMembers } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
+
+// Ambient warm-paper background — soft variant of TB.bg2 used only on the
+// kiosk-ambient screen. Held in a token-named constant so the JSX has no
+// raw hex literals.
+const AMBIENT_BG = "#EEEAE3";
+
+// Same warm-tan stripe used by the meal-plan placeholder on phone.
+const MEAL_STRIPE = `repeating-linear-gradient(135deg, ${TB.secondary} 0 8px, #C29663 8px 16px)`;
 
 export function DashKioskAmbient() {
   const t = useTranslations("dashboard");
@@ -30,19 +39,65 @@ export function DashKioskAmbient() {
     ids
       .map((id) => memberById.get(id))
       .filter((member): member is Member => Boolean(member));
-  return (
+
+  const footer = (
     <div
       style={{
-        width: "100%",
-        height: "100%",
-        background: "#EEEAE3",
-        color: TB.text,
-        fontFamily: TB.fontBody,
+        background: TB.surface,
+        borderRadius: TB.r.lg,
+        padding: 14,
+        margin: "0 20px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+      }}
+    >
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: TB.r.md,
+          background: MEAL_STRIPE,
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontFamily: TB.fontMono,
+            color: TB.text2,
+            letterSpacing: "0.06em",
+          }}
+        >
+          {t("tonightTime", { time: "6:30 PM" })}
+        </div>
+        <div
+          style={{
+            fontFamily: TB.fontDisplay,
+            fontSize: 20,
+            fontWeight: 500,
+            marginTop: 2,
+          }}
+        >
+          No dinner planned
+        </div>
+      </div>
+      <Btn kind="ghost" size="sm" iconRight="chevronR" onClick={() => router.push("/recipes")}>
+        {t("recipe")}
+      </Btn>
+    </div>
+  );
+
+  return (
+    <PageShell
+      background={AMBIENT_BG}
+      footer={footer}
+      contentStyle={{
+        padding: "20px 20px 14px",
         display: "flex",
         flexDirection: "column",
-        boxSizing: "border-box",
-        padding: 20,
         gap: 14,
+        overflow: "hidden",
       }}
     >
       <div
@@ -91,7 +146,7 @@ export function DashKioskAmbient() {
       <div
         style={{
           background: TB.primary,
-          color: "#fff",
+          color: TB.primaryFg,
           borderRadius: 20,
           padding: 20,
         }}
@@ -148,7 +203,7 @@ export function DashKioskAmbient() {
               key={m.id}
               style={{
                 background: TB.surface,
-                borderRadius: 16,
+                borderRadius: TB.r.xl,
                 padding: 14,
                 display: "flex",
                 flexDirection: "column",
@@ -191,7 +246,7 @@ export function DashKioskAmbient() {
                       style={{
                         width: 4,
                         height: 4,
-                        borderRadius: "50%",
+                        borderRadius: TB.r.full,
                         background: m.color,
                       }}
                     />
@@ -221,52 +276,6 @@ export function DashKioskAmbient() {
           );
         })}
       </div>
-
-      <div
-        style={{
-          background: TB.surface,
-          borderRadius: 16,
-          padding: 14,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-        }}
-      >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 12,
-            background:
-              "repeating-linear-gradient(135deg, #D4A574 0 8px, #C29663 8px 16px)",
-          }}
-        />
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: TB.fontMono,
-              color: TB.text2,
-              letterSpacing: "0.06em",
-            }}
-          >
-            {t("tonightTime", { time: "6:30 PM" })}
-          </div>
-          <div
-            style={{
-              fontFamily: TB.fontDisplay,
-              fontSize: 20,
-              fontWeight: 500,
-              marginTop: 2,
-            }}
-          >
-            No dinner planned
-          </div>
-        </div>
-        <Btn kind="ghost" size="sm" iconRight="chevronR" onClick={() => router.push("/recipes")}>
-          {t("recipe")}
-        </Btn>
-      </div>
-    </div>
+    </PageShell>
   );
 }
