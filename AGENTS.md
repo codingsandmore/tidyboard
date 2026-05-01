@@ -54,3 +54,15 @@ when **all** of the following are true:
 - Push to `main` triggers `.github/workflows/deploy-ec2.yml` → SSH to `98.91.94.149` → `docker compose up -d --build`. Every merged PR ships to prod.
 - Worktrees live in `.worktrees/` (gitignored).
 - Project memory (auto-loaded by Claude Code) lives in `~/.claude/projects/.../memory/MEMORY.md` — see for additional context.
+
+## FEATURES.md is mandatory
+
+Every autospec cycle that adds, modifies, or removes a user-visible feature MUST update `FEATURES.md` at the repo root. Before a child PR is mergeable, its diff must include either (a) a new row in the catalog if a new feature was introduced, or (b) updated coverage marks if existing features changed. The autospec implementer subagents are instructed to fail their PR if `FEATURES.md` was not touched alongside a feature change.
+
+Spec: `docs/specs/2026-05-01-flintstones-design.md`, section G.
+
+## Type-widening rule
+
+When an autospec issue widens a shared TS type (adds an optional field), the test plan MUST cover every existing reader of the field — not just the new writer. The minimum bar: at least one Vitest fixture must reflect the live API shape (the new field present, old field absent or undefined). This is enforced by the Flintstones fixture (`web/src/test/fixtures/flintstones.ts`): any consumer that direct-accesses an optional field will crash that fixture's tests.
+
+Spec: `docs/specs/2026-05-01-flintstones-design.md`, section G.
