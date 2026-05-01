@@ -28,7 +28,7 @@ func (q *Queries) DeleteMealPlanEntry(ctx context.Context, arg DeleteMealPlanEnt
 }
 
 const listMealPlanEntries = `-- name: ListMealPlanEntries :many
-SELECT id, household_id, recipe_id, date, slot, created_at, updated_at FROM meal_plan_entries
+SELECT id, household_id, recipe_id, date, slot, created_at, updated_at, serving_multiplier, batch_quantity FROM meal_plan_entries
 WHERE household_id = $1
   AND date >= $2
   AND date <= $3
@@ -58,6 +58,8 @@ func (q *Queries) ListMealPlanEntries(ctx context.Context, arg ListMealPlanEntri
 			&i.Slot,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ServingMultiplier,
+			&i.BatchQuantity,
 		); err != nil {
 			return nil, err
 		}
@@ -77,7 +79,7 @@ ON CONFLICT (household_id, date, slot)
 DO UPDATE SET
     recipe_id  = EXCLUDED.recipe_id,
     updated_at = NOW()
-RETURNING id, household_id, recipe_id, date, slot, created_at, updated_at
+RETURNING id, household_id, recipe_id, date, slot, created_at, updated_at, serving_multiplier, batch_quantity
 `
 
 type UpsertMealPlanEntryParams struct {
@@ -105,6 +107,8 @@ func (q *Queries) UpsertMealPlanEntry(ctx context.Context, arg UpsertMealPlanEnt
 		&i.Slot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ServingMultiplier,
+		&i.BatchQuantity,
 	)
 	return i, err
 }

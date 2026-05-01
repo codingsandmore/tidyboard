@@ -240,13 +240,15 @@ type ListItem struct {
 }
 
 type MealPlanEntry struct {
-	ID          uuid.UUID          `json:"id"`
-	HouseholdID uuid.UUID          `json:"household_id"`
-	RecipeID    *uuid.NullUUID     `json:"recipe_id"`
-	Date        pgtype.Date        `json:"date"`
-	Slot        string             `json:"slot"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                uuid.UUID          `json:"id"`
+	HouseholdID       uuid.UUID          `json:"household_id"`
+	RecipeID          *uuid.NullUUID     `json:"recipe_id"`
+	Date              pgtype.Date        `json:"date"`
+	Slot              string             `json:"slot"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ServingMultiplier pgtype.Numeric     `json:"serving_multiplier"`
+	BatchQuantity     pgtype.Numeric     `json:"batch_quantity"`
 }
 
 type Member struct {
