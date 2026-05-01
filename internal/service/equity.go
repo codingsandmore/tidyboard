@@ -448,6 +448,104 @@ func (s *EquityService) GetDashboard(ctx context.Context, householdID uuid.UUID,
 	}, nil
 }
 
+// ── Contribution aggregate (Section E.1+E.2) ─────────────────────────────────
+
+// ContributionViewer carries the privacy context for the contribution
+// endpoint. When IsAdmin is true, cents fields are returned for every member
+// whose rate is set. Otherwise, cents fields are returned ONLY for the
+// viewer's own row (ViewerMemberID).
+//
+// The rate values themselves are NEVER returned — only the derived
+// total_cents_min/max and percentage_cents.
+type ContributionViewer struct {
+	ViewerMemberID uuid.UUID
+	IsAdmin        bool
+}
+
+// Contribution aggregates per-member minutes from BOTH task_logs (existing
+// equity tasks) AND chore_time_entries (new chore timer) over [from, to),
+// then derives percentage and (when the viewer is allowed to see them) cents
+// totals from each member's hourly_rate_cents_min/max range.
+//
+// Privacy: when a member's rate is unset OR the viewer lacks clearance to see
+// that member's rate, the cents fields are OMITTED from the JSON response —
+// the keys are dropped, NOT returned as zero (per spec section G.4).
+func (s *EquityService) Contribution(
+	ctx context.Context,
+	householdID uuid.UUID,
+	from, to time.Time,
+	viewer ContributionViewer,
+) (*model.EquityContributionResponse, error) {
+	rows, err := s.q.EquityContributionAggregate(ctx, query.EquityContributionAggregateParams{
+		HouseholdID: householdID,
+		StartedAt:   pgtype.Timestamptz{Time: from, Valid: true},
+		StartedAt_2: pgtype.Timestamptz{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("aggregating equity contribution: %w", err)
+	}
+
+	// First pass: compute total household minutes AND total cents (sum of
+	// midpoint of each member's rate range) so percentages add to 100.
+	var totalMinutes int64
+	var totalCentsMid int64
+	for _, r := range rows {
+		totalMinutes += r.TotalMinutes
+		if canSeeRate(viewer, r.MemberID) && r.HourlyRateCentsMin != nil && r.HourlyRateCentsMax != nil {
+			midRate := (int64(*r.HourlyRateCentsMin) + int64(*r.HourlyRateCentsMax)) / 2
+			totalCentsMid += centsForMinutes(r.TotalMinutes, midRate)
+		}
+	}
+
+	out := make([]model.MemberContribution, 0, len(rows))
+	for _, r := range rows {
+		mc := model.MemberContribution{
+			MemberID:     r.MemberID,
+			TotalMinutes: r.TotalMinutes,
+		}
+		if totalMinutes > 0 {
+			mc.PercentageMinutes = float64(r.TotalMinutes) / float64(totalMinutes) * 100
+		}
+
+		// Cents fields: ONLY when (1) viewer can see this member's rate and
+		// (2) the rate range is set.
+		if canSeeRate(viewer, r.MemberID) && r.HourlyRateCentsMin != nil && r.HourlyRateCentsMax != nil {
+			centsMin := centsForMinutes(r.TotalMinutes, int64(*r.HourlyRateCentsMin))
+			centsMax := centsForMinutes(r.TotalMinutes, int64(*r.HourlyRateCentsMax))
+			mc.TotalCentsMin = &centsMin
+			mc.TotalCentsMax = &centsMax
+			if totalCentsMid > 0 {
+				midRate := (int64(*r.HourlyRateCentsMin) + int64(*r.HourlyRateCentsMax)) / 2
+				memberMid := centsForMinutes(r.TotalMinutes, midRate)
+				pct := float64(memberMid) / float64(totalCentsMid) * 100
+				mc.PercentageCents = &pct
+			}
+		}
+		out = append(out, mc)
+	}
+
+	return &model.EquityContributionResponse{
+		From:    from.Format("2006-01-02"),
+		To:      to.Format("2006-01-02"),
+		Members: out,
+	}, nil
+}
+
+// canSeeRate enforces the per-member privacy gate. Admins see everyone;
+// everyone else sees only their own rate-derived totals.
+func canSeeRate(v ContributionViewer, memberID uuid.UUID) bool {
+	if v.IsAdmin {
+		return true
+	}
+	return v.ViewerMemberID == memberID
+}
+
+// centsForMinutes converts (minutes, cents-per-hour) to total cents using
+// integer math: minutes × rate ÷ 60. Truncates toward zero.
+func centsForMinutes(minutes int64, centsPerHour int64) int64 {
+	return minutes * centsPerHour / 60
+}
+
 // ── Rebalance suggestions ─────────────────────────────────────────────────────
 
 // GetRebalanceSuggestions returns up to 2 task reassignment suggestions.

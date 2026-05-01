@@ -498,6 +498,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Patch("/v1/equity/tasks/{id}", equityHandler.UpdateTask)
 		r.Delete("/v1/equity/tasks/{id}", equityHandler.DeleteTask)
 		r.Post("/v1/equity/tasks/{id}/log", equityHandler.LogTaskTime)
+		r.Get("/v1/equity/contribution", equityHandler.GetContribution)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)
