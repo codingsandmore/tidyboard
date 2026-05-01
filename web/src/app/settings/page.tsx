@@ -12,6 +12,7 @@ import { useWS } from "@/lib/ws/ws-provider";
 import { useTranslations } from "next-intl";
 import { AISettingsCard } from "./ai-section";
 import { InviteModal } from "./invite-modal";
+import { HourlyRateField } from "@/components/settings/HourlyRateField";
 import {
   useCalendars,
   useAddICalCalendar,
@@ -483,7 +484,7 @@ const EMPTY_FORM: MemberFormState = {
 };
 
 function FamilyCard() {
-  const { household } = useAuth();
+  const { household, activeMember } = useAuth();
   const { data: members, isLoading } = useMembers();
   const createMember = useCreateMember();
   const updateMember = useUpdateMember();
@@ -791,6 +792,27 @@ function FamilyCard() {
           {formError && (
             <div style={{ fontSize: 12, color: TB.destructive }}>{formError}</div>
           )}
+          {editingId && household?.id && activeMember && (() => {
+            const editingMember = (members as Array<{
+              id: string;
+              name: string;
+              hourly_rate_cents_min?: number | null;
+              hourly_rate_cents_max?: number | null;
+            }> | undefined)?.find((mm) => mm.id === editingId);
+            if (!editingMember) return null;
+            return (
+              <HourlyRateField
+                viewer={{ id: activeMember.id, role: activeMember.role }}
+                member={{
+                  id: editingMember.id,
+                  name: editingMember.name,
+                  hourly_rate_cents_min: editingMember.hourly_rate_cents_min,
+                  hourly_rate_cents_max: editingMember.hourly_rate_cents_max,
+                }}
+                householdId={household.id}
+              />
+            );
+          })()}
           <div style={{ display: "flex", gap: 8 }}>
             <button
               type="submit"
