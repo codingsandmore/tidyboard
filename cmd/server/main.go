@@ -249,7 +249,11 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	r.Use(middleware.InjectRequestMeta())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigins))
 	r.Use(middleware.Logger(logger))
-	r.Use(middleware.Recovery(logger))
+	// Recover comes after RequestID so the JSON 500 envelope can include the
+	// correlation ID, and before any business handlers so it catches panics
+	// from the entire route tree. The X-Debug stack toggle is gated by
+	// cfg.DebugErrors (env: TIDYBOARD_DEBUG_ERRORS) — leave false in prod.
+	r.Use(middleware.Recover(&cfg, logger))
 	r.Use(middleware.Compress)
 
 	// Request body size limit — default 1 MB; /v1/media/upload overrides below.
