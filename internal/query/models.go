@@ -172,14 +172,15 @@ type Event struct {
 }
 
 type Household struct {
-	ID         uuid.UUID          `json:"id"`
-	Name       string             `json:"name"`
-	Timezone   string             `json:"timezone"`
-	Settings   []byte             `json:"settings"`
-	CreatedBy  uuid.UUID          `json:"created_by"`
-	InviteCode string             `json:"invite_code"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID                   uuid.UUID          `json:"id"`
+	Name                 string             `json:"name"`
+	Timezone             string             `json:"timezone"`
+	Settings             []byte             `json:"settings"`
+	CreatedBy            uuid.UUID          `json:"created_by"`
+	InviteCode           string             `json:"invite_code"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	PayoutCentsPerWeight int32              `json:"payout_cents_per_weight"`
 }
 
 type IngredientCanonical struct {

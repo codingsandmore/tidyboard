@@ -25,7 +25,7 @@ INSERT INTO households (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, NOW(), NOW()
 )
-RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at
+RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at, payout_cents_per_weight
 `
 
 type CreateHouseholdParams struct {
@@ -58,6 +58,7 @@ func (q *Queries) CreateHousehold(ctx context.Context, arg CreateHouseholdParams
 		&i.InviteCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutCentsPerWeight,
 	)
 	return i, err
 }
@@ -73,7 +74,7 @@ func (q *Queries) DeleteHousehold(ctx context.Context, id uuid.UUID) error {
 }
 
 const getHousehold = `-- name: GetHousehold :one
-SELECT id, name, timezone, settings, created_by, invite_code, created_at, updated_at FROM households
+SELECT id, name, timezone, settings, created_by, invite_code, created_at, updated_at, payout_cents_per_weight FROM households
 WHERE id = $1
 LIMIT 1
 `
@@ -90,12 +91,13 @@ func (q *Queries) GetHousehold(ctx context.Context, id uuid.UUID) (Household, er
 		&i.InviteCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutCentsPerWeight,
 	)
 	return i, err
 }
 
 const getHouseholdByInviteCode = `-- name: GetHouseholdByInviteCode :one
-SELECT id, name, timezone, settings, created_by, invite_code, created_at, updated_at FROM households
+SELECT id, name, timezone, settings, created_by, invite_code, created_at, updated_at, payout_cents_per_weight FROM households
 WHERE invite_code = $1
 LIMIT 1
 `
@@ -112,12 +114,30 @@ func (q *Queries) GetHouseholdByInviteCode(ctx context.Context, inviteCode strin
 		&i.InviteCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutCentsPerWeight,
 	)
 	return i, err
 }
 
+const getHouseholdPayoutCentsPerWeight = `-- name: GetHouseholdPayoutCentsPerWeight :one
+SELECT payout_cents_per_weight FROM households
+WHERE id = $1
+LIMIT 1
+`
+
+// Returns the household's flat per-weight chore payout rate (cents).
+// Used as the fallback when a member has no allowance configured but a chore
+// is auto-approved. Defaults to 500 (5 stones / weight) per migration
+// 20260501000050_chore_wallet_idempotency.sql.
+func (q *Queries) GetHouseholdPayoutCentsPerWeight(ctx context.Context, id uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getHouseholdPayoutCentsPerWeight, id)
+	var payout_cents_per_weight int32
+	err := row.Scan(&payout_cents_per_weight)
+	return payout_cents_per_weight, err
+}
+
 const listHouseholdsByAccount = `-- name: ListHouseholdsByAccount :many
-SELECT h.id, h.name, h.timezone, h.settings, h.created_by, h.invite_code, h.created_at, h.updated_at FROM households h
+SELECT h.id, h.name, h.timezone, h.settings, h.created_by, h.invite_code, h.created_at, h.updated_at, h.payout_cents_per_weight FROM households h
 INNER JOIN members m ON m.household_id = h.id
 WHERE m.account_id = $1
 ORDER BY h.created_at DESC
@@ -141,6 +161,7 @@ func (q *Queries) ListHouseholdsByAccount(ctx context.Context, accountID *uuid.N
 			&i.InviteCode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PayoutCentsPerWeight,
 		); err != nil {
 			return nil, err
 		}
@@ -156,7 +177,7 @@ const regenerateInviteCode = `-- name: RegenerateInviteCode :one
 UPDATE households
 SET invite_code = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at
+RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at, payout_cents_per_weight
 `
 
 type RegenerateInviteCodeParams struct {
@@ -176,6 +197,7 @@ func (q *Queries) RegenerateInviteCode(ctx context.Context, arg RegenerateInvite
 		&i.InviteCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutCentsPerWeight,
 	)
 	return i, err
 }
@@ -188,7 +210,7 @@ SET
     settings    = COALESCE($4, settings),
     updated_at  = NOW()
 WHERE id = $1
-RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at
+RETURNING id, name, timezone, settings, created_by, invite_code, created_at, updated_at, payout_cents_per_weight
 `
 
 type UpdateHouseholdParams struct {
@@ -215,6 +237,7 @@ func (q *Queries) UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams
 		&i.InviteCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PayoutCentsPerWeight,
 	)
 	return i, err
 }

@@ -125,6 +125,11 @@ type Querier interface {
 	GetEventByExternalID(ctx context.Context, arg GetEventByExternalIDParams) (Event, error)
 	GetHousehold(ctx context.Context, id uuid.UUID) (Household, error)
 	GetHouseholdByInviteCode(ctx context.Context, inviteCode string) (Household, error)
+	// Returns the household's flat per-weight chore payout rate (cents).
+	// Used as the fallback when a member has no allowance configured but a chore
+	// is auto-approved. Defaults to 500 (5 stones / weight) per migration
+	// 20260501000050_chore_wallet_idempotency.sql.
+	GetHouseholdPayoutCentsPerWeight(ctx context.Context, id uuid.UUID) (int32, error)
 	GetJoinRequest(ctx context.Context, id uuid.UUID) (JoinRequest, error)
 	GetList(ctx context.Context, arg GetListParams) (List, error)
 	GetListItem(ctx context.Context, arg GetListItemParams) (ListItem, error)
