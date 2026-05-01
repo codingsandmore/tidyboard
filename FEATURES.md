@@ -154,10 +154,10 @@ covered feature.
 |---|---|---|---|---|---|---|
 | Request-ID middleware | (all) | OK | OK | NO | NO | |
 | Audit log | GET /v1/audit | OK | OK | NO | NO | |
-| ErrorAlert UI | (cross-cutting) | PART | n/a | NO | NO | |
+| ErrorAlert UI | (cross-cutting) | OK | n/a | NO | NO | "Copy details" + "Report to GitHub" buttons (#140) |
 | Metrics endpoint | /metrics | OK | n/a | NO | PART | smoke |
 | Health endpoint | /healthz | OK | OK | NO | OK | |
-| GitHub bug-report (from ErrorAlert) | POST /v1/bug-reports | OK | OK | NO | NO | backend issue #136 (this PR); UI pending in #140 |
+| GitHub bug-report (from ErrorAlert) | POST /v1/bug-reports | OK | OK | NO | NO | backend #136 + UI #140 (Report-to-GitHub button on `<ErrorAlert/>`, `useReportBug()` hook) |
 
 ## 13. Sync & Backup
 
