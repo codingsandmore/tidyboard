@@ -1047,6 +1047,8 @@ export function useUpdateMember() {
       role,
       ageGroup,
       pin,
+      hourlyRateCentsMin,
+      hourlyRateCentsMax,
     }: {
       householdId: string;
       memberId: string;
@@ -1056,6 +1058,14 @@ export function useUpdateMember() {
       role?: string;
       ageGroup?: string;
       pin?: string;
+      /**
+       * Hourly rate floor in cents. `null` clears the value, `undefined`
+       * leaves it unchanged. Backend gates write authorization to admins
+       * and the rate-owner (#135).
+       */
+      hourlyRateCentsMin?: number | null;
+      /** Hourly rate ceiling in cents. Same null/undefined semantics as min. */
+      hourlyRateCentsMax?: number | null;
     }) =>
       api.patch<Member>(`/v1/households/${householdId}/members/${memberId}`, {
         ...(name !== undefined ? { name } : {}),
@@ -1064,6 +1074,12 @@ export function useUpdateMember() {
         ...(role !== undefined ? { role } : {}),
         ...(ageGroup !== undefined ? { age_group: ageGroup } : {}),
         ...(pin !== undefined ? { pin } : {}),
+        ...(hourlyRateCentsMin !== undefined
+          ? { hourly_rate_cents_min: hourlyRateCentsMin }
+          : {}),
+        ...(hourlyRateCentsMax !== undefined
+          ? { hourly_rate_cents_max: hourlyRateCentsMax }
+          : {}),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.members() });

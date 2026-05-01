@@ -53,7 +53,7 @@ INSERT INTO chores (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 )
-RETURNING id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at
+RETURNING id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at, category
 `
 
 type CreateChoreParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) CreateChore(ctx context.Context, arg CreateChoreParams) (Chore
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Category,
 	)
 	return i, err
 }
@@ -158,7 +159,7 @@ func (q *Queries) DeleteChoreCompletion(ctx context.Context, arg DeleteChoreComp
 }
 
 const getChore = `-- name: GetChore :one
-SELECT id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at FROM chores WHERE id = $1 AND household_id = $2 LIMIT 1
+SELECT id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at, category FROM chores WHERE id = $1 AND household_id = $2 LIMIT 1
 `
 
 type GetChoreParams struct {
@@ -181,6 +182,7 @@ func (q *Queries) GetChore(ctx context.Context, arg GetChoreParams) (Chore, erro
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Category,
 	)
 	return i, err
 }
@@ -305,7 +307,7 @@ func (q *Queries) ListChoreCompletionsForWeek(ctx context.Context, arg ListChore
 }
 
 const listChores = `-- name: ListChores :many
-SELECT id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at FROM chores
+SELECT id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at, category FROM chores
 WHERE household_id = $1
   AND ($2::uuid IS NULL OR member_id = $2::uuid)
   AND ($3::boolean OR archived_at IS NULL)
@@ -339,6 +341,7 @@ func (q *Queries) ListChores(ctx context.Context, arg ListChoresParams) ([]Chore
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Category,
 		); err != nil {
 			return nil, err
 		}
@@ -359,7 +362,7 @@ SET name           = COALESCE($3, name),
     auto_approve   = COALESCE($7, auto_approve),
     updated_at     = NOW()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at
+RETURNING id, household_id, member_id, name, weight, frequency_kind, days_of_week, auto_approve, archived_at, created_at, updated_at, category
 `
 
 type UpdateChoreParams struct {
@@ -395,6 +398,7 @@ func (q *Queries) UpdateChore(ctx context.Context, arg UpdateChoreParams) (Chore
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Category,
 	)
 	return i, err
 }

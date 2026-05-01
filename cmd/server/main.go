@@ -138,12 +138,22 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	syncSvc := service.NewSyncService(q, syncClient)
 	billingSvc := service.NewBillingService(cfg.Stripe, q)
 	equitySvc := service.NewEquityService(q, bc).WithNotify(notifySvc)
+	housekeeperSvc, err := service.NewHousekeeperService(q)
+	if err != nil {
+		logger.Error("failed to load housekeeper rates", "err", err)
+		os.Exit(1)
+	}
 	routineSvc := service.NewRoutineService(q, bc, auditSvc).WithNotify(notifySvc)
 	walletSvc := service.NewWalletService(q, bc, auditSvc)
 	choreSvc := service.NewChoreService(q, walletSvc, bc, auditSvc)
 	choreTimerSvc := service.NewChoreTimerService(q)
 	pointsSvc := service.NewPointsService(q, bc, auditSvc)
 	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
+	bugReportSvc := service.NewBugReportService(service.BugReportConfig{
+		Token: cfg.BugReport.Token,
+		Owner: cfg.BugReport.Owner,
+		Repo:  cfg.BugReport.Repo,
+	})
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -202,6 +212,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	mediaHandler := handler.NewMediaHandler(storageSvc, cfg.Storage)
 	resetHandler := handler.NewResetHandler(pool)
 	equityHandler := handler.NewEquityHandler(equitySvc)
+	housekeeperHandler := handler.NewHousekeeperHandler(housekeeperSvc)
 	notifyHandler := handler.NewNotifyHandler(notifySvc)
 	routineHandler := handler.NewRoutineHandler(routineSvc)
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
@@ -211,6 +222,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	chorePetsHandler := handler.NewChorePetsHandler(chorePetsSvc)
 	pointsHandler := handler.NewPointsHandler(pointsSvc)
 	rewardHandler := handler.NewRewardHandler(rewardSvc)
+	bugReportHandler := handler.NewBugReportHandler(bugReportSvc, auditSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -415,6 +427,9 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Post("/v1/notify/test", notifyHandler.TestNotification)
 		r.Patch("/v1/members/{id}/notify", notifyHandler.UpdateMemberNotify)
 
+		// Bug reports — files a GitHub issue from the frontend's ErrorAlert.
+		r.Post("/v1/bug-reports", bugReportHandler.Create)
+
 		// Routines.
 		r.Get("/v1/routines", routineHandler.List)
 		r.Post("/v1/routines", routineHandler.Create)
@@ -499,6 +514,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Delete("/v1/equity/tasks/{id}", equityHandler.DeleteTask)
 		r.Post("/v1/equity/tasks/{id}/log", equityHandler.LogTaskTime)
 		r.Get("/v1/equity/contribution", equityHandler.GetContribution)
+		r.Get("/v1/equity/housekeeper-estimate", housekeeperHandler.GetEstimate)
 
 		// Calendars.
 		r.Get("/v1/calendars", calendarHandler.List)
