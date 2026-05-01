@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import { ErrorAlert } from "./error-alert";
 import type { ApiError } from "@/lib/api/types";
 
@@ -23,12 +23,14 @@ describe("ErrorAlert", () => {
   it("renders gracefully for raw Error input", () => {
     const error = new Error("boom");
     render(<ErrorAlert error={error} />);
-    expect(screen.getByText(/boom/)).toBeInTheDocument();
+    const msg = screen.getByTestId("error-alert-message");
+    expect(msg.textContent ?? "").toMatch(/boom/);
   });
 
   it("renders gracefully for raw string input", () => {
     render(<ErrorAlert error="something broke" />);
-    expect(screen.getByText(/something broke/)).toBeInTheDocument();
+    const msg = screen.getByTestId("error-alert-message");
+    expect(msg.textContent ?? "").toMatch(/something broke/);
   });
 
   it("renders gracefully for null/undefined input", () => {
@@ -78,7 +80,9 @@ describe("ErrorAlert", () => {
     };
     render(<ErrorAlert error={error} />);
     const copyBtn = screen.getByTestId("error-alert-copy");
-    fireEvent.click(copyBtn);
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const arg = writeText.mock.calls[0][0] as string;
@@ -99,7 +103,9 @@ describe("ErrorAlert", () => {
 
     render(<ErrorAlert error="raw string failure" />);
     const copyBtn = screen.getByTestId("error-alert-copy");
-    fireEvent.click(copyBtn);
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const arg = writeText.mock.calls[0][0] as string;

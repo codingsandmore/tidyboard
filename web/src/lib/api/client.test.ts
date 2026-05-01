@@ -78,15 +78,16 @@ describe("api.get", () => {
     });
   });
 
-  it("throws ApiError with UNKNOWN code when body is not JSON", async () => {
+  it("throws ApiError with non_json_response code when body is not JSON", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
       statusText: "Server Error",
+      headers: { get: () => null },
       json: () => Promise.reject(new Error("not json")),
     } as unknown as Response);
     await expect(api.get("/v1/boom")).rejects.toMatchObject({
-      code: "UNKNOWN",
+      code: "non_json_response",
       status: 500,
     });
   });
