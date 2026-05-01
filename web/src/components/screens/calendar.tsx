@@ -6,13 +6,13 @@ import { TB } from "@/lib/tokens";
 import { fmtTime } from "@/lib/time";
 import type { Member, TBDEvent } from "@/lib/data";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Avatar, StackedAvatars } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 import { Btn } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { ErrorAlert } from "@/components/ui/error-alert";
+import { EventCard } from "@/components/calendar/EventCard";
 import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 
@@ -48,7 +48,7 @@ const ViewTabs = ({ value, onChange }: { value: View; onChange: (v: View) => voi
             background: value === key ? TB.surface : "transparent",
             color: value === key ? TB.text : TB.text2,
             cursor: "pointer",
-            boxShadow: value === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+            boxShadow: value === key ? TB.shadow : "none",
           }}
         >
           {label}
@@ -251,7 +251,7 @@ export function CalDay({
                 style={{
                   padding: "10px",
                   background: m.color,
-                  color: "#fff",
+                  color: TB.primaryFg,
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
@@ -261,7 +261,7 @@ export function CalDay({
                   member={m}
                   size={24}
                   ring={false}
-                  style={{ border: "1.5px solid #fff" }}
+                  style={{ border: `1.5px solid ${TB.primaryFg}` }}
                 />
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</div>
               </div>
@@ -852,7 +852,7 @@ export function CalMonth({
                   alignItems: "center",
                   justifyContent: "center",
                   background: isToday ? TB.primary : "transparent",
-                  color: isToday ? "#fff" : TB.text,
+                  color: isToday ? TB.primaryFg : TB.text,
                   borderRadius: "50%",
                 }}
               >
@@ -1052,35 +1052,13 @@ export function CalAgenda({
                   membersById
                 );
                 return (
-                  <Card
+                  <EventCard
                     key={e.id}
-                    pad={12}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onEventOpen?.(e)}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "Enter" || ev.key === " ") {
-                        ev.preventDefault();
-                        onEventOpen?.(e);
-                      }
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}
-                  >
-                    <StackedAvatars members={ms} size={32} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 550 }}>{e.title}</div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: TB.text2,
-                          marginTop: 2,
-                          fontFamily: TB.fontMono,
-                        }}
-                      >
-                        {fmtTime(e.start)} – {fmtTime(e.end)} · {e.location}
-                      </div>
-                    </div>
-                  </Card>
+                    event={e}
+                    members={ms}
+                    variant="full"
+                    onClick={onEventOpen}
+                  />
                 );
               })}
             </div>
@@ -1337,7 +1315,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
       style={{
         position: "absolute",
         inset: 0,
-        background: "rgba(28,25,23,0.45)",
+        background: TB.dBg + "73", // ~45% scrim derived from dBg (#1C1917)
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
@@ -1350,7 +1328,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
           maxWidth: 520,
           background: TB.surface,
           borderRadius: "16px 16px 0 0",
-          boxShadow: "0 -20px 60px rgba(0,0,0,0.2)",
+          boxShadow: TB.shadowLg,
           maxHeight: "92%",
           overflow: "auto",
         }}
