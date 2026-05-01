@@ -39,6 +39,7 @@ write_files:
       TIDYBOARD_DATABASE_SCHEMA=${db_schema}
       TIDYBOARD_DATABASE_SSLMODE=require
       TIDYBOARD_AUTH_JWT_SECRET=${jwt_secret}
+      TIDYBOARD_AUTH_RATE_LIMIT_PER_MIN=300
       TIDYBOARD_STRIPE_SECRET_KEY=${stripe_secret_key}
       TIDYBOARD_STRIPE_WEBHOOK_SECRET=${stripe_webhook_secret}
       TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_ID=${google_oauth_client_id}

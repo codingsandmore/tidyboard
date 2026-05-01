@@ -48,7 +48,7 @@ auth:
   refresh-token-expiry: 168h  # 7 days; refresh token lifetime
   pin-max-attempts: 5     # failed PINs before lockout
   pin-lockout-duration: 5m
-  rate-limit-per-min: 60  # max API requests per authenticated account per minute (Redis-backed)
+  rate-limit-per-min: 300 # max API requests per authenticated account per minute (Redis-backed)
   oauth:
     google-enabled: false
     google-client-id: ""  # env: TIDYBOARD_AUTH_OAUTH_GOOGLE_CLIENT_ID

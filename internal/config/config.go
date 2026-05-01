@@ -118,7 +118,7 @@ type AuthConfig struct {
 	RefreshTokenExpiry time.Duration `help:"Refresh token expiry (legacy, unused after Cognito cutover)" default:"168h" yaml:"refresh_token_expiry"`
 	PINMaxAttempts     int           `help:"Max PIN attempts before lockout (kiosk flow)" default:"5" yaml:"pin_max_attempts"`
 	PINLockoutDuration time.Duration `help:"PIN lockout duration (kiosk flow)" default:"5m" yaml:"pin_lockout_duration"`
-	RateLimitPerMin    int           `help:"Authenticated requests per minute per account" default:"60" yaml:"rate_limit_per_min"`
+	RateLimitPerMin    int           `help:"Authenticated requests per minute per account" default:"300" env:"TIDYBOARD_AUTH_RATE_LIMIT_PER_MIN" yaml:"rate_limit_per_min"`
 	Cognito            CognitoConfig `embed:"" prefix:"cognito." yaml:"cognito"`
 }
 
