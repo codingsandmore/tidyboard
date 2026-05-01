@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import type { Member } from "@/lib/data";
@@ -8,11 +9,36 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
-import { useEquity, useEquityDashboard, useRebalanceSuggestions, useRace, useMembers } from "@/lib/api/hooks";
-import type { ApiEquityDashboard, ApiRebalanceSuggestion } from "@/lib/api/types";
+import {
+  useEquity,
+  useEquityDashboard,
+  useRebalanceSuggestions,
+  useRace,
+  useMembers,
+  useEquityContribution,
+  useHousekeeperEstimate,
+} from "@/lib/api/hooks";
+import type {
+  ApiEquityDashboard,
+  ApiRebalanceSuggestion,
+  ApiMemberContribution,
+  ApiHousekeeperEstimate,
+} from "@/lib/api/types";
 import { PageShell } from "@/components/layout/page-shell";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth/auth-store";
+
+// Threshold above which we surface the rebalance hint on the Contribution tab.
+export const REBALANCE_THRESHOLD_PCT = 70;
+
+function fmtDollars(cents: number): string {
+  // Whole-dollar formatting; suitable for headlines and per-category lines.
+  return `$${Math.round(cents / 100).toLocaleString()}`;
+}
+
+function fmtDollarBand(min: number, max: number): string {
+  return `${fmtDollars(min)} – ${fmtDollars(max)}`;
+}
 
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
@@ -146,14 +172,217 @@ function adaptDashboard(api: ApiEquityDashboard, members: Member[]) {
   return { period: `${api.from} – ${api.to}`, domains: api.domain_list.length, adults, domainList, trend };
 }
 
+// ─── Contribution tab subcomponents ──────────────────────────────────────────
+
+/**
+ * Horizontal bars showing each member's contribution by minutes (with optional
+ * dollar band when household has hourly rates set). Uses each member's TB
+ * token color, no hardcoded hex values.
+ */
+export function ContributionBars({
+  contribution,
+  members,
+  dark = false,
+}: {
+  contribution: ApiMemberContribution[];
+  members: Member[];
+  dark?: boolean;
+}) {
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const tc = dark ? TB.dText : TB.text;
+  const tc2 = dark ? TB.dText2 : TB.text2;
+  const trackBg = dark ? TB.dBg2 : TB.bg2;
+  // Find the largest percentage to scale bar widths consistently.
+  const maxPct = Math.max(1, ...contribution.map((c) => c.percentage_minutes));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {contribution.map((c) => {
+        const m = memberById.get(c.member_id);
+        const hours = Math.round((c.total_minutes / 60) * 10) / 10;
+        const pct = Math.round(c.percentage_minutes);
+        const barColor = m?.color ?? TB.primary;
+        const widthPct = Math.max(2, (c.percentage_minutes / maxPct) * 100);
+        const hasBand =
+          typeof c.total_cents_min === "number" && typeof c.total_cents_max === "number";
+        return (
+          <div
+            key={c.member_id}
+            data-testid={`contribution-bar-${c.member_id}`}
+            style={{ display: "flex", flexDirection: "column", gap: 6 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {m && <Avatar member={m} size={28} ring={false} />}
+              <div style={{ fontSize: 14, fontWeight: 550, color: tc, flex: 1 }}>
+                {m?.name ?? c.member_id}
+              </div>
+              <div style={{ fontFamily: TB.fontMono, fontSize: 13, color: tc }}>
+                {hours}h
+              </div>
+              <div
+                style={{
+                  fontFamily: TB.fontMono,
+                  fontSize: 12,
+                  color: tc2,
+                  minWidth: 44,
+                  textAlign: "right",
+                }}
+              >
+                {pct}%
+              </div>
+            </div>
+            <div
+              style={{
+                height: 14,
+                borderRadius: 6,
+                background: trackBg,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${widthPct}%`,
+                  height: "100%",
+                  background: barColor,
+                  borderRadius: 6,
+                }}
+              />
+            </div>
+            {hasBand && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: tc2,
+                  fontFamily: TB.fontMono,
+                  marginLeft: 38,
+                }}
+              >
+                {fmtDollarBand(c.total_cents_min!, c.total_cents_max!)}
+                {typeof c.percentage_cents === "number" && (
+                  <span style={{ marginLeft: 8 }}>
+                    ({Math.round(c.percentage_cents)}% by $)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Housekeeper-cost card. Shows the total estimated cost as a headline, then a
+ * per-category breakdown with implied savings text per spec section H.2:
+ * "If you hired out cooking last week, it would cost ~$X. Wilma actually spent
+ * N hours; her implied savings = $X − (N × her_rate)."
+ */
+export function HousekeeperCard({
+  estimate,
+  members,
+  dark = false,
+}: {
+  estimate: ApiHousekeeperEstimate;
+  members: Member[];
+  dark?: boolean;
+}) {
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const tc = dark ? TB.dText : TB.text;
+  const tc2 = dark ? TB.dText2 : TB.text2;
+  const border = dark ? TB.dBorder : TB.border;
+  return (
+    <Card dark={dark} pad={20}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: tc2, flex: 1 }}>
+          Housekeeper cost
+        </div>
+        <div
+          style={{
+            fontFamily: TB.fontDisplay,
+            fontSize: 26,
+            fontWeight: 600,
+            color: tc,
+          }}
+        >
+          {fmtDollars(estimate.total_estimated_cost_cents)}
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: tc2, marginBottom: 14 }}>
+        Estimated cost to hire out the work logged this period.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {estimate.categories.map((cat) => {
+          const hours = Math.round((cat.total_minutes / 60) * 10) / 10;
+          return (
+            <div
+              key={cat.category}
+              style={{
+                paddingTop: 10,
+                borderTop: `1px solid ${border}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 550, color: tc, flex: 1 }}>
+                  {cat.category}
+                </div>
+                <div style={{ fontFamily: TB.fontMono, fontSize: 12, color: tc2 }}>
+                  {hours}h
+                </div>
+                <div
+                  style={{
+                    fontFamily: TB.fontMono,
+                    fontSize: 13,
+                    color: tc,
+                    minWidth: 56,
+                    textAlign: "right",
+                  }}
+                >
+                  {fmtDollars(cat.estimated_cost_cents)}
+                </div>
+              </div>
+              {cat.member_savings && cat.member_savings.length > 0 && (
+                <div style={{ fontSize: 11, color: tc2 }}>
+                  {cat.member_savings.map((ms, i) => {
+                    const m = memberById.get(ms.member_id);
+                    const memberHours = Math.round((ms.member_minutes / 60) * 10) / 10;
+                    const savings =
+                      typeof ms.savings_cents === "number"
+                        ? fmtDollars(ms.savings_cents)
+                        : null;
+                    return (
+                      <span key={ms.member_id} style={{ marginRight: 10 }}>
+                        {m?.name ?? ms.member_id}: {memberHours}h
+                        {savings ? ` · saves ${savings}` : ""}
+                        {i < cat.member_savings!.length - 1 ? " · " : ""}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 // ─── Equity (full dashboard, desktop) ────────────────────────────────────────
+
+type EquityTab = "tasks" | "contribution";
 
 export function Equity({ dark = false }: { dark?: boolean }) {
   const t = useTranslations("equity");
+  const [tab, setTab] = useState<EquityTab>("tasks");
   // Try live backend first; legacy stub hook only returns data when backed by the API.
   const { data: liveData } = useEquityDashboard();
   const { data: stubData } = useEquity("This Week");
   const { data: suggestions } = useRebalanceSuggestions();
+  const { data: contributionData } = useEquityContribution();
+  const { data: housekeeperData } = useHousekeeperEstimate();
 
   const { data: membersData } = useMembers();
   const allMembers: Member[] = membersData ?? [];
@@ -190,6 +419,13 @@ export function Equity({ dark = false }: { dark?: boolean }) {
 
   const eq = equityData;
 
+  // Compute rebalance hint for Contribution tab: any adult >70% by minutes.
+  const overloaded = (contributionData ?? []).find((c) => {
+    const m = memberById.get(c.member_id);
+    return m?.role === "adult" && c.percentage_minutes > REBALANCE_THRESHOLD_PCT;
+  });
+  const overloadedMember = overloaded ? memberById.get(overloaded.member_id) : null;
+
   return (
     <PageShell dark={dark} contentPadding={24}>
       {/* Header */}
@@ -219,6 +455,96 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           ))}
         </div>
       </div>
+
+      {/* Tab strip: Tasks | Contribution */}
+      <div
+        role="tablist"
+        aria-label="Equity views"
+        style={{
+          display: "inline-flex",
+          padding: 3,
+          background: dark ? TB.dBg2 : TB.bg2,
+          borderRadius: 8,
+          marginBottom: 18,
+        }}
+      >
+        {([
+          { id: "tasks" as const, label: "Tasks" },
+          { id: "contribution" as const, label: "Contribution" },
+        ]).map((entry) => {
+          const active = tab === entry.id;
+          return (
+            <button
+              key={entry.id}
+              role="tab"
+              type="button"
+              aria-selected={active}
+              onClick={() => setTab(entry.id)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                background: active ? surf : "transparent",
+                color: active ? tc : tc2,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              {entry.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "contribution" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card dark={dark} pad={20}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: tc2, marginBottom: 14 }}>
+              Contribution by member
+            </div>
+            {contributionData && contributionData.length > 0 ? (
+              <ContributionBars
+                contribution={contributionData}
+                members={allMembers}
+                dark={dark}
+              />
+            ) : (
+              <div style={{ fontSize: 13, color: tc2 }}>
+                No contribution data yet — log time on a task or chore to populate this view.
+              </div>
+            )}
+            {overloadedMember && (
+              <div
+                role="alert"
+                style={{
+                  marginTop: 16,
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: TB.warning + "18",
+                  border: `1px solid ${TB.warning}40`,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: TB.warning,
+                }}
+              >
+                {overloadedMember.name} is carrying{" "}
+                {Math.round(overloaded!.percentage_minutes)}% of household contribution —
+                consider rebalancing tasks.
+              </div>
+            )}
+          </Card>
+          {housekeeperData && (
+            <HousekeeperCard
+              estimate={housekeeperData}
+              members={allMembers}
+              dark={dark}
+            />
+          )}
+        </div>
+      )}
+
+      {tab === "tasks" && (<>
 
       {/* Top row: ownership + load + personal */}
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
@@ -382,6 +708,7 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           </div>
         </Card>
       </div>
+      </>)}
     </PageShell>
   );
 }
