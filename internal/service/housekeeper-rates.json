@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "source": "docs/specs/2026-05-01-fairplay-design.md section H.1",
+  "rates": [
+    {
+      "category": "cooking_meal",
+      "label": "Cooking & meal prep",
+      "market_rate_cents_per_hour": 2500,
+      "comment": "Personal-chef / meal-prep service median (BLS 35-1011 + Care.com 2025)"
+    },
+    {
+      "category": "deep_clean",
+      "label": "Deep cleaning",
+      "market_rate_cents_per_hour": 3500,
+      "comment": "Residential deep-clean services median (HomeAdvisor 2025)"
+    },
+    {
+      "category": "laundry",
+      "label": "Laundry & linens",
+      "market_rate_cents_per_hour": 2000,
+      "comment": "Wash-and-fold service median per labor hour"
+    },
+    {
+      "category": "child_care",
+      "label": "Child care",
+      "market_rate_cents_per_hour": 2200,
+      "comment": "In-home babysitter median (Care.com 2025 US average)"
+    }
+  ]
+}

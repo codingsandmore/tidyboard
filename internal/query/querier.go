@@ -259,6 +259,12 @@ type Querier interface {
 	// Close the latest open entry for (chore_id, member_id). Server-set ended_at.
 	StopChoreTimer(ctx context.Context, arg StopChoreTimerParams) (ChoreTimeEntry, error)
 	SumChorePayoutsForChoreInWeek(ctx context.Context, arg SumChorePayoutsForChoreInWeekParams) (int64, error)
+	// sql/queries/housekeeper.sql
+	// Housekeeper-rate estimation queries.
+	// Aggregate completed chore_time_entries grouped by chores.category for a
+	// household over [from, to). Excludes uncategorized chores (NULL category)
+	// and open entries (ended_at IS NULL).
+	SumChoreTimeByCategory(ctx context.Context, arg SumChoreTimeByCategoryParams) ([]SumChoreTimeByCategoryRow, error)
 	// Returns total minutes logged per member within a time window.
 	SumMinutesByMember(ctx context.Context, arg SumMinutesByMemberParams) ([]SumMinutesByMemberRow, error)
 	// Returns minutes per (member, domain) for the equity domain detail view.
