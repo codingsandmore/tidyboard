@@ -31,7 +31,7 @@ INSERT INTO members (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW()
 )
-RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max
 `
 
 type CreateMemberParams struct {
@@ -83,6 +83,8 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
 	)
 	return i, err
 }
@@ -103,7 +105,7 @@ func (q *Queries) DeleteMember(ctx context.Context, arg DeleteMemberParams) erro
 }
 
 const getMember = `-- name: GetMember :one
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max FROM members
 WHERE id = $1 AND household_id = $2
 LIMIT 1
 `
@@ -132,12 +134,14 @@ func (q *Queries) GetMember(ctx context.Context, arg GetMemberParams) (Member, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
 	)
 	return i, err
 }
 
 const getMemberByAccountAndHousehold = `-- name: GetMemberByAccountAndHousehold :one
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max FROM members
 WHERE account_id = $1 AND household_id = $2
 LIMIT 1
 `
@@ -166,12 +170,14 @@ func (q *Queries) GetMemberByAccountAndHousehold(ctx context.Context, arg GetMem
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
 	)
 	return i, err
 }
 
 const getMembersByIDs = `-- name: GetMembersByIDs :many
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max FROM members
 WHERE household_id = $1 AND id = ANY($2::uuid[])
 `
 
@@ -209,6 +215,8 @@ func (q *Queries) GetMembersByIDs(ctx context.Context, arg GetMembersByIDsParams
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.NtfyTopic,
+			&i.HourlyRateCentsMin,
+			&i.HourlyRateCentsMax,
 		); err != nil {
 			return nil, err
 		}
@@ -245,7 +253,7 @@ func (q *Queries) GetPrimaryMemberByAccount(ctx context.Context, accountID *uuid
 }
 
 const listMembers = `-- name: ListMembers :many
-SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic FROM members
+SELECT id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max FROM members
 WHERE household_id = $1
 ORDER BY created_at ASC
 `
@@ -275,6 +283,8 @@ func (q *Queries) ListMembers(ctx context.Context, householdID uuid.UUID) ([]Mem
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.NtfyTopic,
+			&i.HourlyRateCentsMin,
+			&i.HourlyRateCentsMax,
 		); err != nil {
 			return nil, err
 		}
@@ -299,7 +309,7 @@ SET
     notification_preferences = COALESCE($10, notification_preferences),
     updated_at               = NOW()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max
 `
 
 type UpdateMemberParams struct {
@@ -345,6 +355,58 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
+	)
+	return i, err
+}
+
+const updateMemberHourlyRate = `-- name: UpdateMemberHourlyRate :one
+UPDATE members
+SET
+    hourly_rate_cents_min = $3::INTEGER,
+    hourly_rate_cents_max = $4::INTEGER,
+    updated_at            = NOW()
+WHERE id = $1 AND household_id = $2
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max
+`
+
+type UpdateMemberHourlyRateParams struct {
+	ID                 uuid.UUID `json:"id"`
+	HouseholdID        uuid.UUID `json:"household_id"`
+	HourlyRateCentsMin *int32    `json:"hourly_rate_cents_min"`
+	HourlyRateCentsMax *int32    `json:"hourly_rate_cents_max"`
+}
+
+// Sets the (private) hourly_rate range. Use sqlc.arg so callers can explicitly
+// clear the range by passing NULLs. Authorization is enforced in the service
+// layer — this query has no role check of its own.
+func (q *Queries) UpdateMemberHourlyRate(ctx context.Context, arg UpdateMemberHourlyRateParams) (Member, error) {
+	row := q.db.QueryRow(ctx, updateMemberHourlyRate,
+		arg.ID,
+		arg.HouseholdID,
+		arg.HourlyRateCentsMin,
+		arg.HourlyRateCentsMax,
+	)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.AccountID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Color,
+		&i.AvatarUrl,
+		&i.Role,
+		&i.AgeGroup,
+		&i.PinHash,
+		&i.EmergencyInfo,
+		&i.NotificationPreferences,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
 	)
 	return i, err
 }
@@ -356,7 +418,7 @@ SET
     notification_preferences = COALESCE($4, notification_preferences),
     updated_at               = NOW()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic
+RETURNING id, household_id, account_id, name, display_name, color, avatar_url, role, age_group, pin_hash, emergency_info, notification_preferences, created_at, updated_at, ntfy_topic, hourly_rate_cents_min, hourly_rate_cents_max
 `
 
 type UpdateMemberNotifyParams struct {
@@ -390,6 +452,8 @@ func (q *Queries) UpdateMemberNotify(ctx context.Context, arg UpdateMemberNotify
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.NtfyTopic,
+		&i.HourlyRateCentsMin,
+		&i.HourlyRateCentsMax,
 	)
 	return i, err
 }
