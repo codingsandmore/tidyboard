@@ -29,6 +29,8 @@ import type {
   ApiTaskDomain,
   ApiTaskLog,
   ApiRebalanceSuggestion,
+  ApiMemberContribution,
+  ApiHousekeeperEstimate,
   CreateEquityTaskRequest,
   UpdateEquityTaskRequest,
   LogTaskTimeRequest,
@@ -471,6 +473,40 @@ export function useRebalanceSuggestions() {
   return useQuery<ApiRebalanceSuggestion[]>({
     queryKey: qk.equitySuggestions(),
     queryFn: () => api.get<ApiRebalanceSuggestion[]>("/v1/equity/suggestions"),
+  });
+}
+
+/**
+ * Returns per-member contribution aggregates (minutes + optional dollar bands)
+ * for the household over an optional date range. Backend route: GET /v1/equity/contribution.
+ */
+export function useEquityContribution(from?: string, to?: string) {
+  return useQuery<ApiMemberContribution[]>({
+    queryKey: ["equity", "contribution", from, to] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return api.get<ApiMemberContribution[]>(`/v1/equity/contribution${qs}`);
+    },
+  });
+}
+
+/**
+ * Returns the per-category housekeeper-cost estimate for the household over
+ * an optional date range. Backend route: GET /v1/equity/housekeeper-estimate.
+ */
+export function useHousekeeperEstimate(from?: string, to?: string) {
+  return useQuery<ApiHousekeeperEstimate>({
+    queryKey: ["equity", "housekeeper-estimate", from, to] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return api.get<ApiHousekeeperEstimate>(`/v1/equity/housekeeper-estimate${qs}`);
+    },
   });
 }
 

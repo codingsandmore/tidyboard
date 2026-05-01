@@ -181,6 +181,42 @@ export interface ApiRebalanceSuggestion {
   reason: string;
 }
 
+// ── Contribution + Housekeeper estimate (issue #138 + #139) ─────────────────
+
+export interface ApiMemberContribution {
+  member_id: string;
+  total_minutes: number;
+  /** Min cents earned from `hourly_rate` (privacy-preserving band). */
+  total_cents_min?: number;
+  total_cents_max?: number;
+  /** 0..100 share of total household contribution by minutes. */
+  percentage_minutes: number;
+  /** 0..100 share by dollars (only when rates set). */
+  percentage_cents?: number;
+}
+
+export interface ApiHousekeeperCategoryEstimate {
+  /** Domain or chore-category name (e.g. "Cooking", "Cleaning"). */
+  category: string;
+  total_minutes: number;
+  hourly_rate_cents: number;
+  estimated_cost_cents: number;
+  /** Optional per-member implied savings, only when household has rates set. */
+  member_savings?: Array<{
+    member_id: string;
+    member_minutes: number;
+    member_rate_cents?: number;
+    savings_cents?: number;
+  }>;
+}
+
+export interface ApiHousekeeperEstimate {
+  from: string;
+  to: string;
+  total_estimated_cost_cents: number;
+  categories: ApiHousekeeperCategoryEstimate[];
+}
+
 export interface CreateEquityTaskRequest {
   domain_id: string;
   name: string;
