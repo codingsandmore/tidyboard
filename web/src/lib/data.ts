@@ -69,10 +69,30 @@ export type Recipe = {
   steps?: string[];
 };
 
+/**
+ * Per-entry metadata keyed by `${date}|${slot}` (e.g. "2026-04-27|dinner").
+ * Backed by the meal_plan_entries table; only present for filled grid cells.
+ */
+export type MealPlanEntryMeta = {
+  /** Backend UUID for the entry, used by DELETE /v1/meal-plan/{id}. */
+  id: string;
+  /** Servings multiplier; 1.0 = recipe-default. */
+  serving_multiplier?: number;
+  /** Number of batches to cook. */
+  batch_quantity?: number;
+  /** Servings expected to remain after the meal. */
+  planned_leftovers?: number;
+};
+
 export type MealPlan = {
   weekOf: string;
   rows: string[];
   grid: (string | null)[][];
+  /**
+   * Optional map of "${date}|${slot}" -> entry metadata. Populated by the
+   * live API; absent in fixture data.
+   */
+  entryIds?: Record<string, MealPlanEntryMeta>;
 };
 
 export type ShoppingItem = {

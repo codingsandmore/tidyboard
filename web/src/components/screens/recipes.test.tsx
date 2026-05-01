@@ -27,6 +27,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useToggleShoppingItem: () => ({ mutate: toggleShoppingMutateMock }),
   useImportRecipe: () => ({ mutate: importMutateMock, isPending: false }),
   useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
+  useDeleteMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}) }),
   useGenerateShoppingList: () => ({ mutate: generateShoppingMutateMock, isPending: false }),
 }));
 
