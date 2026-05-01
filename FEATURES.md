@@ -147,6 +147,8 @@ covered feature.
 | Kiosk dashboard | / (kiosk mode) | PART | n/a | NO | PART | reads events + chores + routines |
 | Per-member dashboard | /member/:id | PART | n/a | NO | NO | |
 | Countdown widget (UI) | /dashboard | OK | n/a | NO | NO | shipped 2026-04-30 |
+| PageShell layout primitive (header/main/footer slots) | components/layout/page-shell | OK | n/a | NO | NO | issue #147; TB-tokenized, used by dash-phone + dash-kiosk-ambient + equity |
+| Dashboard/Equity TB-token refactor | dashboard-kiosk-ambient, dashboard-phone, equity | OK | n/a | NO | NO | issue #147; inline-style colors/spacing replaced with TB tokens |
 
 ## 12. Errors & Observability
 
