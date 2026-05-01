@@ -58,7 +58,7 @@ func TestSeedFlintstones_Households(t *testing.T) {
 	cleanFlintstones(t, pool)
 	q := query.New(pool)
 
-	require.NoError(t, seed.SeedFlintstones(context.Background(), q))
+	require.NoError(t, seed.SeedFlintstones(context.Background(), pool))
 
 	flint, err := q.GetHousehold(context.Background(), seed.FlintstoneHousehold)
 	require.NoError(t, err)
@@ -97,13 +97,13 @@ func TestSeedFlintstones_Idempotent(t *testing.T) {
 	q := query.New(pool)
 
 	// First run.
-	require.NoError(t, seed.SeedFlintstones(context.Background(), q))
+	require.NoError(t, seed.SeedFlintstones(context.Background(), pool))
 	first, err := q.ListMembers(context.Background(), seed.FlintstoneHousehold)
 	require.NoError(t, err)
 	require.Len(t, first, 4, "Flintstones household must have exactly 4 members after first seed")
 
 	// Second run — must be a no-op (no error, no duplicates).
-	require.NoError(t, seed.SeedFlintstones(context.Background(), q),
+	require.NoError(t, seed.SeedFlintstones(context.Background(), pool),
 		"re-running SeedFlintstones must not error")
 	second, err := q.ListMembers(context.Background(), seed.FlintstoneHousehold)
 	require.NoError(t, err)
