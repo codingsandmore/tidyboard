@@ -326,4 +326,66 @@ describe("EventModal", () => {
     fireEvent.click(screen.getByText("Delete"));
     expect(mutateFn).toHaveBeenCalledWith("evt-1", expect.any(Object));
   });
+
+  // ── Assignee multi-select (issue #112) ───────────────────────────────────
+  it("create form: selecting two members submits assigned_members payload", async () => {
+    mutateFn.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    renderWithQuery(<EventModal onClose={vi.fn()} />);
+
+    // Title is required for save to fire the mutation.
+    const titleInput = screen.getByPlaceholderText(/event title/i);
+    fireEvent.change(titleInput, { target: { value: "Soccer carpool" } });
+
+    // Toggle dad + mom on. The chips are the same testid the read-only
+    // preview already used; the new multi-select keeps that contract.
+    fireEvent.click(screen.getByTestId("event-member-dad"));
+    fireEvent.click(screen.getByTestId("event-member-mom"));
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      expect(mutateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Soccer carpool",
+          assigned_members: ["dad", "mom"],
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
+  it("edit form: deselecting the lone assignee submits empty assigned_members", async () => {
+    mutateFn.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      opts?.onSuccess?.();
+    });
+    const event = {
+      id: "evt-1",
+      title: "Dentist",
+      start_time: "2026-04-22T09:00:00Z",
+      end_time: "2026-04-22T10:00:00Z",
+      members: ["dad"],
+    };
+    renderWithQuery(<EventModal event={event} onClose={vi.fn()} />);
+
+    // Dad starts selected; clicking deselects.
+    expect(screen.getByTestId("event-member-dad")).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
+    fireEvent.click(screen.getByTestId("event-member-dad"));
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => {
+      expect(mutateFn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "evt-1",
+          assigned_members: [],
+        }),
+        expect.any(Object)
+      );
+    });
+  });
 });
