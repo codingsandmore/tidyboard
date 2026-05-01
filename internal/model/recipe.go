@@ -33,8 +33,11 @@ type Recipe struct {
 	CreatedAt    time.Time   `json:"created_at"`
 	UpdatedAt    time.Time   `json:"updated_at"`
 
-	Ingredients   []RecipeIngredient `json:"ingredients,omitempty"`
-	Steps         []RecipeStep       `json:"steps,omitempty"`
+	// Ingredients and Steps are emitted as arrays (never null) so frontends
+	// can render their empty-state copy reliably. NutritionInfo stays
+	// optional; absence is meaningful.
+	Ingredients   []RecipeIngredient `json:"ingredients"`
+	Steps         []RecipeStep       `json:"steps"`
 	NutritionInfo *NutritionInfo     `json:"nutrition_info,omitempty"`
 }
 

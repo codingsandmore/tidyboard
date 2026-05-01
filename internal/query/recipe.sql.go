@@ -328,6 +328,88 @@ func (q *Queries) ListFavoriteRecipes(ctx context.Context, householdID uuid.UUID
 	return items, nil
 }
 
+const listRecipeIngredients = `-- name: ListRecipeIngredients :many
+SELECT id, recipe_id, household_id, sort_order, group_name, amount, unit, name, preparation, optional, substitution_note FROM recipe_ingredients
+WHERE recipe_id = $1 AND household_id = $2
+ORDER BY sort_order ASC, name ASC
+`
+
+type ListRecipeIngredientsParams struct {
+	RecipeID    uuid.UUID `json:"recipe_id"`
+	HouseholdID uuid.UUID `json:"household_id"`
+}
+
+func (q *Queries) ListRecipeIngredients(ctx context.Context, arg ListRecipeIngredientsParams) ([]RecipeIngredient, error) {
+	rows, err := q.db.Query(ctx, listRecipeIngredients, arg.RecipeID, arg.HouseholdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecipeIngredient{}
+	for rows.Next() {
+		var i RecipeIngredient
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecipeID,
+			&i.HouseholdID,
+			&i.SortOrder,
+			&i.GroupName,
+			&i.Amount,
+			&i.Unit,
+			&i.Name,
+			&i.Preparation,
+			&i.Optional,
+			&i.SubstitutionNote,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecipeSteps = `-- name: ListRecipeSteps :many
+SELECT id, recipe_id, household_id, sort_order, text, timer_seconds, image_url FROM recipe_steps
+WHERE recipe_id = $1 AND household_id = $2
+ORDER BY sort_order ASC
+`
+
+type ListRecipeStepsParams struct {
+	RecipeID    uuid.UUID `json:"recipe_id"`
+	HouseholdID uuid.UUID `json:"household_id"`
+}
+
+func (q *Queries) ListRecipeSteps(ctx context.Context, arg ListRecipeStepsParams) ([]RecipeStep, error) {
+	rows, err := q.db.Query(ctx, listRecipeSteps, arg.RecipeID, arg.HouseholdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecipeStep{}
+	for rows.Next() {
+		var i RecipeStep
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecipeID,
+			&i.HouseholdID,
+			&i.SortOrder,
+			&i.Text,
+			&i.TimerSeconds,
+			&i.ImageUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecipes = `-- name: ListRecipes :many
 SELECT id, household_id, title, description, source_url, source_domain, image_url, prep_time, cook_time, total_time, servings, servings_unit, categories, cuisine, tags, difficulty, rating, notes, is_favorite, times_cooked, last_cooked_at, created_by, created_at, updated_at FROM recipes
 WHERE household_id = $1

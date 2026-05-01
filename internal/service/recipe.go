@@ -97,7 +97,10 @@ func (s *RecipeService) Create(ctx context.Context, householdID, createdByMember
 	return recipeToModel(r), nil
 }
 
-// Get returns a single recipe scoped to the household.
+// Get returns a single recipe scoped to the household, with its ingredient
+// and step rows attached. Both lists are sorted by sort_order ascending; an
+// empty list (rather than nil) is returned when no rows exist so JSON
+// consumers always see an array.
 func (s *RecipeService) Get(ctx context.Context, householdID, recipeID uuid.UUID) (*model.Recipe, error) {
 	r, err := s.q.GetRecipe(ctx, query.GetRecipeParams{
 		ID:          recipeID,
@@ -109,7 +112,34 @@ func (s *RecipeService) Get(ctx context.Context, householdID, recipeID uuid.UUID
 		}
 		return nil, fmt.Errorf("fetching recipe: %w", err)
 	}
-	return recipeToModel(r), nil
+
+	out := recipeToModel(r)
+
+	ings, err := s.q.ListRecipeIngredients(ctx, query.ListRecipeIngredientsParams{
+		RecipeID:    recipeID,
+		HouseholdID: householdID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing recipe ingredients: %w", err)
+	}
+	out.Ingredients = make([]model.RecipeIngredient, len(ings))
+	for i, row := range ings {
+		out.Ingredients[i] = recipeIngredientToModel(row)
+	}
+
+	steps, err := s.q.ListRecipeSteps(ctx, query.ListRecipeStepsParams{
+		RecipeID:    recipeID,
+		HouseholdID: householdID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing recipe steps: %w", err)
+	}
+	out.Steps = make([]model.RecipeStep, len(steps))
+	for i, row := range steps {
+		out.Steps[i] = recipeStepToModel(row)
+	}
+
+	return out, nil
 }
 
 // Update patches recipe fields.
@@ -298,7 +328,51 @@ func isTimeoutErr(err error) bool {
 		errors.Is(err, context.Canceled)
 }
 
-// recipeToModel converts a query.Recipe to model.Recipe.
+// recipeIngredientToModel converts a sqlc-generated query.RecipeIngredient to
+// the JSON-facing model.RecipeIngredient. The sqlc Amount column is a
+// pgtype.Numeric — collapse it to float64 (precision is sufficient for
+// kitchen quantities; bake/savings math is not done in the API layer).
+func recipeIngredientToModel(r query.RecipeIngredient) model.RecipeIngredient {
+	var amount float64
+	if r.Amount.Valid {
+		if f, err := r.Amount.Float64Value(); err == nil && f.Valid {
+			amount = f.Float64
+		}
+	}
+	return model.RecipeIngredient{
+		ID:               r.ID,
+		RecipeID:         r.RecipeID,
+		Order:            int(r.SortOrder),
+		Group:            r.GroupName,
+		Amount:           amount,
+		Unit:             r.Unit,
+		Name:             r.Name,
+		Preparation:      r.Preparation,
+		Optional:         r.Optional,
+		SubstitutionNote: r.SubstitutionNote,
+	}
+}
+
+// recipeStepToModel converts a sqlc-generated query.RecipeStep to
+// model.RecipeStep.
+func recipeStepToModel(r query.RecipeStep) model.RecipeStep {
+	out := model.RecipeStep{
+		ID:       r.ID,
+		RecipeID: r.RecipeID,
+		Order:    int(r.SortOrder),
+		Text:     r.Text,
+		ImageURL: r.ImageUrl,
+	}
+	if r.TimerSeconds != nil {
+		v := int(*r.TimerSeconds)
+		out.TimerSeconds = &v
+	}
+	return out
+}
+
+// recipeToModel converts a query.Recipe to model.Recipe. Ingredients and
+// Steps default to empty slices so JSON consumers always see [], even on
+// list/create paths that don't fetch the child rows.
 func recipeToModel(r query.Recipe) *model.Recipe {
 	out := &model.Recipe{
 		ID:           r.ID,
@@ -316,6 +390,8 @@ func recipeToModel(r query.Recipe) *model.Recipe {
 		Categories:   r.Categories,
 		Cuisine:      r.Cuisine,
 		Tags:         r.Tags,
+		Ingredients:  []model.RecipeIngredient{},
+		Steps:        []model.RecipeStep{},
 		Difficulty:   r.Difficulty,
 		Rating:       int(r.Rating),
 		Notes:        r.Notes,
