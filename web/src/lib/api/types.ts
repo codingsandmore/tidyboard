@@ -32,10 +32,33 @@ export type {
 
 // ── API-specific types ──────────────────────────────────────────────────────
 
+/**
+ * ApiError envelope thrown by the fetch wrapper in `client.ts`.
+ *
+ * Backend (PR #123 / issue #111) emits the `code`/`message`/`status` JSON
+ * envelope plus an `X-Request-ID` response header for every error. The web
+ * client also enriches the envelope with the originating `url`/`method` so
+ * UI components like <ErrorAlert/> can show end-to-end debug context.
+ *
+ * `requestId` is optional because:
+ *   - older servers may not have the request-id middleware installed,
+ *   - non-JSON failures (proxy 502, dropped connection) may not carry it.
+ *
+ * `stack` is optional and only populated by callers that explicitly attach a
+ * captured Error.stack — it is never set by the fetch wrapper itself.
+ */
 export interface ApiError {
   code: string;
   message: string;
   status: number;
+  /** X-Request-ID response header captured by the fetch wrapper. */
+  requestId?: string;
+  /** Request URL (absolute) for the failed call. */
+  url: string;
+  /** HTTP method (GET/POST/etc.) for the failed call. */
+  method: string;
+  /** Optional stack trace; only present when callers attach one explicitly. */
+  stack?: string;
 }
 
 // ── Audit types ─────────────────────────────────────────────────────────────

@@ -33,23 +33,39 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   if (!res.ok) {
-    let err: ApiError;
+    // Capture the X-Request-ID header set by the backend's request-id
+    // middleware (PR #123) so debug UIs can echo it for support tickets.
+    const requestId = res.headers?.get?.("X-Request-ID") ?? undefined;
+
+    let envelope: { code: string; message: string; status: number };
     try {
-      err = await res.json();
+      envelope = await res.json();
     } catch {
-      err = {
-        code: "UNKNOWN",
-        message: res.statusText || "Request failed",
+      // Non-JSON responses (proxy errors, plain-text 5xx, etc.) get a
+      // synthesized envelope so callers can still rely on the shape.
+      envelope = {
+        code: "non_json_response",
+        message: res.statusText || "Server error",
         status: res.status,
       };
     }
+
+    const err: ApiError = {
+      code: envelope.code,
+      message: envelope.message,
+      status: envelope.status ?? res.status,
+      requestId: requestId ?? undefined,
+      url,
+      method,
+    };
     throw err;
   }
 
