@@ -52,7 +52,7 @@ covered feature.
 | Pet member (read-only schema) | GET /v1/members | PART | OK | NO | PART | role='pet'; Dino in fixture |
 | Pet edit/profile UI | n/a | NO | NO | NO | NO | feature not built; future cycle |
 | Feeding tracker | n/a | NO | NO | NO | NO | feature not built; future cycle |
-| Pet-chore linkage (replace-set) | GET/POST /v1/chores/:id/pets | PART | OK | NO | NO | backend issue #133 (this PR); UI pending in #141 |
+| Pet-chore linkage (replace-set) | GET/POST /v1/chores/:id/pets | OK | OK | NO | NO | backend #133; UI #141 — admin multi-select + kid-card pet badge |
 
 ## 4. Calendar & Events
 

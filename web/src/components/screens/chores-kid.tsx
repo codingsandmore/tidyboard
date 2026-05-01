@@ -236,6 +236,25 @@ export function ChoresKid({ memberId }: { memberId: string }) {
             <div key={c.id} style={{ display: "contents" }}>
               <div style={{ display: "flex", flexDirection: "column", padding: 8, background: TB.surface, border: `1px solid ${TB.border}`, borderRadius: 8 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
+                {(c.pet_member_ids ?? []).length > 0 && (() => {
+                  const linkedPets = (c.pet_member_ids ?? [])
+                    .map((id) => (members ?? []).find((m) => m.id === id))
+                    .filter((m): m is NonNullable<typeof m> => Boolean(m));
+                  if (linkedPets.length === 0) return null;
+                  return (
+                    <div
+                      aria-label={`Pets: ${linkedPets.map((p) => p.name).join(", ")}`}
+                      style={{ fontSize: 11, color: TB.text2, marginTop: 2, display: "flex", flexWrap: "wrap", gap: 4 }}
+                    >
+                      {linkedPets.map((p) => (
+                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                          <span aria-hidden="true">🐶</span>
+                          <span>{p.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize: 10, color: TB.text2, marginTop: 2 }}>
                   weight {c.weight} · <MoneyDisplay cents={payout} size="sm" />
                 </div>
