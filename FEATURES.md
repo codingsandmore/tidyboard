@@ -180,3 +180,10 @@ covered feature.
 | ntfy topic per member | PATCH /v1/members/:id (ntfy_topic) | PART | OK | NO | NO | |
 | Device pairing (kiosk) | POST /v1/devices/pair | NO | NO | NO | NO | future cycle |
 | Subscriptions (Stripe) | POST /v1/subscriptions | PART | PART | NO | NO | |
+
+## 15. Deployment Profiles
+
+| Feature | Route(s) | Unit | Integration | E2E:dev | E2E:prod | Notes |
+|---|---|---|---|---|---|---|
+| Deployment mode (cloud / local) | n/a (server startup) | OK | n/a | NO | NO | issue #75 — `TIDYBOARD_DEPLOYMENT_MODE` selects cloud vs local profile and validates settings on startup |
+| Local production profile | n/a (server startup) | OK | n/a | NO | NO | issue #75 — local mode rejects Cognito/S3/Stripe/cloud AI configuration; foundation for #76 #77 #78 |
