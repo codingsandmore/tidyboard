@@ -144,6 +144,11 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	choreTimerSvc := service.NewChoreTimerService(q)
 	pointsSvc := service.NewPointsService(q, bc, auditSvc)
 	rewardSvc := service.NewRewardService(q, pointsSvc, walletSvc, bc, auditSvc)
+	bugReportSvc := service.NewBugReportService(service.BugReportConfig{
+		Token: cfg.BugReport.Token,
+		Owner: cfg.BugReport.Owner,
+		Repo:  cfg.BugReport.Repo,
+	})
 
 	// --- Backup service ---
 	var backupSvc *service.BackupService
@@ -211,6 +216,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	chorePetsHandler := handler.NewChorePetsHandler(chorePetsSvc)
 	pointsHandler := handler.NewPointsHandler(pointsSvc)
 	rewardHandler := handler.NewRewardHandler(rewardSvc)
+	bugReportHandler := handler.NewBugReportHandler(bugReportSvc, auditSvc)
 
 	// --- Prometheus metrics ---
 	metrics := middleware.NewMetrics()
@@ -414,6 +420,9 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		// Notifications.
 		r.Post("/v1/notify/test", notifyHandler.TestNotification)
 		r.Patch("/v1/members/{id}/notify", notifyHandler.UpdateMemberNotify)
+
+		// Bug reports — files a GitHub issue from the frontend's ErrorAlert.
+		r.Post("/v1/bug-reports", bugReportHandler.Create)
 
 		// Routines.
 		r.Get("/v1/routines", routineHandler.List)

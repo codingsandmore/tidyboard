@@ -156,7 +156,7 @@ covered feature.
 | ErrorAlert UI | (cross-cutting) | PART | n/a | NO | NO | |
 | Metrics endpoint | /metrics | OK | n/a | NO | PART | smoke |
 | Health endpoint | /healthz | OK | OK | NO | OK | |
-| GitHub bug-report (from ErrorAlert) | POST /v1/bug-reports | PART | PART | NO | NO | in flight cycle 3 — issue #136 (backend) + #140 (UI) |
+| GitHub bug-report (from ErrorAlert) | POST /v1/bug-reports | OK | OK | NO | NO | backend issue #136 (this PR); UI pending in #140 |
 
 ## 13. Sync & Backup
 
