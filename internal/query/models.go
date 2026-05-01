@@ -127,6 +127,18 @@ type ChoreCompletion struct {
 	Closed              bool               `json:"closed"`
 }
 
+type ChoreTimeEntry struct {
+	ID              uuid.UUID          `json:"id"`
+	ChoreID         uuid.UUID          `json:"chore_id"`
+	MemberID        uuid.UUID          `json:"member_id"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	EndedAt         pgtype.Timestamptz `json:"ended_at"`
+	DurationSeconds *int32             `json:"duration_seconds"`
+	Note            string             `json:"note"`
+	Source          string             `json:"source"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type DomainOwnership struct {
 	ID                 uuid.UUID          `json:"id"`
 	HouseholdID        uuid.UUID          `json:"household_id"`
