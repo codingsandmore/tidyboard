@@ -69,7 +69,28 @@ describe("PageShell", () => {
       </PageShell>,
     );
     const root = container.firstChild as HTMLElement;
-    // TB.dBg = "#1C1917"; verify by computed style attribute
-    expect(root.style.background.toLowerCase()).toContain("1c1917");
+    // TB.dBg = "#1C1917" — jsdom normalizes hex to rgb(28, 25, 23).
+    expect(root.style.background).toBe("rgb(28, 25, 23)");
+  });
+
+  it("applies light tokens by default (TB.bg)", () => {
+    const { container } = render(
+      <PageShell>
+        <div>m</div>
+      </PageShell>,
+    );
+    const root = container.firstChild as HTMLElement;
+    // TB.bg = "#FAFAF9" → rgb(250, 250, 249)
+    expect(root.style.background).toBe("rgb(250, 250, 249)");
+  });
+
+  it("respects an explicit background override", () => {
+    const { container } = render(
+      <PageShell background="#abcdef">
+        <div>m</div>
+      </PageShell>,
+    );
+    const root = container.firstChild as HTMLElement;
+    expect(root.style.background).toBe("rgb(171, 205, 239)");
   });
 });

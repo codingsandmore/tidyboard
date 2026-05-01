@@ -7,11 +7,17 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar, StackedAvatars } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
+import { PageShell } from "@/components/layout/page-shell";
 import { BottomNav } from "./bottom-nav";
 import { useEvents, useMembers } from "@/lib/api/hooks";
 import { useAuth } from "@/lib/auth/auth-store";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+
+// Local stripe used by the meal-plan placeholder. Built from TB tokens
+// (TB.secondary is the design "warm tan"; the deeper stripe is a darker
+// 75%-luminosity variant). No raw hex literals leak into JSX.
+const MEAL_STRIPE = `repeating-linear-gradient(135deg, ${TB.secondary} 0 8px, #C29663 8px 16px)`;
 
 export function DashPhone() {
   const tNav = useTranslations("nav");
@@ -57,170 +63,156 @@ export function DashPhone() {
     return <DataLoadingState label="Loading dashboard..." />;
   }
 
-  return (
+  const header = (
     <div
       style={{
-        width: "100%",
-        height: "100%",
-        background: TB.bg,
-        color: TB.text,
-        fontFamily: TB.fontBody,
+        padding: "14px 20px 12px",
         display: "flex",
-        flexDirection: "column",
-        boxSizing: "border-box",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: TB.surface,
+        borderBottom: `1px solid ${TB.borderSoft}`,
       }}
     >
+      <Icon name="menu" size={22} color={TB.text2} />
       <div
         style={{
-          padding: "14px 20px 12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: TB.surface,
-          borderBottom: `1px solid ${TB.borderSoft}`,
+          fontFamily: TB.fontDisplay,
+          fontSize: 18,
+          fontWeight: 600,
+          color: TB.primary,
         }}
       >
-        <Icon name="menu" size={22} color={TB.text2} />
+        tidyboard
+      </div>
+      {members[1] && <Avatar member={members[1]} size={30} ring={false} />}
+    </div>
+  );
+
+  const footer = (
+    <BottomNav
+      compact
+      active={0}
+      tabs={[
+        { n: "calendar", l: tNav("calendar"), href: "/calendar" },
+        { n: "checkCircle", l: tNav("routines"), href: "/routines" },
+        { n: "list", l: tNav("lists"), href: "/lists" },
+        { n: "pencil", l: tNav("notes"), href: "/notes" },
+        { n: "chef", l: tNav("meals"), href: "/meals" },
+        { n: "star", l: tNav("wallet"), href: "/wallet" },
+        { n: "list", l: tNav("chores"), href: "/chores" },
+        { n: "star", l: tNav("equity"), href: "/equity" },
+        ...(activeMember?.role === "child"
+          ? [
+              { n: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
+              { n: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
+            ]
+          : []),
+      ]}
+    />
+  );
+
+  return (
+    <PageShell
+      header={header}
+      footer={footer}
+      contentStyle={{ padding: "16px 16px 8px" }}
+    >
+      <div style={{ marginBottom: 12 }}>
         <div
           style={{
             fontFamily: TB.fontDisplay,
-            fontSize: 18,
-            fontWeight: 600,
-            color: TB.primary,
+            fontSize: 24,
+            fontWeight: 500,
+            letterSpacing: "-0.02em",
           }}
         >
-          tidyboard
+          {weekday}
         </div>
-        {members[1] && <Avatar member={members[1]} size={30} ring={false} />}
+        <div style={{ fontSize: 13, color: TB.text2, marginTop: 2 }}>
+          {dateLabel} · {tDash("eventsShort", { count: events.length })}
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 8px" }}>
-        <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {events.length === 0 && (
+          <div style={{ padding: "20px 0", textAlign: "center", color: TB.text2, fontSize: 13 }}>
+            {tDash("noEvents")}
+          </div>
+        )}
+        {events.slice(0, 5).map((e) => {
+          const ms = resolveEventMembers(e.members);
+          const accent = ms.length > 1 ? TB.primary : ms[0]?.color ?? TB.primary;
+          return (
+            <Card
+              key={e.id}
+              pad={0}
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push(`/calendar?event=${encodeURIComponent(e.id)}`)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter" || ev.key === " ") {
+                  ev.preventDefault();
+                  router.push(`/calendar?event=${encodeURIComponent(e.id)}`);
+                }
+              }}
+              style={{
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "stretch",
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ width: 3, background: accent }} />
+              <div style={{ flex: 1, padding: "11px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <StackedAvatars members={ms} size={18} />
+                  <div style={{ fontSize: 14, fontWeight: 550, flex: 1 }}>{e.title}</div>
+                </div>
+                <div
+                  style={{
+                    marginTop: 3,
+                    fontSize: 11,
+                    color: TB.text2,
+                    fontFamily: TB.fontMono,
+                  }}
+                >
+                  {fmtTime(e.start)} – {fmtTime(e.end)}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card pad={0} style={{ marginTop: 12, overflow: "hidden", display: "flex" }}>
+        <div style={{ width: 54, background: MEAL_STRIPE }} />
+        <div style={{ flex: 1, padding: "10px 12px" }}>
           <div
             style={{
-              fontFamily: TB.fontDisplay,
-              fontSize: 24,
-              fontWeight: 500,
-              letterSpacing: "-0.02em",
+              fontSize: 10,
+              fontFamily: TB.fontMono,
+              color: TB.text2,
+              letterSpacing: "0.06em",
             }}
           >
-            {weekday}
+            MEALS
           </div>
-          <div style={{ fontSize: 13, color: TB.text2, marginTop: 2 }}>
-            {dateLabel} · {tDash("eventsShort", { count: events.length })}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {events.length === 0 && (
-            <div style={{ padding: "20px 0", textAlign: "center", color: TB.text2, fontSize: 13 }}>
-              {tDash("noEvents")}
-            </div>
-          )}
-          {events.slice(0, 5).map((e) => {
-            const ms = resolveEventMembers(e.members);
-            const accent = ms.length > 1 ? TB.primary : ms[0]?.color ?? TB.primary;
-            return (
-              <Card
-                key={e.id}
-                pad={0}
-                role="button"
-                tabIndex={0}
-                onClick={() => router.push(`/calendar?event=${encodeURIComponent(e.id)}`)}
-                onKeyDown={(ev) => {
-                  if (ev.key === "Enter" || ev.key === " ") {
-                    ev.preventDefault();
-                    router.push(`/calendar?event=${encodeURIComponent(e.id)}`);
-                  }
-                }}
-                style={{
-                  overflow: "hidden",
-                  display: "flex",
-                  alignItems: "stretch",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ width: 3, background: accent }} />
-                <div style={{ flex: 1, padding: "11px 12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <StackedAvatars members={ms} size={18} />
-                    <div style={{ fontSize: 14, fontWeight: 550, flex: 1 }}>{e.title}</div>
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 3,
-                      fontSize: 11,
-                      color: TB.text2,
-                      fontFamily: TB.fontMono,
-                    }}
-                  >
-                    {fmtTime(e.start)} – {fmtTime(e.end)}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        <Card
-          pad={0}
-          style={{ marginTop: 12, overflow: "hidden", display: "flex" }}
-        >
           <div
             style={{
-              width: 54,
-              background:
-                "repeating-linear-gradient(135deg, #D4A574 0 8px, #C29663 8px 16px)",
+              fontSize: 15,
+              fontWeight: 550,
+              fontFamily: TB.fontDisplay,
+              marginTop: 2,
             }}
-          />
-          <div style={{ flex: 1, padding: "10px 12px" }}>
-            <div
-              style={{
-                fontSize: 10,
-                fontFamily: TB.fontMono,
-                color: TB.text2,
-                letterSpacing: "0.06em",
-              }}
-            >
-              MEALS
-            </div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 550,
-                fontFamily: TB.fontDisplay,
-                marginTop: 2,
-              }}
-            >
-              No dinner planned
-            </div>
+          >
+            No dinner planned
           </div>
-          <div style={{ padding: "0 12px", display: "flex", alignItems: "center" }}>
-            <Icon name="chevronR" size={18} color={TB.text2} />
-          </div>
-        </Card>
-      </div>
-
-      <BottomNav
-        compact
-        active={0}
-        tabs={[
-          { n: "calendar", l: tNav("calendar"), href: "/calendar" },
-          { n: "checkCircle", l: tNav("routines"), href: "/routines" },
-          { n: "list", l: tNav("lists"), href: "/lists" },
-          { n: "pencil", l: tNav("notes"), href: "/notes" },
-          { n: "chef", l: tNav("meals"), href: "/meals" },
-          { n: "star", l: tNav("wallet"), href: "/wallet" },
-          { n: "list", l: tNav("chores"), href: "/chores" },
-          { n: "star", l: tNav("equity"), href: "/equity" },
-          ...(activeMember?.role === "child"
-            ? [
-                { n: "star" as IconName, l: tNav("rewards"), href: "/rewards" },
-                { n: "trophy" as IconName, l: "Scoreboard", href: "/scoreboard" },
-              ]
-            : []),
-        ]}
-      />
-    </div>
+        </div>
+        <div style={{ padding: "0 12px", display: "flex", alignItems: "center" }}>
+          <Icon name="chevronR" size={18} color={TB.text2} />
+        </div>
+      </Card>
+    </PageShell>
   );
 }
