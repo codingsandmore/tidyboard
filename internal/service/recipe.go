@@ -190,6 +190,12 @@ func (s *RecipeService) Delete(ctx context.Context, householdID, recipeID uuid.U
 // Import scrapes a recipe URL via the Python microservice and persists it.
 // Errors: ErrScraperTimeout on deadline exceeded, ErrScraperFailed on non-2xx.
 func (s *RecipeService) Import(ctx context.Context, householdID, memberID uuid.UUID, rawURL string) (*model.Recipe, error) {
+	return s.scrapeAndPersist(ctx, householdID, memberID, rawURL)
+}
+
+// scrapeAndPersist is the shared scrape+persist body used by both the
+// synchronous Import and the asynchronous import-job worker.
+func (s *RecipeService) scrapeAndPersist(ctx context.Context, householdID, memberID uuid.UUID, rawURL string) (*model.Recipe, error) {
 	if s.scraper == nil {
 		return nil, ErrScraperFailed
 	}
@@ -366,6 +372,101 @@ func recipeStepToModel(r query.RecipeStep) model.RecipeStep {
 	if r.TimerSeconds != nil {
 		v := int(*r.TimerSeconds)
 		out.TimerSeconds = &v
+	}
+	return out
+}
+
+// ── Import-job (async) lifecycle ──────────────────────────────────────────
+
+// StartImportJob inserts a new `recipe_import_jobs` row in `running` state and
+// kicks off a goroutine that scrapes + persists the recipe. The returned model
+// reflects the freshly-created row; callers should subsequently poll
+// GetImportJob until status is terminal.
+func (s *RecipeService) StartImportJob(ctx context.Context, householdID, memberID uuid.UUID, rawURL string) (*model.RecipeImportJob, error) {
+	row, err := s.q.CreateRecipeImportJob(ctx, query.CreateRecipeImportJobParams{
+		ID:          uuid.New(),
+		HouseholdID: householdID,
+		MemberID:    memberID,
+		Url:         rawURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating import job: %w", err)
+	}
+
+	// Run the scrape in the background. We deliberately use context.Background
+	// so cancellation of the request that started the job does not abort the
+	// scraper call — the caller will poll the GET endpoint to learn the result.
+	go s.runImportJob(row.ID, householdID, memberID, rawURL)
+
+	return importJobToModel(row), nil
+}
+
+// runImportJob is the goroutine body. It scrapes the URL, then either
+// transitions the job to `succeeded` (with recipe_id) or `failed` (with the
+// raw error string from the scraper). The error_message field is the verbatim
+// upstream message — never wrapped with frontend-style "Failed to import…".
+func (s *RecipeService) runImportJob(jobID, householdID, memberID uuid.UUID, rawURL string) {
+	// Bound the worker context so a stuck scraper can't pin a goroutine forever.
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	recipe, err := s.scrapeAndPersist(ctx, householdID, memberID, rawURL)
+	if err != nil {
+		msg := err.Error()
+		if markErr := s.q.MarkRecipeImportJobFailed(ctx, query.MarkRecipeImportJobFailedParams{
+			ID:           jobID,
+			ErrorMessage: msg,
+		}); markErr != nil {
+			slog.ErrorContext(ctx, "import job: failed to mark job as failed", "job_id", jobID, "err", markErr)
+		}
+		return
+	}
+
+	rid := uuid.NullUUID{UUID: recipe.ID, Valid: true}
+	if markErr := s.q.MarkRecipeImportJobSucceeded(ctx, query.MarkRecipeImportJobSucceededParams{
+		ID:       jobID,
+		RecipeID: &rid,
+	}); markErr != nil {
+		slog.ErrorContext(ctx, "import job: failed to mark job as succeeded", "job_id", jobID, "err", markErr)
+	}
+}
+
+// GetImportJob returns the current state of an import job, scoped to the
+// caller's household. Returns ErrNotFound if no row matches (or the job
+// belongs to a different household — we do not leak existence across
+// households).
+func (s *RecipeService) GetImportJob(ctx context.Context, householdID, jobID uuid.UUID) (*model.RecipeImportJob, error) {
+	row, err := s.q.GetRecipeImportJob(ctx, query.GetRecipeImportJobParams{
+		ID:          jobID,
+		HouseholdID: householdID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("fetching import job: %w", err)
+	}
+	return importJobToModel(row), nil
+}
+
+// importJobToModel converts a query.RecipeImportJob to its public-facing model.
+func importJobToModel(row query.RecipeImportJob) *model.RecipeImportJob {
+	out := &model.RecipeImportJob{
+		ID:           row.ID,
+		HouseholdID:  row.HouseholdID,
+		URL:          row.Url,
+		Status:       row.Status,
+		ErrorMessage: row.ErrorMessage,
+	}
+	if row.RecipeID != nil && row.RecipeID.Valid {
+		v := row.RecipeID.UUID
+		out.RecipeID = &v
+	}
+	if row.CreatedAt.Valid {
+		out.CreatedAt = row.CreatedAt.Time
+	}
+	if row.UpdatedAt.Valid {
+		out.UpdatedAt = row.UpdatedAt.Time
 	}
 	return out
 }

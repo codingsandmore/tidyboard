@@ -88,9 +88,35 @@ type CreateRecipeRequest struct {
 	Difficulty   string   `json:"difficulty" validate:"omitempty,oneof=easy medium hard"`
 }
 
-// ImportRecipeRequest is the payload for POST /v1/recipes/import.
+// ImportRecipeRequest is the payload for POST /v1/recipes/import and
+// POST /v1/recipes/import-jobs.
 type ImportRecipeRequest struct {
 	URL string `json:"url" validate:"required,url"`
+}
+
+// RecipeImportJobStatus describes the lifecycle of an asynchronous import.
+type RecipeImportJobStatus = string
+
+const (
+	RecipeImportJobStatusRunning   RecipeImportJobStatus = "running"
+	RecipeImportJobStatusSucceeded RecipeImportJobStatus = "succeeded"
+	RecipeImportJobStatusFailed    RecipeImportJobStatus = "failed"
+)
+
+// RecipeImportJob is the public-facing representation of a row in
+// `recipe_import_jobs`. The `RecipeID` field is set only when status is
+// `succeeded`; `ErrorMessage` is set only when status is `failed`. Both are
+// omitted from the JSON payload when empty so that running jobs render as
+// `{id, status, created_at, updated_at}` without optional clutter.
+type RecipeImportJob struct {
+	ID           uuid.UUID  `json:"id"`
+	HouseholdID  uuid.UUID  `json:"household_id"`
+	URL          string     `json:"url"`
+	Status       string     `json:"status"`
+	ErrorMessage string     `json:"error_message,omitempty"`
+	RecipeID     *uuid.UUID `json:"recipe_id,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // UpdateRecipeRequest is the payload for PATCH /v1/recipes/:id.
