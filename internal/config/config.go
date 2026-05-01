@@ -29,6 +29,7 @@ type Config struct {
 	Backup   BackupConfig   `embed:"" prefix:"backup." group:"Backup:" yaml:"backup"`
 	Recipe   RecipeConfig   `embed:"" prefix:"recipe." group:"Recipes:" yaml:"recipes"`
 	Stripe   StripeConfig   `embed:"" prefix:"stripe." group:"Stripe:" yaml:"stripe"`
+	BugReport BugReportConfig `embed:"" prefix:"bug-report." group:"BugReport:" yaml:"bug_report"`
 
 	// Subcommands
 	Serve     ServeCmd    `cmd:"" help:"Start the Tidyboard server" default:"withargs"`
@@ -214,4 +215,14 @@ type RecipeConfig struct {
 	ImageDownload  bool          `help:"Download recipe images locally" default:"true" yaml:"image_download"`
 	ScraperTimeout time.Duration `help:"HTTP timeout for recipe scraping" default:"15s" yaml:"scraper_timeout"`
 	ScraperURL     string        `help:"Python recipe-scraper base URL" default:"http://localhost:8082" env:"TIDYBOARD_RECIPE_SCRAPER_URL" yaml:"scraper_url"`
+}
+
+// BugReportConfig holds settings for the GitHub bug-report endpoint
+// (POST /v1/bug-reports). The PAT is loaded from the GITHUB_BUG_REPORT_TOKEN
+// env var. When empty, the endpoint short-circuits with HTTP 503 +
+// `code:"github_token_missing"` — the rest of the API stays online.
+type BugReportConfig struct {
+	Token string `help:"GitHub PAT used to file bug-report issues" env:"GITHUB_BUG_REPORT_TOKEN" yaml:"token"`
+	Owner string `help:"GitHub repo owner" default:"codingsandmore" yaml:"owner"`
+	Repo  string `help:"GitHub repo name" default:"tidyboard" yaml:"repo"`
 }
