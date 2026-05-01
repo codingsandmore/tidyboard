@@ -142,7 +142,7 @@ export function DashKioskAmbient() {
         }}
       >
         {members.map((m) => {
-          const evs = events.filter((e) => e.members.includes(m.id));
+          const evs = events.filter((e) => (e.assigned_members ?? e.members ?? []).includes(m.id));
           return (
             <div
               key={m.id}
