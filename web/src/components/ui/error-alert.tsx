@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { TB } from "@/lib/tokens";
 import type { ApiError } from "@/lib/api/types";
+import { api } from "@/lib/api/client";
+import type { ReportBugResponse } from "@/lib/api/hooks";
+import { useAuth } from "@/lib/auth/auth-store";
 
 /**
  * <ErrorAlert/> — surfaces an ApiError (or any thrown value) with full
@@ -12,8 +15,18 @@ import type { ApiError } from "@/lib/api/types";
  * Always exposes a "Copy details" button that writes the full error JSON to
  * the clipboard so users can paste it into bug reports / support tickets.
  *
+ * Also exposes a "Report to GitHub" button (#140) that POSTs to
+ * `/v1/bug-reports`; on success surfaces the resulting issue number; on
+ * failure opens a prefilled `github.com/codingsandmore/tidyboard/issues/new`
+ * page in a new tab so the user can still file the bug. The button is
+ * client-side rate-limited to ≤ 1 click per 60s per browser session.
+ *
  * Renders gracefully for non-ApiError inputs (raw Error, string, null).
  */
+
+const REPORT_COOLDOWN_MS = 60_000;
+const GITHUB_NEW_ISSUE_URL =
+  "https://github.com/codingsandmore/tidyboard/issues/new";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -139,6 +152,7 @@ const buttonRowStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
+  flexWrap: "wrap",
 };
 
 const copyBtnStyle: CSSProperties = {
@@ -154,6 +168,21 @@ const copyBtnStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+const reportBtnStyle: CSSProperties = {
+  ...copyBtnStyle,
+};
+
+const reportBtnDisabledStyle: CSSProperties = {
+  ...reportBtnStyle,
+  opacity: 0.6,
+  cursor: "not-allowed",
+};
+
+const toastStyle: CSSProperties = {
+  fontSize: 12,
+  color: TB.text2,
+};
+
 export interface ErrorAlertProps {
   error: ApiError | unknown;
   /** Optional class for callers using utility CSS. */
@@ -161,8 +190,33 @@ export interface ErrorAlertProps {
   style?: CSSProperties;
 }
 
+/**
+ * Try to read the active member name without forcing every consumer to wrap
+ * the alert in <AuthProvider>. Falls back to "" if the hook throws (e.g. the
+ * alert renders outside any provider, in early-boot error screens).
+ */
+function useActiveMemberName(): string {
+  try {
+    const auth = useAuth();
+    return auth?.activeMember?.name ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function ErrorAlert({ error, className, style }: ErrorAlertProps) {
   const [copied, setCopied] = useState(false);
+  const [reportToast, setReportToast] = useState<
+    | { kind: "success"; issueNumber: number; issueUrl: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
+  const [reportDisabled, setReportDisabled] = useState(false);
+  const cooldownTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflight = useRef(false);
+
+  const memberName = useActiveMemberName();
+
   const d = describe(error);
 
   const fullJson = (() => {
@@ -181,6 +235,64 @@ export function ErrorAlert({ error, className, style }: ErrorAlertProps) {
     } catch {
       // Clipboard unavailable (older browsers / non-https). Silently no-op;
       // the JSON is still visible in the <details> block.
+    }
+  }
+
+  function startCooldown() {
+    setReportDisabled(true);
+    if (cooldownTimer.current) clearTimeout(cooldownTimer.current);
+    cooldownTimer.current = setTimeout(() => {
+      setReportDisabled(false);
+    }, REPORT_COOLDOWN_MS);
+  }
+
+  function openFallbackIssue() {
+    const title = encodeURIComponent(
+      `[bug] ${d.code ? `${d.code}: ` : ""}${d.message}`.slice(0, 200)
+    );
+    const bodyParts = [
+      "**Auto-filled by ErrorAlert because /v1/bug-reports was unreachable.**",
+      "",
+      "### Error",
+      "```json",
+      fullJson,
+      "```",
+      "",
+      `**Page:** ${typeof window !== "undefined" ? window.location.href : ""}`,
+      `**Member:** ${memberName || "(none)"}`,
+      `**User-Agent:** ${typeof navigator !== "undefined" ? navigator.userAgent : ""}`,
+    ];
+    const body = encodeURIComponent(bodyParts.join("\n"));
+    const url = `${GITHUB_NEW_ISSUE_URL}?title=${title}&body=${body}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleReport() {
+    if (reportDisabled || inflight.current) return;
+    inflight.current = true;
+    startCooldown();
+    try {
+      const res = await api.post<ReportBugResponse>("/v1/bug-reports", {
+        error: d.payload,
+        url: typeof window !== "undefined" ? window.location.href : "",
+        user_agent:
+          typeof navigator !== "undefined" ? navigator.userAgent : "",
+        member_name: memberName,
+      });
+      setReportToast({
+        kind: "success",
+        issueNumber: res.issue_number,
+        issueUrl: res.issue_url,
+      });
+    } catch (e) {
+      setReportToast({
+        kind: "error",
+        message:
+          e instanceof Error ? e.message : "Failed to file bug report",
+      });
+      openFallbackIssue();
+    } finally {
+      inflight.current = false;
     }
   }
 
@@ -240,6 +352,36 @@ export function ErrorAlert({ error, className, style }: ErrorAlertProps) {
         >
           {copied ? "Copied" : "Copy details"}
         </button>
+
+        <button
+          type="button"
+          data-testid="error-alert-report-github"
+          onClick={handleReport}
+          disabled={reportDisabled}
+          style={reportDisabled ? reportBtnDisabledStyle : reportBtnStyle}
+        >
+          Report to GitHub
+        </button>
+
+        {reportToast?.kind === "success" && (
+          <span data-testid="error-alert-report-toast" style={toastStyle}>
+            Reported as{" "}
+            <a
+              data-testid="error-alert-report-toast-link"
+              href={reportToast.issueUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: TB.text, textDecoration: "underline" }}
+            >
+              #{reportToast.issueNumber}
+            </a>
+          </span>
+        )}
+        {reportToast?.kind === "error" && (
+          <span data-testid="error-alert-report-toast" style={toastStyle}>
+            Could not file bug — opened GitHub in a new tab.
+          </span>
+        )}
       </div>
     </div>
   );
