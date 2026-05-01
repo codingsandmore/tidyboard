@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
 import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useDeleteMealPlanEntry, useRecipes, useRecipe, useGenerateShoppingList, useStartImportJob, useImportJob } from "@/lib/api/hooks";
@@ -53,6 +54,10 @@ export function RecipeImport() {
   const startJob = useStartImportJob();
   // Track the active job by id; the polling hook resolves the live state.
   const [jobId, setJobId] = useState<string | null>(null);
+  // Issue #117: structured server-error surface for the start-import call
+  // itself (the polling job's `error_message` continues to render via
+  // <ImportStatusPanel/> for in-flight failures).
+  const [startError, setStartError] = useState<unknown>(null);
   const job = useImportJob(jobId);
   const liveJob: ImportJob | null = job.data
     ? {
@@ -73,11 +78,13 @@ export function RecipeImport() {
   function handleImport() {
     if (!url.trim()) return;
     setJobId(null);
+    setStartError(null);
     startJob.mutate(url.trim(), {
       onSuccess: (data) => {
         setJobId(data.id);
         setUrl("");
       },
+      onError: (err) => setStartError(err),
     });
   }
 
@@ -149,6 +156,11 @@ export function RecipeImport() {
           </Btn>
         </div>
         <ImportStatusPanel job={liveJob} />
+        {startError != null && (
+          <div style={{ marginTop: 12 }}>
+            <ErrorAlert error={startError} />
+          </div>
+        )}
 
         <div
           style={{
@@ -924,6 +936,10 @@ export function MealPlan() {
     setPickerSlot({ rowIdx, colIdx, date, meal });
   }
 
+  // Issue #117: structured server-error surface for meal-plan mutations.
+  // Cleared on next attempt, on slot close, or by the dismiss button.
+  const [mealPlanError, setMealPlanError] = useState<unknown>(null);
+
   function handleEditSave(values: {
     serving_multiplier: number;
     batch_quantity: number;
@@ -934,14 +950,18 @@ export function MealPlan() {
     const slot = ROW_SLOTS[rowIdx] ?? "dinner";
     const recipeId =
       (localGrid.length > 0 ? localGrid : mealPlan.grid)[rowIdx]?.[colIdx] ?? null;
-    upsertMealPlan.mutate({
-      date,
-      slot,
-      recipeId,
-      serving_multiplier: values.serving_multiplier,
-      batch_quantity: values.batch_quantity,
-      planned_leftovers: values.planned_leftovers,
-    });
+    setMealPlanError(null);
+    upsertMealPlan.mutate(
+      {
+        date,
+        slot,
+        recipeId,
+        serving_multiplier: values.serving_multiplier,
+        batch_quantity: values.batch_quantity,
+        planned_leftovers: values.planned_leftovers,
+      },
+      { onError: (err) => setMealPlanError(err) }
+    );
     setEditSlot(null);
   }
 
@@ -951,7 +971,11 @@ export function MealPlan() {
     const slot = ROW_SLOTS[rowIdx] ?? "dinner";
     const meta = mealPlan.entryIds?.[`${date}|${slot}`];
     if (meta?.id) {
-      deleteMealPlan.mutate({ id: meta.id });
+      setMealPlanError(null);
+      deleteMealPlan.mutate(
+        { id: meta.id },
+        { onError: (err) => setMealPlanError(err) }
+      );
     }
     // Optimistically clear the cell.
     setLocalGrid((prev) => {
@@ -977,7 +1001,11 @@ export function MealPlan() {
     // Persist to backend
     const date = colDate(mealPlan.weekOf, colIdx);
     const slot = ROW_SLOTS[rowIdx] ?? "dinner";
-    upsertMealPlan.mutate({ date, slot, recipeId });
+    setMealPlanError(null);
+    upsertMealPlan.mutate(
+      { date, slot, recipeId },
+      { onError: (err) => setMealPlanError(err) }
+    );
     setPickerSlot(null);
   }
 
@@ -1093,6 +1121,14 @@ export function MealPlan() {
           }}
         >
           {aiToast}
+        </div>
+      )}
+      {/* Server-error surface (issue #117). Renders the full ApiError —
+          status, code, message, request-id — so users can copy & report
+          without the screen falling back to a "Failed to save" string. */}
+      {mealPlanError != null && (
+        <div style={{ padding: "12px 20px 0" }}>
+          <ErrorAlert error={mealPlanError} />
         </div>
       )}
       <div
