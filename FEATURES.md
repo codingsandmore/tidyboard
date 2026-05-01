@@ -113,9 +113,9 @@ covered feature.
 | Allowance | GET/POST /v1/allowance | PART | OK | NO | NO | |
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
 | Chore time tracking (start/stop) | POST /v1/chores/:id/timer/*, POST /v1/chores/:id/time-entries, GET /v1/members/:id/time-summary | OK | OK | NO | NO | backend shipped via #134; kid timer button + admin time-review UI shipped via #142 |
-| Equity contribution aggregate | GET /v1/equity/contribution | PART | NO | NO | NO | issue #138 — aggregates task_logs + chore_time_entries; honors hourly_rate privacy. Tests as follow-up. |
+| Equity contribution aggregate | GET /v1/equity/contribution | OK | OK | NO | NO | issue #138 (backend) + issue #144 (web) — aggregates task_logs + chore_time_entries; honors hourly_rate privacy; surfaced in equity Contribution tab. |
 | Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
-| Housekeeper-cost estimate (per category) | GET /v1/equity/housekeeper-estimate | NO | OK | NO | NO | issue #139 — go:embed rate asset, sums chore_time_entries × category market rate |
+| Housekeeper-cost estimate (per category) | GET /v1/equity/housekeeper-estimate | OK | OK | NO | NO | issue #139 (backend) + issue #144 (web) — go:embed rate asset, sums chore_time_entries × category market rate; surfaced in equity Contribution tab via `<HousekeeperCard/>`. |
 
 ## 9. Points & Rewards
 
