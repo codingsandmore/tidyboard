@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import GlobalError from "./global-error";
 import type { ApiError } from "@/lib/api/types";
 
@@ -8,15 +9,15 @@ describe("app/global-error.tsx", () => {
     const error = new globalThis.Error("boom") as globalThis.Error & {
       digest?: string;
     };
-    const { container } = render(
+    // SSR snapshot — Next.js requires global-error.tsx to render its own
+    // <html><body> because the root layout has not yet rendered. RTL's
+    // jsdom container strips nested <html>, so verify via SSR output.
+    const html = renderToStaticMarkup(
       <GlobalError error={error} reset={vi.fn()} />,
     );
-
-    // global-error.tsx must include its own <html><body> per Next.js docs.
-    const html = container.querySelector("html");
-    expect(html).not.toBeNull();
-    const body = html?.querySelector("body");
-    expect(body).not.toBeNull();
+    expect(html).toMatch(/^<html\b/);
+    expect(html).toMatch(/<body\b/);
+    expect(html).toMatch(/<\/body><\/html>$/);
   });
 
   it("renders <ErrorAlert/> with the provided error", () => {
