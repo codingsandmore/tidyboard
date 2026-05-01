@@ -1797,6 +1797,38 @@ export function useDeleteRewardAdjustment() {
   });
 }
 
+// ── Bug reports (#136 backend / #140 UI) ───────────────────────────────────
+
+/** Payload posted to `POST /v1/bug-reports`. */
+export interface ReportBugRequest {
+  /** The original error JSON (ApiError or describe()-shape). */
+  error: unknown;
+  /** Page URL where the error surfaced. */
+  url: string;
+  /** Browser user agent. */
+  user_agent: string;
+  /** Currently active member's display name (empty string if none). */
+  member_name: string;
+}
+
+/** Response from `POST /v1/bug-reports`. */
+export interface ReportBugResponse {
+  issue_number: number;
+  issue_url: string;
+}
+
+/**
+ * `useReportBug()` — POST a bug report to `/v1/bug-reports`. The backend
+ * (#136, on prod) creates a GitHub issue via the go-github SDK and returns
+ * `{issue_number, issue_url}`. Callers should fall back to the prefilled
+ * `github.com/.../issues/new` page if this mutation throws.
+ */
+export function useReportBug() {
+  return useMutation<ReportBugResponse, Error, ReportBugRequest>({
+    mutationFn: (req) => api.post<ReportBugResponse>("/v1/bug-reports", req),
+  });
+}
+
 // ── Timeline ───────────────────────────────────────────────────────────────
 export function useTimeline(memberId: string | undefined, opts?: { limit?: number; offset?: number }) {
   const limit = opts?.limit ?? 50;

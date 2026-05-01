@@ -1,14 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { ErrorAlert } from "./error-alert";
 import type { ApiError } from "@/lib/api/types";
-
-function withQueryClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 describe("ErrorAlert", () => {
   it("renders status, code, message, requestId from ApiError", () => {
@@ -148,10 +141,6 @@ describe("ErrorAlert · Report to GitHub button", () => {
   const ORIGINAL_FETCH = globalThis.fetch;
   const ORIGINAL_OPEN = globalThis.open;
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   afterEach(() => {
     vi.useRealTimers();
     globalThis.fetch = ORIGINAL_FETCH;
@@ -168,7 +157,7 @@ describe("ErrorAlert · Report to GitHub button", () => {
   };
 
   it("renders a Report to GitHub button next to Copy details", () => {
-    render(withQueryClient(<ErrorAlert error={sampleError} />));
+    render(<ErrorAlert error={sampleError} />);
     const btn = screen.getByTestId("error-alert-report-github");
     expect(btn).toBeInTheDocument();
     expect(btn.textContent ?? "").toMatch(/Report to GitHub/i);
@@ -183,7 +172,7 @@ describe("ErrorAlert · Report to GitHub button", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(withQueryClient(<ErrorAlert error={sampleError} />));
+    render(<ErrorAlert error={sampleError} />);
     const btn = screen.getByTestId("error-alert-report-github");
     await act(async () => {
       fireEvent.click(btn);
@@ -217,7 +206,7 @@ describe("ErrorAlert · Report to GitHub button", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(withQueryClient(<ErrorAlert error={sampleError} />));
+    render(<ErrorAlert error={sampleError} />);
     const btn = screen.getByTestId("error-alert-report-github");
     await act(async () => {
       fireEvent.click(btn);
@@ -242,7 +231,7 @@ describe("ErrorAlert · Report to GitHub button", () => {
     const openMock = vi.fn();
     globalThis.open = openMock as unknown as typeof window.open;
 
-    render(withQueryClient(<ErrorAlert error={sampleError} />));
+    render(<ErrorAlert error={sampleError} />);
     const btn = screen.getByTestId("error-alert-report-github");
     await act(async () => {
       fireEvent.click(btn);
@@ -267,27 +256,52 @@ describe("ErrorAlert · Report to GitHub button", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(withQueryClient(<ErrorAlert error={sampleError} />));
-    const btn = screen.getByTestId("error-alert-report-github") as HTMLButtonElement;
+    // Capture the cooldown setTimeout(...) call with a spy and remember
+    // the registered callback so we can fire it manually instead of
+    // burning real wall-time or fighting fake-timers + promise interplay.
+    const realSetTimeout = globalThis.setTimeout;
+    let cooldownCallback: (() => void) | null = null;
+    let cooldownDelay = 0;
+    const setTimeoutSpy = vi
+      .spyOn(globalThis, "setTimeout")
+      .mockImplementation(((fn: () => void, ms?: number) => {
+        if (ms && ms >= 30_000) {
+          cooldownCallback = fn;
+          cooldownDelay = ms;
+          return 9999 as unknown as ReturnType<typeof setTimeout>;
+        }
+        return realSetTimeout(fn, ms);
+      }) as unknown as typeof setTimeout);
 
-    await act(async () => {
-      fireEvent.click(btn);
-    });
-    await waitFor(() => {
+    try {
+      render(<ErrorAlert error={sampleError} />);
+      const btn = screen.getByTestId("error-alert-report-github") as HTMLButtonElement;
+
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(btn.disabled).toBe(true);
+      });
+
+      // Cooldown timer was scheduled for 60s.
+      expect(cooldownDelay).toBe(60_000);
+
+      // Second click within the cooldown window should NOT issue another fetch.
+      await act(async () => {
+        fireEvent.click(btn);
+      });
       expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
+      expect(btn.disabled).toBe(true);
 
-    // Second click within the cooldown window should NOT issue another fetch.
-    await act(async () => {
-      fireEvent.click(btn);
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(btn.disabled).toBe(true);
-
-    // After 60s, the button re-enables.
-    await act(async () => {
-      vi.advanceTimersByTime(60_000);
-    });
-    expect(btn.disabled).toBe(false);
+      // Fire the cooldown callback to simulate 60s passing — button re-enables.
+      await act(async () => {
+        cooldownCallback?.();
+      });
+      expect(btn.disabled).toBe(false);
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
   });
 });
