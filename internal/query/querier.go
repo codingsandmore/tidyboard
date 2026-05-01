@@ -68,6 +68,7 @@ type Querier interface {
 	// sql/queries/recipe_collection.sql
 	// Recipe collection queries. Run `sqlc generate` to produce Go code in internal/query/.
 	CreateRecipeCollection(ctx context.Context, arg CreateRecipeCollectionParams) (RecipeCollection, error)
+	CreateRecipeImportJob(ctx context.Context, arg CreateRecipeImportJobParams) (RecipeImportJob, error)
 	// ── Redemptions ─────────────────────────────────────────────────────────────
 	CreateRedemption(ctx context.Context, arg CreateRedemptionParams) (Redemption, error)
 	// sql/queries/reward.sql
@@ -147,6 +148,7 @@ type Querier interface {
 	GetRecipe(ctx context.Context, arg GetRecipeParams) (Recipe, error)
 	GetRecipeBySourceURL(ctx context.Context, arg GetRecipeBySourceURLParams) (Recipe, error)
 	GetRecipeCollection(ctx context.Context, arg GetRecipeCollectionParams) (RecipeCollection, error)
+	GetRecipeImportJob(ctx context.Context, arg GetRecipeImportJobParams) (RecipeImportJob, error)
 	GetRedemption(ctx context.Context, arg GetRedemptionParams) (Redemption, error)
 	GetReward(ctx context.Context, arg GetRewardParams) (Reward, error)
 	GetRoutine(ctx context.Context, arg GetRoutineParams) (Routine, error)
@@ -212,6 +214,8 @@ type Querier interface {
 	ListTaskLogs(ctx context.Context, arg ListTaskLogsParams) ([]ListTaskLogsRow, error)
 	ListWalletTransactions(ctx context.Context, arg ListWalletTransactionsParams) ([]WalletTransaction, error)
 	MarkAdHocTaskCompleted(ctx context.Context, arg MarkAdHocTaskCompletedParams) (AdHocTask, error)
+	MarkRecipeImportJobFailed(ctx context.Context, arg MarkRecipeImportJobFailedParams) error
+	MarkRecipeImportJobSucceeded(ctx context.Context, arg MarkRecipeImportJobSucceededParams) error
 	MarkRoutineComplete(ctx context.Context, arg MarkRoutineCompleteParams) (RoutineCompletion, error)
 	MarkStepComplete(ctx context.Context, arg MarkStepCompleteParams) (RoutineCompletion, error)
 	RecomputeWalletBalance(ctx context.Context, memberID uuid.UUID) (Wallet, error)

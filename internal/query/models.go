@@ -345,6 +345,18 @@ type RecipeCollectionItem struct {
 	AddedAt      pgtype.Timestamptz `json:"added_at"`
 }
 
+type RecipeImportJob struct {
+	ID           uuid.UUID          `json:"id"`
+	HouseholdID  uuid.UUID          `json:"household_id"`
+	MemberID     uuid.UUID          `json:"member_id"`
+	Url          string             `json:"url"`
+	Status       string             `json:"status"`
+	ErrorMessage string             `json:"error_message"`
+	RecipeID     *uuid.NullUUID     `json:"recipe_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RecipeIngredient struct {
 	ID               uuid.UUID      `json:"id"`
 	RecipeID         uuid.UUID      `json:"recipe_id"`

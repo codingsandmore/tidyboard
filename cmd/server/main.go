@@ -367,6 +367,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/recipes", recipeHandler.List)
 		r.Post("/v1/recipes", recipeHandler.Create)
 		r.Post("/v1/recipes/import", recipeHandler.Import)
+		r.Post("/v1/recipes/import-jobs", recipeHandler.StartImportJob)
+		r.Get("/v1/recipes/import-jobs/{id}", recipeHandler.GetImportJob)
 		r.Get("/v1/recipes/{id}", recipeHandler.Get)
 		r.Patch("/v1/recipes/{id}", recipeHandler.Update)
 		r.Delete("/v1/recipes/{id}", recipeHandler.Delete)
