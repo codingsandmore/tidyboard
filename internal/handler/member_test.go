@@ -50,6 +50,7 @@ func TestMember_CreateWithAccountID_Integration(t *testing.T) {
 	require.NoError(t, err)
 	r.Use(middleware.Auth(verifier, q))
 	r.Post("/v1/households", householdH.Create)
+	r.Get("/v1/households/current/members", memberH.ListCurrent)
 	r.Post("/v1/households/{id}/members", memberH.Create)
 
 	srv := httptest.NewServer(r)
@@ -122,4 +123,17 @@ func TestMember_CreateWithAccountID_Integration(t *testing.T) {
 	// account_id should be absent / null for PIN-only members
 	_, hasAccountID := child["account_id"]
 	assert.False(t, hasAccountID, "child member should not expose account_id")
+
+	currentToken := testutil.MakeJWT(acc.ID, row.HouseholdID, row.ID, row.Role)
+	currentReq, _ := http.NewRequest(http.MethodGet, srv.URL+"/v1/households/current/members", nil)
+	currentReq.Header.Set("Authorization", "Bearer "+currentToken)
+	currentResp, err := http.DefaultClient.Do(currentReq)
+	require.NoError(t, err)
+	defer currentResp.Body.Close()
+	require.Equal(t, http.StatusOK, currentResp.StatusCode)
+
+	var currentMembers []map[string]any
+	require.NoError(t, json.NewDecoder(currentResp.Body).Decode(&currentMembers))
+	require.Len(t, currentMembers, 2)
+	assert.Equal(t, "Alice", currentMembers[0]["name"])
 }

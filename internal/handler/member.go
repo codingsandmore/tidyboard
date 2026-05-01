@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/tidyboard/tidyboard/internal/handler/respond"
+	"github.com/tidyboard/tidyboard/internal/middleware"
 	"github.com/tidyboard/tidyboard/internal/model"
 	"github.com/tidyboard/tidyboard/internal/service"
 )
@@ -19,6 +20,22 @@ type MemberHandler struct {
 // NewMemberHandler constructs a MemberHandler.
 func NewMemberHandler(svc *service.MemberService) *MemberHandler {
 	return &MemberHandler{svc: svc}
+}
+
+// ListCurrent handles GET /v1/households/current/members.
+func (h *MemberHandler) ListCurrent(w http.ResponseWriter, r *http.Request) {
+	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		return
+	}
+
+	members, err := h.svc.List(r.Context(), householdID)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list members")
+		return
+	}
+	respond.JSON(w, http.StatusOK, members)
 }
 
 // List handles GET /v1/households/:id/members.
