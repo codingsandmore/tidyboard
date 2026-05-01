@@ -83,7 +83,7 @@ func TestShoppingMultiplier_ScalesIngredientQuantities(t *testing.T) {
 	require.NoError(t, err)
 
 	// ── Seed meal-plan entry with serving_multiplier = 2.5. ───────────────
-	// batch_quantity left at its DB default (1) and planned_leftovers at 0.
+	// batch_quantity is set explicitly to 1 (the DB default) for clarity.
 	plannedDate := "2026-05-04"
 	_, err = pool.Exec(ctx, `
 		INSERT INTO meal_plan_entries (id, household_id, recipe_id, date, slot, serving_multiplier, batch_quantity)
