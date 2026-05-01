@@ -114,7 +114,7 @@ covered feature.
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
 | Chore time tracking (start/stop) | POST /v1/chores/:id/timer/*, POST /v1/chores/:id/time-entries, GET /v1/members/:id/time-summary | OK | OK | NO | NO | backend shipped via #134; kid timer button + admin time-review UI shipped via #142 |
 | Equity contribution aggregate | GET /v1/equity/contribution | PART | NO | NO | NO | issue #138 — aggregates task_logs + chore_time_entries; honors hourly_rate privacy. Tests as follow-up. |
-| Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
+| Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | OK | PART | NO | NO | backend #137 inserts wallet_transactions; UI #145 — `useMarkChoreComplete` invalidates `["wallet"]` so chores-kid balance refetches on completion (covered by chores-kid.test.tsx) |
 | Housekeeper-cost estimate (per category) | GET /v1/equity/housekeeper-estimate | NO | OK | NO | NO | issue #139 — go:embed rate asset, sums chore_time_entries × category market rate |
 
 ## 9. Points & Rewards
