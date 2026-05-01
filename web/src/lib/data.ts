@@ -30,6 +30,12 @@ export type TBDEvent = {
   end_time?: string;
   description?: string;
   recurrence_rule?: string;
+  /**
+   * Server-side member IDs assigned to this event (per /v1/events response).
+   * Sample fixtures populate `members` instead; consumers should read both
+   * via `event.assigned_members ?? event.members ?? []`.
+   */
+  assigned_members?: string[];
 };
 
 export type WeekItem = { m: string; t: string; h: number };

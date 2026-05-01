@@ -232,7 +232,9 @@ export function CalDay({
           ))}
         </div>
         {members.map((m) => {
-          const evs = events.filter((e) => e.members.includes(m.id));
+          const evs = events.filter((e) =>
+            (e.assigned_members ?? e.members ?? []).includes(m.id)
+          );
           return (
             <div
               key={m.id}
@@ -590,7 +592,7 @@ export function CalWeek({
               }}
             >
               {colEvents.map((ev) => {
-                const memberIds = ev.members ?? [];
+                const memberIds = ev.assigned_members ?? ev.members ?? [];
                 const firstMember = memberIds.length > 0 ? membersById.get(memberIds[0]) : null;
                 const c = firstMember ? firstMember.color : TB.primary;
                 const startH = toFractionalHours(ev.start_time ?? ev.start);
@@ -857,7 +859,8 @@ export function CalMonth({
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
                 {dayEvents.slice(0, 3).map((event) => {
-                  const member = event.members?.[0] ? membersById.get(event.members[0]) : undefined;
+                  const memberIds = event.assigned_members ?? event.members ?? [];
+                  const member = memberIds[0] ? membersById.get(memberIds[0]) : undefined;
                   const accent = member?.color ?? TB.primary;
                   return (
                     <button
@@ -1043,7 +1046,10 @@ export function CalAgenda({
                 </div>
               )}
               {group.items.map((e) => {
-                const ms = resolveMembers(e.members, membersById);
+                const ms = resolveMembers(
+                  e.assigned_members ?? e.members ?? [],
+                  membersById
+                );
                 return (
                   <Card
                     key={e.id}
@@ -1116,6 +1122,11 @@ export type EventFormData = {
   location?: string;
   description?: string;
   members?: string[];
+  /**
+   * Server-side assignee list. When both `assigned_members` and `members`
+   * are provided, `assigned_members` wins (it is the canonical API field).
+   */
+  assigned_members?: string[];
   recurrence_rule?: string;
 };
 
@@ -1156,12 +1167,18 @@ export function EventModal({ event, onClose }: EventModalProps) {
     return toDatetimeLocal(oneHourLater);
   };
 
+  // Initial assignee set: prefer the canonical `assigned_members` from the
+  // API; fall back to the legacy `members` field used by sample fixtures.
+  const initialAssignees = (): string[] =>
+    event?.assigned_members ?? event?.members ?? [];
+
   const [title, setTitle] = useState(event?.title ?? "");
   const [startTime, setStartTime] = useState(resolveStart);
   const [endTime, setEndTime] = useState(resolveEnd);
   const [location, setLocation] = useState(event?.location ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const [recurrence, setRecurrence] = useState<string>(event?.recurrence_rule ?? "");
+  const [assignedMembers, setAssignedMembers] = useState<string[]>(initialAssignees);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -1171,7 +1188,9 @@ export function EventModal({ event, onClose }: EventModalProps) {
     setLocation(event?.location ?? "");
     setDescription(event?.description ?? "");
     setRecurrence(event?.recurrence_rule ?? "");
+    setAssignedMembers(initialAssignees());
     setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     event?.id,
     event?.title,
@@ -1182,7 +1201,15 @@ export function EventModal({ event, onClose }: EventModalProps) {
     event?.location,
     event?.description,
     event?.recurrence_rule,
+    // Note: members/assigned_members intentionally compared by reference;
+    // the parent passes a stable EventFormData per-open.
   ]);
+
+  const toggleAssignee = (memberId: string) => {
+    setAssignedMembers((prev) =>
+      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
+    );
+  };
 
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
@@ -1234,6 +1261,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
           location,
           description,
           recurrence_rule: recurrence,
+          assigned_members: assignedMembers,
         },
         { onSuccess: onClose }
       );
@@ -1246,6 +1274,7 @@ export function EventModal({ event, onClose }: EventModalProps) {
           location,
           description,
           ...(recurrence ? { recurrence_rule: recurrence } : {}),
+          assigned_members: assignedMembers,
         },
         { onSuccess: onClose }
       );
@@ -1434,7 +1463,9 @@ export function EventModal({ event, onClose }: EventModalProps) {
             </Row>
           </div>
 
-          {/* Members (display only — no assignment API on create yet) */}
+          {/* Members — chip multi-select wired into assigned_members.
+              Backend validates household membership and rejects foreign
+              IDs (issue #106). Click toggles each chip on/off. */}
           {members.length > 0 && (
             <div style={{ marginTop: 14 }}>
               <div
@@ -1448,21 +1479,39 @@ export function EventModal({ event, onClose }: EventModalProps) {
               >
                 {t("assignedTo")}
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div
+                role="group"
+                aria-label={t("assignedTo")}
+                data-testid="event-member-chips"
+                style={{ display: "flex", flexWrap: "wrap", gap: 10 }}
+              >
                 {members.map((m) => {
-                  const selected = event?.members?.includes(m.id) ?? false;
+                  const selected = assignedMembers.includes(m.id);
                   return (
-                    <div
+                    <button
                       key={m.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={selected}
+                      aria-label={m.name}
                       data-testid={`event-member-${m.id}`}
                       data-selected={selected ? "true" : "false"}
-                      style={{ textAlign: "center", opacity: selected ? 1 : 0.35 }}
+                      onClick={() => toggleAssignee(m.id)}
+                      style={{
+                        textAlign: "center",
+                        opacity: selected ? 1 : 0.5,
+                        background: "transparent",
+                        border: "none",
+                        padding: 2,
+                        cursor: "pointer",
+                        fontFamily: TB.fontBody,
+                      }}
                     >
                       <Avatar member={m} size={44} selected={selected} />
                       <div style={{ fontSize: 10, marginTop: 4, color: TB.text2 }}>
                         {m.name}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
