@@ -244,6 +244,10 @@ func canPINLoginMember(role string) bool {
 }
 
 // memberToModel converts a query.Member to model.Member.
+//
+// IMPORTANT: hourly_rate fields are populated unconditionally here. Callers
+// returning the model over the wire MUST scrub them via Member.RedactHourlyRate
+// when the viewer is not the rate owner OR a household admin.
 func memberToModel(m query.Member) *model.Member {
 	out := &model.Member{
 		ID:                      m.ID,
@@ -256,6 +260,8 @@ func memberToModel(m query.Member) *model.Member {
 		AgeGroup:                m.AgeGroup,
 		EmergencyInfo:           json.RawMessage(m.EmergencyInfo),
 		NotificationPreferences: json.RawMessage(m.NotificationPreferences),
+		HourlyRateCentsMin:      m.HourlyRateCentsMin,
+		HourlyRateCentsMax:      m.HourlyRateCentsMax,
 	}
 	if m.AccountID != nil && m.AccountID.Valid {
 		id := m.AccountID.UUID
@@ -268,4 +274,56 @@ func memberToModel(m query.Member) *model.Member {
 		out.UpdatedAt = m.UpdatedAt.Time
 	}
 	return out
+}
+
+// CanViewHourlyRate reports whether a viewer is authorized to see the private
+// hourly_rate fields on the target member. The rule (per AGENTS.md "Hourly
+// rate privacy") is: viewer == target OR viewer is a household admin
+// (role='owner' or 'admin'). Empty viewerRole / uuid.Nil viewerID means
+// "no membership context" → not authorized.
+func CanViewHourlyRate(viewerMemberID, targetMemberID uuid.UUID, viewerRole string) bool {
+	if viewerMemberID != uuid.Nil && viewerMemberID == targetMemberID {
+		return true
+	}
+	switch viewerRole {
+	case "owner", "admin":
+		return true
+	}
+	return false
+}
+
+// CanEditHourlyRate has the same gate as read access — see CanViewHourlyRate.
+// Kept as a separate function to make handler intent explicit and to allow
+// future divergence (e.g. tightening write-access without affecting reads).
+func CanEditHourlyRate(viewerMemberID, targetMemberID uuid.UUID, viewerRole string) bool {
+	return CanViewHourlyRate(viewerMemberID, targetMemberID, viewerRole)
+}
+
+// UpdateHourlyRate sets the (private) hourly-rate range on a member. Caller
+// MUST authorize via CanEditHourlyRate beforehand. Returns ErrValidation if
+// min > max.
+func (s *MemberService) UpdateHourlyRate(ctx context.Context, householdID, memberID uuid.UUID, minCents, maxCents *int32) (*model.Member, error) {
+	if minCents != nil && maxCents != nil && *minCents > *maxCents {
+		return nil, ErrValidation
+	}
+	if minCents != nil && *minCents < 0 {
+		return nil, ErrValidation
+	}
+	if maxCents != nil && *maxCents < 0 {
+		return nil, ErrValidation
+	}
+
+	m, err := s.q.UpdateMemberHourlyRate(ctx, query.UpdateMemberHourlyRateParams{
+		ID:                 memberID,
+		HouseholdID:        householdID,
+		HourlyRateCentsMin: minCents,
+		HourlyRateCentsMax: maxCents,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("updating member hourly rate: %w", err)
+	}
+	return memberToModel(m), nil
 }

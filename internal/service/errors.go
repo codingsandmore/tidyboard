@@ -19,4 +19,7 @@ var (
 	// does not exist in the caller's household (either an unknown UUID or a
 	// member that belongs to a different household).
 	ErrInvalidMember = errors.New("invalid member")
+	// ErrValidation is returned when a request fails domain-level validation
+	// that handlers should map to HTTP 400.
+	ErrValidation = errors.New("validation error")
 )

@@ -14,12 +14,31 @@ import (
 
 // MemberHandler handles member CRUD routes.
 type MemberHandler struct {
-	svc *service.MemberService
+	svc   *service.MemberService
+	audit *service.AuditService
 }
 
 // NewMemberHandler constructs a MemberHandler.
 func NewMemberHandler(svc *service.MemberService) *MemberHandler {
 	return &MemberHandler{svc: svc}
+}
+
+// WithAudit wires an AuditService for logging member-rate edits. The audit
+// service is optional; when nil, edits silently skip audit-log writes (this
+// keeps the existing test wiring working).
+func (h *MemberHandler) WithAudit(a *service.AuditService) *MemberHandler {
+	h.audit = a
+	return h
+}
+
+// redactHourlyRateForViewer scrubs HourlyRate fields off members the viewer is
+// not authorized to see. Non-mutating to other fields. Operates in place.
+func redactHourlyRateForViewer(members []*model.Member, viewerMemberID uuid.UUID, viewerRole string) {
+	for _, m := range members {
+		if !service.CanViewHourlyRate(viewerMemberID, m.ID, viewerRole) {
+			m.RedactHourlyRate()
+		}
+	}
 }
 
 // ListCurrent handles GET /v1/households/current/members.
@@ -35,6 +54,8 @@ func (h *MemberHandler) ListCurrent(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list members")
 		return
 	}
+	viewerMemberID, _ := middleware.MemberIDFromCtx(r.Context())
+	redactHourlyRateForViewer(members, viewerMemberID, middleware.RoleFromCtx(r.Context()))
 	respond.JSON(w, http.StatusOK, members)
 }
 
@@ -51,6 +72,8 @@ func (h *MemberHandler) List(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list members")
 		return
 	}
+	viewerMemberID, _ := middleware.MemberIDFromCtx(r.Context())
+	redactHourlyRateForViewer(members, viewerMemberID, middleware.RoleFromCtx(r.Context()))
 	respond.JSON(w, http.StatusOK, members)
 }
 
@@ -108,6 +131,10 @@ func (h *MemberHandler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	viewerMemberID, _ := middleware.MemberIDFromCtx(r.Context())
+	if !service.CanViewHourlyRate(viewerMemberID, member.ID, middleware.RoleFromCtx(r.Context())) {
+		member.RedactHourlyRate()
+	}
 	respond.JSON(w, http.StatusOK, member)
 }
 
@@ -130,6 +157,28 @@ func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hourly rate is private — require self or household admin.
+	wantsRateChange := req.HourlyRateCentsMin != nil || req.HourlyRateCentsMax != nil
+	if wantsRateChange {
+		viewerMemberID, _ := middleware.MemberIDFromCtx(r.Context())
+		if !service.CanEditHourlyRate(viewerMemberID, memberID, middleware.RoleFromCtx(r.Context())) {
+			respond.Error(w, r, http.StatusForbidden, "forbidden", "not allowed to modify this member's hourly rate")
+			return
+		}
+		if req.HourlyRateCentsMin != nil && req.HourlyRateCentsMax != nil &&
+			*req.HourlyRateCentsMin > *req.HourlyRateCentsMax {
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "hourly_rate_cents_min must be <= hourly_rate_cents_max")
+			return
+		}
+	}
+
+	// Strip rate fields from the generic Update path so they don't leak into
+	// the audit-log payload below; then apply them via the dedicated helper.
+	rateMin := req.HourlyRateCentsMin
+	rateMax := req.HourlyRateCentsMax
+	req.HourlyRateCentsMin = nil
+	req.HourlyRateCentsMax = nil
+
 	member, err := h.svc.Update(r.Context(), householdID, memberID, req)
 	if err != nil {
 		switch err {
@@ -142,6 +191,35 @@ func (h *MemberHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	if wantsRateChange {
+		updated, err := h.svc.UpdateHourlyRate(r.Context(), householdID, memberID, rateMin, rateMax)
+		if err != nil {
+			switch err {
+			case service.ErrNotFound:
+				respond.Error(w, r, http.StatusNotFound, "not_found", "member not found")
+			case service.ErrValidation:
+				respond.Error(w, r, http.StatusBadRequest, "validation_error", "invalid hourly rate range")
+			default:
+				respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update member")
+			}
+			return
+		}
+		member = updated
+		// Privacy: audit-log entry MUST NOT contain rate values.
+		if h.audit != nil {
+			h.audit.Log(r.Context(), "member.hourly_rate.updated", "member", memberID, map[string]any{
+				"member_id": memberID.String(),
+			})
+		}
+	}
+
+	// Redact for the response if the viewer isn't authorized (defense-in-depth).
+	viewerMemberID, _ := middleware.MemberIDFromCtx(r.Context())
+	if !service.CanViewHourlyRate(viewerMemberID, member.ID, middleware.RoleFromCtx(r.Context())) {
+		member.RedactHourlyRate()
+	}
+
 	respond.JSON(w, http.StatusOK, member)
 }
 
