@@ -2,12 +2,21 @@
 
 import { useEffect } from "react";
 import { TB } from "@/lib/tokens";
+import { ErrorAlert } from "@/components/ui/error-alert";
 
-export default function GlobalError({
+/**
+ * Next.js error boundary for the (root) segment.
+ *
+ * Spec section C.4.d (docs/specs/2026-04-30-events-recipes-errors-design.md):
+ * render <ErrorAlert/> for full status/code/message/request-id context plus a
+ * "Try again" button wired to the `reset()` prop. Chrome stays consistent with
+ * other static pages (centered card, wordmark, body chrome from tokens).
+ */
+export default function Error({
   error,
   reset,
 }: {
-  error: Error & { digest?: string };
+  error: globalThis.Error & { digest?: string };
   reset: () => void;
 }) {
   useEffect(() => {
@@ -19,7 +28,7 @@ export default function GlobalError({
     <div
       style={{
         width: "100vw",
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -27,7 +36,6 @@ export default function GlobalError({
         background: TB.bg,
         fontFamily: TB.fontBody,
         padding: "24px",
-        textAlign: "center",
       }}
     >
       {/* Wordmark */}
@@ -38,28 +46,10 @@ export default function GlobalError({
           fontWeight: 600,
           color: TB.primary,
           letterSpacing: "-0.02em",
-          marginBottom: 48,
+          marginBottom: 32,
         }}
       >
         Tidyboard
-      </div>
-
-      {/* Icon area */}
-      <div
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: "50%",
-          background: "#FEF2F2",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 28,
-          marginBottom: 24,
-        }}
-        aria-hidden="true"
-      >
-        ⚠
       </div>
 
       {/* Heading */}
@@ -70,7 +60,8 @@ export default function GlobalError({
           fontWeight: 500,
           color: TB.text,
           letterSpacing: "-0.015em",
-          margin: "0 0 12px",
+          margin: "0 0 8px",
+          textAlign: "center",
         }}
       >
         Something went wrong
@@ -79,10 +70,11 @@ export default function GlobalError({
       {/* Subtext */}
       <p
         style={{
-          fontSize: 16,
+          fontSize: 15,
           color: TB.text2,
-          margin: "0 0 36px",
-          maxWidth: 360,
+          margin: "0 0 20px",
+          maxWidth: 520,
+          textAlign: "center",
           lineHeight: 1.6,
         }}
       >
@@ -90,24 +82,25 @@ export default function GlobalError({
         is just a hiccup.
       </p>
 
-      {/* Error digest for support */}
-      {error.digest && (
-        <p
-          style={{
-            fontSize: 12,
-            color: TB.muted,
-            fontFamily: TB.fontMono,
-            margin: "0 0 28px",
-          }}
-        >
-          Error ID: {error.digest}
-        </p>
-      )}
+      {/* End-to-end debug surface */}
+      <div style={{ width: "100%", maxWidth: 560 }}>
+        <ErrorAlert error={error} />
+      </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          justifyContent: "center",
+          marginTop: 24,
+        }}
+      >
         <button
+          type="button"
           onClick={reset}
+          data-testid="error-try-again"
           style={{
             display: "inline-flex",
             alignItems: "center",
