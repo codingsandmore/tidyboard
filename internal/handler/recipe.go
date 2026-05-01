@@ -25,12 +25,12 @@ func NewRecipeHandler(svc *service.RecipeService) *RecipeHandler { return &Recip
 func (h *RecipeHandler) List(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	recipes, err := h.svc.List(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list recipes")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list recipes")
 		return
 	}
 	respond.JSON(w, http.StatusOK, recipes)
@@ -40,28 +40,28 @@ func (h *RecipeHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	memberID, ok := middleware.MemberIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing member context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing member context")
 		return
 	}
 
 	var req model.CreateRecipeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Title == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "title is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "title is required")
 		return
 	}
 
 	recipe, err := h.svc.Create(r.Context(), householdID, memberID, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create recipe")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create recipe")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, recipe)
@@ -71,22 +71,22 @@ func (h *RecipeHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) Import(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	memberID, ok := middleware.MemberIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing member context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing member context")
 		return
 	}
 
 	var req model.ImportRecipeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.URL == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "url is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "url is required")
 		return
 	}
 
@@ -94,15 +94,15 @@ func (h *RecipeHandler) Import(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrScraperTimeout:
-			respond.Error(w, http.StatusGatewayTimeout, "scraper_timeout", "recipe scraper timed out")
+			respond.Error(w, r, http.StatusGatewayTimeout, "scraper_timeout", "recipe scraper timed out")
 		case service.ErrScraperFailed:
-			respond.Error(w, http.StatusBadGateway, "scraper_failed", "recipe scraper failed")
+			respond.Error(w, r, http.StatusBadGateway, "scraper_failed", "recipe scraper failed")
 		default:
 			if errors.Is(err, service.ErrScraperFailed) {
-				respond.Error(w, http.StatusBadGateway, "scraper_failed", "recipe scraper failed")
+				respond.Error(w, r, http.StatusBadGateway, "scraper_failed", "recipe scraper failed")
 				return
 			}
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to import recipe")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to import recipe")
 		}
 		return
 	}
@@ -115,28 +115,28 @@ func (h *RecipeHandler) Import(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) StartImportJob(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	memberID, ok := middleware.MemberIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing member context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing member context")
 		return
 	}
 
 	var req model.ImportRecipeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.URL == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "url is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "url is required")
 		return
 	}
 
 	job, err := h.svc.StartImportJob(r.Context(), householdID, memberID, req.URL)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to start import job")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to start import job")
 		return
 	}
 	respond.JSON(w, http.StatusAccepted, job)
@@ -146,12 +146,12 @@ func (h *RecipeHandler) StartImportJob(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) GetImportJob(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid job ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid job ID")
 		return
 	}
 
@@ -159,9 +159,9 @@ func (h *RecipeHandler) GetImportJob(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "import job not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "import job not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch import job")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch import job")
 		}
 		return
 	}
@@ -172,12 +172,12 @@ func (h *RecipeHandler) GetImportJob(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid recipe ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid recipe ID")
 		return
 	}
 
@@ -185,9 +185,9 @@ func (h *RecipeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "recipe not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "recipe not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch recipe")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch recipe")
 		}
 		return
 	}
@@ -198,18 +198,18 @@ func (h *RecipeHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) Update(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid recipe ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid recipe ID")
 		return
 	}
 
 	var req model.UpdateRecipeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -217,9 +217,9 @@ func (h *RecipeHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "recipe not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "recipe not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update recipe")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update recipe")
 		}
 		return
 	}
@@ -230,21 +230,21 @@ func (h *RecipeHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *RecipeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid recipe ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid recipe ID")
 		return
 	}
 
 	if err := h.svc.Delete(r.Context(), householdID, id); err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "recipe not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "recipe not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to delete recipe")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to delete recipe")
 		}
 		return
 	}

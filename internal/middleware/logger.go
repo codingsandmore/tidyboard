@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/tidyboard/tidyboard/internal/middleware/requestid"
 )
 
 // responseWriter wraps http.ResponseWriter to capture the status code.
@@ -52,10 +54,15 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(rw, r)
 
 			// Collect context values that may have been injected by other middleware.
-			requestID, _ := r.Context().Value(contextKeyExtra("request_id")).(string)
-			// chi sets X-Request-Id header before our logger runs; fall back to it.
+			// Our RequestID middleware (mounted first) populates the typed key in
+			// the requestid sub-package; fall back to the response header it sets,
+			// then to the inbound header for safety.
+			requestID := requestid.FromContext(r.Context())
 			if requestID == "" {
-				requestID = r.Header.Get("X-Request-Id")
+				requestID = w.Header().Get("X-Request-ID")
+			}
+			if requestID == "" {
+				requestID = r.Header.Get("X-Request-ID")
 			}
 			accountID, _ := r.Context().Value(contextKeyAccountID).(string)
 

@@ -24,12 +24,12 @@ func NewListHandler(svc *service.ListService) *ListHandler { return &ListHandler
 func (h *ListHandler) ListAll(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	lists, err := h.svc.List(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list lists")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list lists")
 		return
 	}
 	respond.JSON(w, http.StatusOK, lists)
@@ -39,23 +39,23 @@ func (h *ListHandler) ListAll(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) Create(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	var req model.CreateListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name is required")
 		return
 	}
 
 	list, err := h.svc.Create(r.Context(), householdID, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create list")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create list")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, list)
@@ -65,12 +65,12 @@ func (h *ListHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) Get(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 
@@ -78,9 +78,9 @@ func (h *ListHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "list not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "list not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to fetch list")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to fetch list")
 		}
 		return
 	}
@@ -91,18 +91,18 @@ func (h *ListHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) Update(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 
 	var req model.UpdateListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -110,9 +110,9 @@ func (h *ListHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "list not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "list not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update list")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update list")
 		}
 		return
 	}
@@ -123,21 +123,21 @@ func (h *ListHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 
 	if err := h.svc.Delete(r.Context(), householdID, id); err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "list not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "list not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to delete list")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to delete list")
 		}
 		return
 	}
@@ -148,18 +148,18 @@ func (h *ListHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) ListItems(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 
 	items, err := h.svc.ListItems(r.Context(), householdID, id)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list items")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list items")
 		return
 	}
 	respond.JSON(w, http.StatusOK, items)
@@ -169,28 +169,28 @@ func (h *ListHandler) ListItems(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 
 	var req model.CreateListItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Text == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "text is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "text is required")
 		return
 	}
 
 	item, err := h.svc.CreateItem(r.Context(), householdID, id, req)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create item")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create item")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, item)
@@ -200,23 +200,23 @@ func (h *ListHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid item ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid item ID")
 		return
 	}
 
 	var req model.UpdateListItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -224,9 +224,9 @@ func (h *ListHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "item not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "item not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update item")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update item")
 		}
 		return
 	}
@@ -237,26 +237,26 @@ func (h *ListHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 func (h *ListHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid list ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid list ID")
 		return
 	}
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid item ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid item ID")
 		return
 	}
 
 	if err := h.svc.DeleteItem(r.Context(), householdID, id, itemID); err != nil {
 		switch err {
 		case service.ErrNotFound:
-			respond.Error(w, http.StatusNotFound, "not_found", "item not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "item not found")
 		default:
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to delete item")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to delete item")
 		}
 		return
 	}

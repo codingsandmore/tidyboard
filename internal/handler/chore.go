@@ -35,7 +35,7 @@ func isAdmin(role string) bool {
 func (h *ChoreHandler) List(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -45,7 +45,7 @@ func (h *ChoreHandler) List(w http.ResponseWriter, r *http.Request) {
 	if m := q.Get("member_id"); m != "" {
 		id, err := uuid.Parse(m)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 			return
 		}
 		memberFilter = &uuid.NullUUID{UUID: id, Valid: true}
@@ -59,7 +59,7 @@ func (h *ChoreHandler) List(w http.ResponseWriter, r *http.Request) {
 		IncludeArchived: includeArchived,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list chores")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list chores")
 		return
 	}
 	respond.JSON(w, http.StatusOK, chores)
@@ -79,31 +79,31 @@ type createChoreRequest struct {
 func (h *ChoreHandler) Create(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	var req createChoreRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name is required")
 		return
 	}
 	memberID, err := uuid.Parse(req.MemberID)
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "valid member_id is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "valid member_id is required")
 		return
 	}
 	if req.FrequencyKind == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "frequency_kind is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "frequency_kind is required")
 		return
 	}
 
@@ -116,7 +116,7 @@ func (h *ChoreHandler) Create(w http.ResponseWriter, r *http.Request) {
 		AutoApprove:   req.AutoApprove,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create chore")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create chore")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, chore)
@@ -135,24 +135,24 @@ type updateChoreRequest struct {
 func (h *ChoreHandler) Update(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid chore ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid chore ID")
 		return
 	}
 
 	var req updateChoreRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -164,7 +164,7 @@ func (h *ChoreHandler) Update(w http.ResponseWriter, r *http.Request) {
 		AutoApprove:   req.AutoApprove,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to update chore")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to update chore")
 		return
 	}
 	respond.JSON(w, http.StatusOK, chore)
@@ -174,23 +174,23 @@ func (h *ChoreHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *ChoreHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid chore ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid chore ID")
 		return
 	}
 
 	if err := h.svc.Archive(r.Context(), householdID, id); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to archive chore")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to archive chore")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -202,7 +202,7 @@ func (h *ChoreHandler) Archive(w http.ResponseWriter, r *http.Request) {
 func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -211,7 +211,7 @@ func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid chore ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid chore ID")
 		return
 	}
 
@@ -221,7 +221,7 @@ func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		if t, err := time.Parse("2006-01-02", ds); err == nil {
 			date = t
 		} else {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "date must be YYYY-MM-DD")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "date must be YYYY-MM-DD")
 			return
 		}
 	}
@@ -232,21 +232,21 @@ func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		HouseholdID: householdID,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusNotFound, "not_found", "chore not found")
+		respond.Error(w, r, http.StatusNotFound, "not_found", "chore not found")
 		return
 	}
 
 	// Enforce: caller is assignee OR admin.
 	if !isAdmin(role) {
 		if !hasMember || callerMember != chore.MemberID {
-			respond.Error(w, http.StatusForbidden, "forbidden", "you can only complete your own chores")
+			respond.Error(w, r, http.StatusForbidden, "forbidden", "you can only complete your own chores")
 			return
 		}
 	}
 
 	completion, err := h.svc.Complete(r.Context(), householdID, id, date, callerMember)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to record completion")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to record completion")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, completion)
@@ -257,7 +257,7 @@ func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 func (h *ChoreHandler) UndoComplete(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -266,14 +266,14 @@ func (h *ChoreHandler) UndoComplete(w http.ResponseWriter, r *http.Request) {
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid chore ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid chore ID")
 		return
 	}
 
 	dateStr := chi.URLParam(r, "date")
 	date, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "date must be YYYY-MM-DD")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "date must be YYYY-MM-DD")
 		return
 	}
 
@@ -283,20 +283,20 @@ func (h *ChoreHandler) UndoComplete(w http.ResponseWriter, r *http.Request) {
 		HouseholdID: householdID,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusNotFound, "not_found", "chore not found")
+		respond.Error(w, r, http.StatusNotFound, "not_found", "chore not found")
 		return
 	}
 
 	// Enforce: caller is assignee OR admin.
 	if !isAdmin(role) {
 		if !hasMember || callerMember != chore.MemberID {
-			respond.Error(w, http.StatusForbidden, "forbidden", "you can only undo your own chore completions")
+			respond.Error(w, r, http.StatusForbidden, "forbidden", "you can only undo your own chore completions")
 			return
 		}
 	}
 
 	if err := h.svc.Undo(r.Context(), householdID, id, date); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to undo completion")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to undo completion")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -307,7 +307,7 @@ func (h *ChoreHandler) UndoComplete(w http.ResponseWriter, r *http.Request) {
 func (h *ChoreHandler) ListCompletions(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -322,7 +322,7 @@ func (h *ChoreHandler) ListCompletions(w http.ResponseWriter, r *http.Request) {
 		if t, err := time.Parse("2006-01-02", f); err == nil {
 			fromTime = t
 		} else {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "from must be YYYY-MM-DD")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "from must be YYYY-MM-DD")
 			return
 		}
 	}
@@ -330,7 +330,7 @@ func (h *ChoreHandler) ListCompletions(w http.ResponseWriter, r *http.Request) {
 		if parsed, err := time.Parse("2006-01-02", t); err == nil {
 			toTime = parsed
 		} else {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "to must be YYYY-MM-DD")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "to must be YYYY-MM-DD")
 			return
 		}
 	}
@@ -339,7 +339,7 @@ func (h *ChoreHandler) ListCompletions(w http.ResponseWriter, r *http.Request) {
 	if m := q.Get("member_id"); m != "" {
 		id, err := uuid.Parse(m)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 			return
 		}
 		memberFilter = &uuid.NullUUID{UUID: id, Valid: true}
@@ -352,7 +352,7 @@ func (h *ChoreHandler) ListCompletions(w http.ResponseWriter, r *http.Request) {
 		MemberID:    memberFilter,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list completions")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list completions")
 		return
 	}
 	respond.JSON(w, http.StatusOK, completions)

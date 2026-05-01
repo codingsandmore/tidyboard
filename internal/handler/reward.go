@@ -33,13 +33,13 @@ func NewRewardHandler(svc *service.RewardService) *RewardHandler {
 func (h *RewardHandler) List(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	onlyActive := r.URL.Query().Get("active") != "false" // default true
 	rows, err := h.svc.ListRewards(r.Context(), householdID, onlyActive)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "list rewards")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "list rewards")
 		return
 	}
 	respond.JSON(w, http.StatusOK, rows)
@@ -49,35 +49,35 @@ func (h *RewardHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	var req model.CreateRewardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name required")
 		return
 	}
 	if req.CostPoints < 0 {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "cost_points must be >= 0")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "cost_points must be >= 0")
 		return
 	}
 	if req.FulfillmentKind != "self_serve" && req.FulfillmentKind != "needs_approval" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "invalid fulfillment_kind")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "invalid fulfillment_kind")
 		return
 	}
 
 	accountID, _ := middleware.AccountIDFromCtx(r.Context())
 	rw, err := h.svc.CreateReward(r.Context(), householdID, req.Name, req.Description, req.ImageURL, req.CostPoints, req.FulfillmentKind, &accountID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "create reward")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "create reward")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, rw)
@@ -87,26 +87,26 @@ func (h *RewardHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Update(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	var req model.UpdateRewardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	rw, err := h.svc.UpdateReward(r.Context(), householdID, id, req.Name, req.Description, req.ImageURL, req.CostPoints, req.FulfillmentKind, req.Active)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "update reward")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "update reward")
 		return
 	}
 	respond.JSON(w, http.StatusOK, rw)
@@ -116,20 +116,20 @@ func (h *RewardHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Archive(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	if err := h.svc.ArchiveReward(r.Context(), householdID, id); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "archive")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "archive")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -143,12 +143,12 @@ func (h *RewardHandler) Archive(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	rewardID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 
@@ -160,23 +160,23 @@ func (h *RewardHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 		// Admin redeeming on behalf of a kid.
 		mid, err := uuid.Parse(m)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 			return
 		}
 		memberID = mid
 	} else {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "member_id required")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "member_id required")
 		return
 	}
 
 	accountID, _ := middleware.AccountIDFromCtx(r.Context())
 	resp, err := h.svc.Redeem(r.Context(), householdID, memberID, rewardID, &accountID)
 	if errors.Is(err, service.ErrInsufficientPoints) {
-		respond.Error(w, http.StatusConflict, "insufficient_points", "not enough points to redeem this reward")
+		respond.Error(w, r, http.StatusConflict, "insufficient_points", "not enough points to redeem this reward")
 		return
 	}
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "redeem")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "redeem")
 		return
 	}
 	respond.JSON(w, http.StatusOK, resp)
@@ -186,26 +186,26 @@ func (h *RewardHandler) Redeem(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Approve(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	accountID, _ := middleware.AccountIDFromCtx(r.Context())
 	red, err := h.svc.ApproveRedemption(r.Context(), householdID, id, &accountID)
 	if errors.Is(err, service.ErrInvalidStateTransition) {
-		respond.Error(w, http.StatusConflict, "invalid_state", "redemption is not pending")
+		respond.Error(w, r, http.StatusConflict, "invalid_state", "redemption is not pending")
 		return
 	}
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "approve")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "approve")
 		return
 	}
 	respond.JSON(w, http.StatusOK, red)
@@ -215,35 +215,35 @@ func (h *RewardHandler) Approve(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Decline(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	var req model.DeclineRedemptionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Reason == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "reason required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "reason required")
 		return
 	}
 	accountID, _ := middleware.AccountIDFromCtx(r.Context())
 	red, err := h.svc.DeclineRedemption(r.Context(), householdID, id, req.Reason, &accountID)
 	if errors.Is(err, service.ErrInvalidStateTransition) {
-		respond.Error(w, http.StatusConflict, "invalid_state", "not pending")
+		respond.Error(w, r, http.StatusConflict, "invalid_state", "not pending")
 		return
 	}
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "decline")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "decline")
 		return
 	}
 	respond.JSON(w, http.StatusOK, red)
@@ -253,25 +253,25 @@ func (h *RewardHandler) Decline(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) Fulfill(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	red, err := h.svc.FulfillRedemption(r.Context(), householdID, id)
 	if errors.Is(err, service.ErrInvalidStateTransition) {
-		respond.Error(w, http.StatusConflict, "invalid_state", "not approved")
+		respond.Error(w, r, http.StatusConflict, "invalid_state", "not approved")
 		return
 	}
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "fulfill")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "fulfill")
 		return
 	}
 	respond.JSON(w, http.StatusOK, red)
@@ -282,14 +282,14 @@ func (h *RewardHandler) Fulfill(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) ListRedemptions(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	var memberID *uuid.UUID
 	if m := r.URL.Query().Get("member_id"); m != "" {
 		id, err := uuid.Parse(m)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 			return
 		}
 		memberID = &id
@@ -308,7 +308,7 @@ func (h *RewardHandler) ListRedemptions(w http.ResponseWriter, r *http.Request) 
 	}
 	rows, err := h.svc.ListRedemptions(r.Context(), householdID, memberID, status, int32(limit), int32(offset))
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "list redemptions")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "list redemptions")
 		return
 	}
 	respond.JSON(w, http.StatusOK, rows)
@@ -319,22 +319,22 @@ func (h *RewardHandler) ListRedemptions(w http.ResponseWriter, r *http.Request) 
 // SetSavingsGoal handles PUT /v1/members/{member_id}/savings-goal.
 func (h *RewardHandler) SetSavingsGoal(w http.ResponseWriter, r *http.Request) {
 	if _, ok := middleware.HouseholdIDFromCtx(r.Context()); !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 	var req model.SetSavingsGoalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	g, err := h.svc.SetSavingsGoal(r.Context(), memberID, req.RewardID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "set savings goal")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "set savings goal")
 		return
 	}
 	respond.JSON(w, http.StatusOK, g)
@@ -346,25 +346,25 @@ func (h *RewardHandler) SetSavingsGoal(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) CostAdjust(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	rewardID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	var req model.CostAdjustRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.MemberID == uuid.Nil || req.DeltaPoints == 0 {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "member_id and non-zero delta_points required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "member_id and non-zero delta_points required")
 		return
 	}
 
@@ -372,7 +372,7 @@ func (h *RewardHandler) CostAdjust(w http.ResponseWriter, r *http.Request) {
 	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
 		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "validation_error", "invalid expires_at")
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "invalid expires_at")
 			return
 		}
 		expiresAt = &t
@@ -380,7 +380,7 @@ func (h *RewardHandler) CostAdjust(w http.ResponseWriter, r *http.Request) {
 	accountID, _ := middleware.AccountIDFromCtx(r.Context())
 	adj, err := h.svc.CreateCostAdjustment(r.Context(), householdID, req.MemberID, rewardID, req.DeltaPoints, req.Reason, expiresAt, &accountID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "adjust")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "adjust")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, adj)
@@ -390,20 +390,20 @@ func (h *RewardHandler) CostAdjust(w http.ResponseWriter, r *http.Request) {
 func (h *RewardHandler) DeleteCostAdjustment(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid id")
 		return
 	}
 	if err := h.svc.DeleteCostAdjustment(r.Context(), householdID, id); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "delete")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "delete")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -415,12 +415,12 @@ func (h *RewardHandler) DeleteCostAdjustment(w http.ResponseWriter, r *http.Requ
 // Query params: limit, offset.
 func (h *RewardHandler) Timeline(w http.ResponseWriter, r *http.Request) {
 	if _, ok := middleware.HouseholdIDFromCtx(r.Context()); !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -433,7 +433,7 @@ func (h *RewardHandler) Timeline(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.svc.Timeline(r.Context(), memberID, limit, offset)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "timeline")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "timeline")
 		return
 	}
 	respond.JSON(w, http.StatusOK, rows)

@@ -33,7 +33,7 @@ func NewResetHandler(pool *pgxpool.Pool) *ResetHandler {
 // Returns 403 unless TIDYBOARD_ALLOW_RESET=true.
 func (h *ResetHandler) Reset(w http.ResponseWriter, r *http.Request) {
 	if os.Getenv("TIDYBOARD_ALLOW_RESET") != "true" {
-		respond.Error(w, http.StatusForbidden, "forbidden",
+		respond.Error(w, r, http.StatusForbidden, "forbidden",
 			"reset endpoint is disabled; set TIDYBOARD_ALLOW_RESET=true to enable")
 		return
 	}
@@ -57,7 +57,7 @@ func (h *ResetHandler) Reset(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tbl),
 		); err != nil {
 			// Table might not exist yet (partial migration). Log and continue.
-			respond.Error(w, http.StatusInternalServerError, "reset_error",
+			respond.Error(w, r, http.StatusInternalServerError, "reset_error",
 				fmt.Sprintf("failed to truncate %s: %v", tbl, err))
 			return
 		}

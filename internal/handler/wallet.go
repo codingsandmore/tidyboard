@@ -35,25 +35,25 @@ type walletResponse struct {
 func (h *WalletHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 	_, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
 	wallet, err := h.svc.GetWallet(r.Context(), memberID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to get wallet")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to get wallet")
 		return
 	}
 
 	txns, err := h.svc.ListTransactions(r.Context(), memberID, 20, 0)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list transactions")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list transactions")
 		return
 	}
 
@@ -70,18 +70,18 @@ type tipRequest struct {
 func (h *WalletHandler) Tip(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
@@ -89,17 +89,17 @@ func (h *WalletHandler) Tip(w http.ResponseWriter, r *http.Request) {
 
 	var req tipRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.AmountCents <= 0 {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "amount_cents must be positive")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "amount_cents must be positive")
 		return
 	}
 
 	tx, err := h.svc.Tip(r.Context(), householdID, memberID, &accountID, req.AmountCents, req.Reason)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to record tip")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to record tip")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, tx)
@@ -116,18 +116,18 @@ type cashOutRequest struct {
 func (h *WalletHandler) CashOut(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
@@ -135,21 +135,21 @@ func (h *WalletHandler) CashOut(w http.ResponseWriter, r *http.Request) {
 
 	var req cashOutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.AmountCents <= 0 {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "amount_cents must be positive")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "amount_cents must be positive")
 		return
 	}
 	if req.Method == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "method is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "method is required")
 		return
 	}
 
 	tx, err := h.svc.CashOut(r.Context(), householdID, memberID, &accountID, req.AmountCents, req.Method, req.Note)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to record cash-out")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to record cash-out")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, tx)
@@ -165,18 +165,18 @@ type adjustRequest struct {
 func (h *WalletHandler) Adjust(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
@@ -184,17 +184,17 @@ func (h *WalletHandler) Adjust(w http.ResponseWriter, r *http.Request) {
 
 	var req adjustRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Reason == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "reason is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "reason is required")
 		return
 	}
 
 	tx, err := h.svc.Adjust(r.Context(), householdID, memberID, &accountID, req.AmountCents, req.Reason)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to record adjustment")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to record adjustment")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, tx)
@@ -204,13 +204,13 @@ func (h *WalletHandler) Adjust(w http.ResponseWriter, r *http.Request) {
 func (h *WalletHandler) ListAllowances(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	allowances, err := h.q.ListAllowances(r.Context(), householdID)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list allowances")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list allowances")
 		return
 	}
 	respond.JSON(w, http.StatusOK, allowances)
@@ -225,28 +225,28 @@ type setAllowanceRequest struct {
 func (h *WalletHandler) SetAllowance(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "member_id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 		return
 	}
 
 	var req setAllowanceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.AmountCents < 0 {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "amount_cents must be non-negative")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "amount_cents must be non-negative")
 		return
 	}
 
@@ -257,7 +257,7 @@ func (h *WalletHandler) SetAllowance(w http.ResponseWriter, r *http.Request) {
 		ActiveFrom:  pgtype.Date{Time: time.Now().UTC().Truncate(24 * time.Hour), Valid: true},
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to set allowance")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to set allowance")
 		return
 	}
 	respond.JSON(w, http.StatusOK, allowance)
@@ -276,12 +276,12 @@ type createAdHocTaskRequest struct {
 func (h *WalletHandler) CreateAdHocTask(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
@@ -289,16 +289,16 @@ func (h *WalletHandler) CreateAdHocTask(w http.ResponseWriter, r *http.Request) 
 
 	var req createAdHocTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 	if req.Name == "" {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "name is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "name is required")
 		return
 	}
 	memberID, err := uuid.Parse(req.MemberID)
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "validation_error", "valid member_id is required")
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "valid member_id is required")
 		return
 	}
 
@@ -306,7 +306,7 @@ func (h *WalletHandler) CreateAdHocTask(w http.ResponseWriter, r *http.Request) 
 	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
 		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "expires_at must be RFC3339")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "expires_at must be RFC3339")
 			return
 		}
 		expiresAt = pgtype.Timestamptz{Time: t, Valid: true}
@@ -323,7 +323,7 @@ func (h *WalletHandler) CreateAdHocTask(w http.ResponseWriter, r *http.Request) 
 		ExpiresAt:          expiresAt,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to create ad-hoc task")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to create ad-hoc task")
 		return
 	}
 	respond.JSON(w, http.StatusCreated, task)
@@ -334,7 +334,7 @@ func (h *WalletHandler) CreateAdHocTask(w http.ResponseWriter, r *http.Request) 
 func (h *WalletHandler) CompleteAdHocTask(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -343,7 +343,7 @@ func (h *WalletHandler) CompleteAdHocTask(w http.ResponseWriter, r *http.Request
 
 	taskID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid task ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid task ID")
 		return
 	}
 
@@ -352,14 +352,14 @@ func (h *WalletHandler) CompleteAdHocTask(w http.ResponseWriter, r *http.Request
 		HouseholdID: householdID,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusNotFound, "not_found", "ad-hoc task not found")
+		respond.Error(w, r, http.StatusNotFound, "not_found", "ad-hoc task not found")
 		return
 	}
 
 	// Enforce: caller is the task's member OR admin.
 	if !isAdmin(role) {
 		if !hasMember || callerMember != task.MemberID {
-			respond.Error(w, http.StatusForbidden, "forbidden", "you can only complete your own tasks")
+			respond.Error(w, r, http.StatusForbidden, "forbidden", "you can only complete your own tasks")
 			return
 		}
 	}
@@ -369,7 +369,7 @@ func (h *WalletHandler) CompleteAdHocTask(w http.ResponseWriter, r *http.Request
 		HouseholdID: householdID,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to mark task completed")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to mark task completed")
 		return
 	}
 	respond.JSON(w, http.StatusOK, updated)
@@ -380,12 +380,12 @@ func (h *WalletHandler) CompleteAdHocTask(w http.ResponseWriter, r *http.Request
 func (h *WalletHandler) ApproveAdHocTask(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
@@ -393,7 +393,7 @@ func (h *WalletHandler) ApproveAdHocTask(w http.ResponseWriter, r *http.Request)
 
 	taskID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid task ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid task ID")
 		return
 	}
 
@@ -404,7 +404,7 @@ func (h *WalletHandler) ApproveAdHocTask(w http.ResponseWriter, r *http.Request)
 		ApprovedByAccountID: byAccountID,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to approve task")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to approve task")
 		return
 	}
 
@@ -419,7 +419,7 @@ func (h *WalletHandler) ApproveAdHocTask(w http.ResponseWriter, r *http.Request)
 			ReferenceID:        &refID,
 			CreatedByAccountID: &accountID,
 		}); credErr != nil {
-			respond.Error(w, http.StatusInternalServerError, "internal_error", "task approved but wallet credit failed")
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "task approved but wallet credit failed")
 			return
 		}
 	}
@@ -436,24 +436,24 @@ type declineAdHocTaskRequest struct {
 func (h *WalletHandler) DeclineAdHocTask(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
 	if !isAdmin(middleware.RoleFromCtx(r.Context())) {
-		respond.Error(w, http.StatusForbidden, "forbidden", "admin role required")
+		respond.Error(w, r, http.StatusForbidden, "forbidden", "admin role required")
 		return
 	}
 
 	taskID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid task ID")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid task ID")
 		return
 	}
 
 	var req declineAdHocTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
 	}
 
@@ -463,7 +463,7 @@ func (h *WalletHandler) DeclineAdHocTask(w http.ResponseWriter, r *http.Request)
 		DeclineReason: req.Reason,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to decline task")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to decline task")
 		return
 	}
 	respond.JSON(w, http.StatusOK, task)
@@ -474,7 +474,7 @@ func (h *WalletHandler) DeclineAdHocTask(w http.ResponseWriter, r *http.Request)
 func (h *WalletHandler) ListAdHocTasks(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -484,7 +484,7 @@ func (h *WalletHandler) ListAdHocTasks(w http.ResponseWriter, r *http.Request) {
 	if m := q.Get("member_id"); m != "" {
 		id, err := uuid.Parse(m)
 		if err != nil {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "invalid member_id")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid member_id")
 			return
 		}
 		memberFilter = &uuid.NullUUID{UUID: id, Valid: true}
@@ -501,7 +501,7 @@ func (h *WalletHandler) ListAdHocTasks(w http.ResponseWriter, r *http.Request) {
 		Status:      statusFilter,
 	})
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to list ad-hoc tasks")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to list ad-hoc tasks")
 		return
 	}
 	respond.JSON(w, http.StatusOK, tasks)

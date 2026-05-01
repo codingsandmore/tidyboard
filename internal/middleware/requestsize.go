@@ -21,14 +21,15 @@ func MaxRequestBody(maxBytes int64) func(http.Handler) http.Handler {
 }
 
 // HandleMaxBytesError is a helper handlers can call after a body read failure
-// to distinguish 413 from other errors and write a clean response.
-// Usage: if err := json.NewDecoder(r.Body).Decode(&req); err != nil { HandleMaxBytesError(w, err); return }
-func HandleMaxBytesError(w http.ResponseWriter, err error) bool {
+// to distinguish 413 from other errors and write a clean response. The
+// request is required so the error envelope can include the correlation ID.
+// Usage: if err := json.NewDecoder(r.Body).Decode(&req); err != nil { HandleMaxBytesError(w, r, err); return }
+func HandleMaxBytesError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if err == nil {
 		return false
 	}
 	if err.Error() == "http: request body too large" {
-		respond.Error(w, http.StatusRequestEntityTooLarge, "payload_too_large", "request body exceeds size limit")
+		respond.Error(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", "request body exceeds size limit")
 		return true
 	}
 	return false

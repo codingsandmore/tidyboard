@@ -41,7 +41,7 @@ type uploadResponse struct {
 func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
 	if !ok {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing household context")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
 		return
 	}
 
@@ -49,13 +49,13 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, service.MaxMediaUploadSize)
 
 	if err := r.ParseMultipartForm(service.MaxMediaUploadSize); err != nil {
-		respond.Error(w, http.StatusRequestEntityTooLarge, "file_too_large", "file exceeds the 10 MB limit")
+		respond.Error(w, r, http.StatusRequestEntityTooLarge, "file_too_large", "file exceeds the 10 MB limit")
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "missing 'file' field in multipart form")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "missing 'file' field in multipart form")
 		return
 	}
 	defer file.Close()
@@ -79,7 +79,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !service.AllowedMediaTypes[ct] {
-		respond.Error(w, http.StatusUnsupportedMediaType, "unsupported_media_type",
+		respond.Error(w, r, http.StatusUnsupportedMediaType, "unsupported_media_type",
 			fmt.Sprintf("content type %q is not allowed; accepted: image/jpeg, image/png, image/webp, image/avif", ct))
 		return
 	}
@@ -93,7 +93,7 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	url, err := h.storage.Put(r.Context(), key, ct, fullBody)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "media upload failed", "err", err)
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to store file")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to store file")
 		return
 	}
 
@@ -109,25 +109,25 @@ func (h *MediaHandler) Upload(w http.ResponseWriter, r *http.Request) {
 // In S3 mode this returns 404; clients should use the stored URL directly.
 func (h *MediaHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 	if h.storageCfg.Type != "local" {
-		respond.Error(w, http.StatusNotFound, "not_found",
+		respond.Error(w, r, http.StatusNotFound, "not_found",
 			"direct file serving is only available in local storage mode; use the presigned URL endpoint")
 		return
 	}
 
 	key := chi.URLParam(r, "*")
 	if key == "" {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "missing key")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "missing key")
 		return
 	}
 
 	body, ct, err := h.storage.Get(r.Context(), key)
 	if err != nil {
 		if err == service.ErrNotFound {
-			respond.Error(w, http.StatusNotFound, "not_found", "file not found")
+			respond.Error(w, r, http.StatusNotFound, "not_found", "file not found")
 			return
 		}
 		slog.ErrorContext(r.Context(), "media serve failed", "key", key, "err", err)
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to read file")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to read file")
 		return
 	}
 	defer body.Close()
@@ -143,7 +143,7 @@ func (h *MediaHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 func (h *MediaHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "*")
 	if key == "" {
-		respond.Error(w, http.StatusBadRequest, "bad_request", "missing key")
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "missing key")
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *MediaHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("expiry"); q != "" {
 		v, err := strconv.Atoi(q)
 		if err != nil || v <= 0 || v > 604800 {
-			respond.Error(w, http.StatusBadRequest, "bad_request", "expiry must be a positive integer no greater than 604800")
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "expiry must be a positive integer no greater than 604800")
 			return
 		}
 		expirySecs = v
@@ -160,7 +160,7 @@ func (h *MediaHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	url, err := h.storage.SignedGetURL(r.Context(), key, time.Duration(expirySecs)*time.Second)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "presign failed", "key", key, "err", err)
-		respond.Error(w, http.StatusInternalServerError, "internal_error", "failed to generate signed URL")
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to generate signed URL")
 		return
 	}
 

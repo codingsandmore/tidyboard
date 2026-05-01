@@ -41,23 +41,23 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		tokenStr = r.URL.Query().Get("token")
 	}
 	if tokenStr == "" {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "missing token")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing token")
 		return
 	}
 
 	id, err := h.verifier.Verify(r.Context(), tokenStr)
 	if err != nil {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "invalid or expired token")
 		return
 	}
 
 	_, householdID, _, _, err := middleware.Resolve(r.Context(), h.queries, id)
 	if err != nil {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "could not resolve identity")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "could not resolve identity")
 		return
 	}
 	if householdID == uuid.Nil {
-		respond.Error(w, http.StatusUnauthorized, "unauthorized", "no household membership yet")
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "no household membership yet")
 		return
 	}
 
