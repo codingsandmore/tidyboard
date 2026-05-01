@@ -113,6 +113,7 @@ covered feature.
 | Allowance | GET/POST /v1/allowance | PART | OK | NO | NO | |
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
 | Chore time tracking (start/stop) | POST /v1/chores/:id/timer/*, POST /v1/chores/:id/time-entries, GET /v1/members/:id/time-summary | OK | OK | NO | NO | backend shipped via issue #134; UI tracked in #142 |
+| Equity contribution aggregate | GET /v1/equity/contribution | PART | NO | NO | NO | issue #138 (this PR); aggregates task_logs + chore_time_entries; honors hourly_rate privacy. Tests as follow-up. |
 | Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
 | Housekeeper-cost estimate (per category) | GET /v1/equity/housekeeper-estimate | NO | OK | NO | NO | issue #139 — go:embed rate asset, sums chore_time_entries × category market rate |
 

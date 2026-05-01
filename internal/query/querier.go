@@ -110,6 +110,17 @@ type Querier interface {
 	DeleteShoppingListItems(ctx context.Context, shoppingListID uuid.UUID) error
 	DeleteStep(ctx context.Context, id uuid.UUID) error
 	DeleteTaskDomain(ctx context.Context, arg DeleteTaskDomainParams) error
+	// sql/queries/equity_contribution.sql
+	// Equity-contribution aggregate: sum minutes from BOTH task_logs (existing
+	// equity tasks, minutes-resolution) AND chore_time_entries (new chore timer,
+	// seconds-resolution converted to minutes) per member over [from, to].
+	//
+	// Section E.1+E.2 + G.4 of docs/specs/2026-05-01-fairplay-design.md.
+	// Privacy: this query also returns the (private) hourly_rate_cents_min/max so
+	// the service layer can compute totals — the service is responsible for
+	// redacting these values before returning to a non-privileged viewer (see
+	// internal/service/equity.go::Contribution).
+	EquityContributionAggregate(ctx context.Context, arg EquityContributionAggregateParams) ([]EquityContributionAggregateRow, error)
 	GetAccountByEmail(ctx context.Context, email string) (Account, error)
 	GetAccountByID(ctx context.Context, id uuid.UUID) (Account, error)
 	GetAccountByOIDC(ctx context.Context, arg GetAccountByOIDCParams) (Account, error)

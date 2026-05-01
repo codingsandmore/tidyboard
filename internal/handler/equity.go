@@ -195,6 +195,61 @@ func (h *EquityHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetContribution handles GET /v1/equity/contribution?from=&to=
+//
+// Returns per-member totals aggregating BOTH task_logs and chore_time_entries
+// over the window [from, to). Cents fields are OMITTED (keys dropped) from a
+// member's row when:
+//  1. that member has no hourly_rate_cents_min/max set, OR
+//  2. the viewer is not that member AND not a household admin/owner.
+//
+// Window defaults to last 30 days when from/to are absent.
+func (h *EquityHandler) GetContribution(w http.ResponseWriter, r *http.Request) {
+	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
+		return
+	}
+	viewerID, ok := middleware.MemberIDFromCtx(r.Context())
+	if !ok {
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing member context")
+		return
+	}
+	role := middleware.RoleFromCtx(r.Context())
+
+	to := time.Now()
+	from := to.AddDate(0, 0, -30)
+	if s := r.URL.Query().Get("from"); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "from must be YYYY-MM-DD")
+			return
+		}
+		from = t
+	}
+	if s := r.URL.Query().Get("to"); s != "" {
+		t, err := time.Parse("2006-01-02", s)
+		if err != nil {
+			respond.Error(w, r, http.StatusBadRequest, "bad_request", "to must be YYYY-MM-DD")
+			return
+		}
+		// Half-open window per query semantics: shift "to" to end-of-day so
+		// callers passing a date can include same-day entries.
+		to = t.Add(24 * time.Hour)
+	}
+
+	viewer := service.ContributionViewer{
+		ViewerMemberID: viewerID,
+		IsAdmin:        role == "admin" || role == "owner",
+	}
+	resp, err := h.svc.Contribution(r.Context(), householdID, from, to, viewer)
+	if err != nil {
+		respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to compute equity contribution")
+		return
+	}
+	respond.JSON(w, http.StatusOK, resp)
+}
+
 // LogTaskTime handles POST /v1/equity/tasks/:id/log
 func (h *EquityHandler) LogTaskTime(w http.ResponseWriter, r *http.Request) {
 	householdID, ok := middleware.HouseholdIDFromCtx(r.Context())
