@@ -48,6 +48,8 @@ import type {
   HouseholdPreview,
   ApiChore,
   ApiChoreCompletion,
+  ApiChoreTimeEntry,
+  ApiMemberTimeSummary,
   ApiWalletGetResponse,
   ApiAllowance,
   ApiAdHocTask,
@@ -1453,6 +1455,140 @@ export function useArchiveChore() {
   return useMutation({
     mutationFn: ({ id }: { id: string }) => api.delete(`/v1/chores/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chores"] }),
+  });
+}
+
+// ── Chore time tracking ───────────────────────────────────────────────────
+// Endpoints landed in #134; see internal/handler/chore_time_entries.go.
+
+/** Opens a new timer entry for the given chore. Returns 409 with code
+ *  "timer_already_running" if the same caller has another open entry. */
+export function useStartChoreTimer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ choreId }: { choreId: string }) =>
+      api.post<ApiChoreTimeEntry>(`/v1/chores/${choreId}/timer/start`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-time-entries"] });
+      qc.invalidateQueries({ queryKey: ["member-time-summary"] });
+    },
+  });
+}
+
+/** Closes the latest open entry for the calling member + chore. */
+export function useStopChoreTimer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ choreId }: { choreId: string }) =>
+      api.post<ApiChoreTimeEntry>(`/v1/chores/${choreId}/timer/stop`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-time-entries"] });
+      qc.invalidateQueries({ queryKey: ["member-time-summary"] });
+    },
+  });
+}
+
+/** Records an admin-entered closed entry. Body shape mirrors the Go handler. */
+export function useRecordManualTimeEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      choreId,
+      memberId,
+      startedAt,
+      endedAt,
+      note,
+    }: {
+      choreId: string;
+      memberId?: string;
+      startedAt: string;
+      endedAt: string;
+      note?: string;
+    }) =>
+      api.post<ApiChoreTimeEntry>(`/v1/chores/${choreId}/time-entries`, {
+        ...(memberId ? { member_id: memberId } : {}),
+        started_at: startedAt,
+        ended_at: endedAt,
+        note: note ?? "",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-time-entries"] });
+      qc.invalidateQueries({ queryKey: ["member-time-summary"] });
+    },
+  });
+}
+
+/** Lists time entries for a chore. The backend currently supports server-
+ *  side filtering by ?member_id and ?from/?to; we send only the params the
+ *  caller provides. */
+export function useChoreTimeEntries(opts?: { choreId?: string; memberId?: string; from?: string; to?: string }) {
+  const { choreId, memberId, from, to } = opts ?? {};
+  return useQuery<ApiChoreTimeEntry[]>({
+    queryKey: ["chore-time-entries", choreId ?? null, memberId ?? null, from ?? null, to ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (memberId) qs.set("member_id", memberId);
+      if (from) qs.set("from", from);
+      if (to) qs.set("to", to);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      // Convention: per-chore listing lives at /v1/chores/{id}/time-entries.
+      // Without a chore ID, we hit the unscoped endpoint expected by the
+      // admin time-review page.
+      const path = choreId
+        ? `/v1/chores/${choreId}/time-entries${suffix}`
+        : `/v1/time-entries${suffix}`;
+      return withoutSampleFallback(() => api.get<ApiChoreTimeEntry[]>(path), [] as ApiChoreTimeEntry[]);
+    },
+  });
+}
+
+/** Aggregated summary for a member over [from, to). Defaults to the last 7d. */
+export function useMemberTimeSummary(memberId: string | undefined, opts?: { from?: string; to?: string }) {
+  const { from, to } = opts ?? {};
+  return useQuery<ApiMemberTimeSummary>({
+    queryKey: ["member-time-summary", memberId ?? null, from ?? null, to ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (from) qs.set("from", from);
+      if (to) qs.set("to", to);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return api.get<ApiMemberTimeSummary>(`/v1/members/${memberId}/time-summary${suffix}`);
+    },
+    enabled: Boolean(memberId),
+  });
+}
+
+/** Admin-only: edit (PATCH) a manual time entry. */
+export function useUpdateTimeEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      startedAt,
+      endedAt,
+      note,
+    }: { id: string; startedAt?: string; endedAt?: string; note?: string }) =>
+      api.patch<ApiChoreTimeEntry>(`/v1/time-entries/${id}`, {
+        ...(startedAt !== undefined ? { started_at: startedAt } : {}),
+        ...(endedAt !== undefined ? { ended_at: endedAt } : {}),
+        ...(note !== undefined ? { note } : {}),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-time-entries"] });
+      qc.invalidateQueries({ queryKey: ["member-time-summary"] });
+    },
+  });
+}
+
+/** Admin-only: delete a time entry. */
+export function useDeleteTimeEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) => api.delete<void>(`/v1/time-entries/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chore-time-entries"] });
+      qc.invalidateQueries({ queryKey: ["member-time-summary"] });
+    },
   });
 }
 
