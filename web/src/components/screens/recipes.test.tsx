@@ -31,6 +31,7 @@ vi.mock("@/lib/api/hooks", () => ({
   useStartImportJob: () => ({ mutate: startJobMutateMock, isPending: false, data: hookState.startJobData, reset: vi.fn() }),
   useImportJob: () => ({ data: hookState.jobData }),
   useUpsertMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: upsertMutateAsyncMock }),
+  useDeleteMealPlanEntry: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}) }),
   useGenerateShoppingList: () => ({ mutate: generateShoppingMutateMock, isPending: false }),
 }));
 

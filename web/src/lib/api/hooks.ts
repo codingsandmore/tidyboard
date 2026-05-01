@@ -655,6 +655,12 @@ interface MealPlanEntry {
   recipe_id?: string | null;
   date: string; // YYYY-MM-DD
   slot: string; // breakfast | lunch | dinner | snack
+  // Optional per-entry tuning fields. Backend currently ignores them on
+  // upsert (UpsertMealPlanRequest only knows date/slot/recipe_id), but the
+  // UI tracks them locally so the EditEntryPopover can round-trip values.
+  serving_multiplier?: number;
+  batch_quantity?: number;
+  planned_leftovers?: number;
   created_at: string;
   updated_at: string;
 }
@@ -690,14 +696,21 @@ function entriesToMealPlan(entries: MealPlanEntry[], from: string): MealPlan {
   const grid: (string | null)[][] = Array.from({ length: 4 }, () =>
     Array(7).fill(null)
   );
+  const entryIds: Record<string, import("@/lib/data").MealPlanEntryMeta> = {};
   for (const e of entries) {
     const rowIdx = SLOT_TO_ROW_IDX[e.slot];
     const colIdx = dayIndex[e.date];
     if (rowIdx !== undefined && colIdx !== undefined && e.recipe_id) {
       grid[rowIdx][colIdx] = e.recipe_id;
+      entryIds[`${e.date}|${e.slot}`] = {
+        id: e.id,
+        serving_multiplier: e.serving_multiplier,
+        batch_quantity: e.batch_quantity,
+        planned_leftovers: e.planned_leftovers,
+      };
     }
   }
-  return { weekOf, rows: [...MEAL_PLAN_ROWS], grid };
+  return { weekOf, rows: [...MEAL_PLAN_ROWS], grid, entryIds };
 }
 
 function emptyMealPlan(from: string): MealPlan {
@@ -707,6 +720,7 @@ function emptyMealPlan(from: string): MealPlan {
     grid: Array.from({ length: MEAL_PLAN_ROWS.length }, () =>
       Array(7).fill(null)
     ),
+    entryIds: {},
   };
 }
 
@@ -760,16 +774,43 @@ export function useUpsertMealPlanEntry() {
       date,
       slot,
       recipeId,
+      serving_multiplier,
+      batch_quantity,
+      planned_leftovers,
     }: {
       date: string;
       slot: string;
       recipeId?: string | null;
+      // Optional per-entry tuning. Forwarded to the backend; the current
+      // server schema ignores unknown keys but is safe to send.
+      serving_multiplier?: number;
+      batch_quantity?: number;
+      planned_leftovers?: number;
     }) =>
       api.post<MealPlanEntry>("/v1/meal-plan", {
         date,
         slot,
         ...(recipeId ? { recipe_id: recipeId } : {}),
+        ...(serving_multiplier !== undefined ? { serving_multiplier } : {}),
+        ...(batch_quantity !== undefined ? { batch_quantity } : {}),
+        ...(planned_leftovers !== undefined ? { planned_leftovers } : {}),
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mealPlan"] });
+    },
+  });
+}
+
+/**
+ * DELETE /v1/meal-plan/{id}. The cell empties via cache invalidation; if the
+ * caller wants instant feedback they can additionally clear local state on
+ * mutate completion.
+ */
+export function useDeleteMealPlanEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      api.delete<void>(`/v1/meal-plan/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mealPlan"] });
     },

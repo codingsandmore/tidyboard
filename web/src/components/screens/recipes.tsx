@@ -11,8 +11,9 @@ import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
 import type { ShoppingCategory } from "@/lib/data";
-import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useRecipes, useRecipe, useGenerateShoppingList, useStartImportJob, useImportJob } from "@/lib/api/hooks";
+import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useDeleteMealPlanEntry, useRecipes, useRecipe, useGenerateShoppingList, useStartImportJob, useImportJob } from "@/lib/api/hooks";
 import { ImportStatusPanel, type ImportJob } from "@/components/recipes/ImportStatusPanel";
+import { EditEntryPopover } from "@/components/meal-plan/EditEntryPopover";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -755,6 +756,7 @@ export function MealPlan() {
   const { data: apiMealPlan } = useMealPlan();
   const { data: apiRecipes } = useRecipes();
   const upsertMealPlan = useUpsertMealPlanEntry();
+  const deleteMealPlan = useDeleteMealPlanEntry();
   const generateShopping = useGenerateShoppingList();
   const mealPlan = apiMealPlan;
   const recipes = apiRecipes ?? [];
@@ -840,6 +842,8 @@ export function MealPlan() {
   // Local grid state (optimistic)
   const [localGrid, setLocalGrid] = useState<(string | null)[][]>([]);
   const [pickerSlot, setPickerSlot] = useState<MealSlot | null>(null);
+  /** When non-null, the EditEntryPopover is open over an occupied cell. */
+  const [editSlot, setEditSlot] = useState<MealSlot | null>(null);
 
   // Seed local grid from API data when it arrives
   const [seededWeek, setSeededWeek] = useState<string | null>(null);
@@ -858,7 +862,55 @@ export function MealPlan() {
   const ROW_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 
   function openPicker(rowIdx: number, colIdx: number, date: string, meal: string) {
+    // If a recipe is already assigned, open the edit popover instead of the
+    // recipe picker. Empty cells continue to use the picker.
+    const currentRecipe =
+      (localGrid.length > 0 ? localGrid : (mealPlan?.grid ?? []))[rowIdx]?.[colIdx] ?? null;
+    if (currentRecipe) {
+      setEditSlot({ rowIdx, colIdx, date, meal });
+      return;
+    }
     setPickerSlot({ rowIdx, colIdx, date, meal });
+  }
+
+  function handleEditSave(values: {
+    serving_multiplier: number;
+    batch_quantity: number;
+    planned_leftovers: number;
+  }) {
+    if (!editSlot || !mealPlan) return;
+    const { rowIdx, colIdx, date } = editSlot;
+    const slot = ROW_SLOTS[rowIdx] ?? "dinner";
+    const recipeId =
+      (localGrid.length > 0 ? localGrid : mealPlan.grid)[rowIdx]?.[colIdx] ?? null;
+    upsertMealPlan.mutate({
+      date,
+      slot,
+      recipeId,
+      serving_multiplier: values.serving_multiplier,
+      batch_quantity: values.batch_quantity,
+      planned_leftovers: values.planned_leftovers,
+    });
+    setEditSlot(null);
+  }
+
+  function handleEditDelete() {
+    if (!editSlot || !mealPlan) return;
+    const { rowIdx, colIdx, date } = editSlot;
+    const slot = ROW_SLOTS[rowIdx] ?? "dinner";
+    const meta = mealPlan.entryIds?.[`${date}|${slot}`];
+    if (meta?.id) {
+      deleteMealPlan.mutate({ id: meta.id });
+    }
+    // Optimistically clear the cell.
+    setLocalGrid((prev) => {
+      const base = prev.length > 0 ? prev : mealPlan.grid;
+      const next: (string | null)[][] = base.map((row) => [...row]);
+      if (!next[rowIdx]) next[rowIdx] = [];
+      next[rowIdx][colIdx] = null;
+      return next;
+    });
+    setEditSlot(null);
   }
 
   function pickRecipe(recipeId: string) {
@@ -1188,6 +1240,24 @@ export function MealPlan() {
           })}
         </div>
       </div>
+
+      {/* Edit existing-entry popover (multiplier / batch / leftovers + delete) */}
+      {editSlot && mealPlan && (() => {
+        const slot = ROW_SLOTS[editSlot.rowIdx] ?? "dinner";
+        const meta = mealPlan.entryIds?.[`${editSlot.date}|${slot}`];
+        return (
+          <EditEntryPopover
+            title={`${editSlot.meal} — ${editSlot.date}`}
+            initialMultiplier={meta?.serving_multiplier ?? 1.0}
+            initialBatch={meta?.batch_quantity ?? 1}
+            initialLeftovers={meta?.planned_leftovers ?? 0}
+            busy={upsertMealPlan.isPending || deleteMealPlan.isPending}
+            onSave={handleEditSave}
+            onCancel={() => setEditSlot(null)}
+            onDelete={handleEditDelete}
+          />
+        );
+      })()}
 
       {/* Recipe picker modal */}
       {pickerSlot && (
