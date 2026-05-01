@@ -200,6 +200,8 @@ type Querier interface {
 	ListPointCategories(ctx context.Context, arg ListPointCategoriesParams) ([]PointCategory, error)
 	ListPointGrants(ctx context.Context, arg ListPointGrantsParams) ([]PointGrant, error)
 	ListRecipeCollections(ctx context.Context, householdID uuid.UUID) ([]RecipeCollection, error)
+	ListRecipeIngredients(ctx context.Context, arg ListRecipeIngredientsParams) ([]RecipeIngredient, error)
+	ListRecipeSteps(ctx context.Context, arg ListRecipeStepsParams) ([]RecipeStep, error)
 	ListRecipes(ctx context.Context, householdID uuid.UUID) ([]Recipe, error)
 	ListRecipesByCollection(ctx context.Context, arg ListRecipesByCollectionParams) ([]Recipe, error)
 	ListRedemptions(ctx context.Context, arg ListRedemptionsParams) ([]Redemption, error)

@@ -53,7 +53,47 @@ export type Routine = {
   steps: RoutineStep[];
 };
 
-export type Ingredient = { amt: string; name: string };
+/**
+ * Ingredient covers two on-the-wire shapes the UI must render:
+ *
+ * - Sample/fallback fixtures use `{ amt, name }` (legacy, manually-authored).
+ * - The Go backend returns `RecipeIngredient` rows with
+ *   `{ amount, unit, name, ... }` (issue #109; section B.2.f of the design
+ *   spec).
+ *
+ * Both shapes are accepted so live-API recipes and TBD fixtures share a
+ * rendering path. Extra backend fields (id, recipe_id, group, preparation,
+ * optional, substitution_note) are passed through.
+ */
+export type Ingredient = {
+  amt?: string;
+  amount?: number;
+  unit?: string;
+  name: string;
+  id?: string;
+  recipe_id?: string;
+  order?: number;
+  group?: string;
+  preparation?: string;
+  optional?: boolean;
+  substitution_note?: string;
+};
+
+/**
+ * RecipeStepItem mirrors the Ingredient story: legacy fixtures pass plain
+ * strings, the live backend passes `RecipeStep` rows. Renderers must accept
+ * either form.
+ */
+export type RecipeStepItem =
+  | string
+  | {
+      id?: string;
+      recipe_id?: string;
+      order?: number;
+      text: string;
+      timer_seconds?: number | null;
+      image_url?: string;
+    };
 
 export type Recipe = {
   id: string;
@@ -66,7 +106,7 @@ export type Recipe = {
   rating: number;
   tag: string[];
   ingredients?: Ingredient[];
-  steps?: string[];
+  steps?: RecipeStepItem[];
 };
 
 /**

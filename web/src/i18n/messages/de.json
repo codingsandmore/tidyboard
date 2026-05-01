@@ -195,6 +195,8 @@
       "snack": "SNACK"
     },
     "noRecipeFound": "Rezept nicht gefunden",
+    "noIngredients": "Noch keine Zutaten",
+    "noSteps": "Noch keine Schritte",
     "noMealPlanYet": "Noch kein Speiseplan. Erstelle einen aus deinen Rezepten.",
     "emptyShoppingList": "Die Einkaufsliste ist leer"
   },

@@ -90,3 +90,13 @@ LIMIT 1;
 SELECT * FROM recipes
 WHERE household_id = $1 AND is_favorite = true
 ORDER BY updated_at DESC;
+
+-- name: ListRecipeIngredients :many
+SELECT * FROM recipe_ingredients
+WHERE recipe_id = $1 AND household_id = $2
+ORDER BY sort_order ASC, name ASC;
+
+-- name: ListRecipeSteps :many
+SELECT * FROM recipe_steps
+WHERE recipe_id = $1 AND household_id = $2
+ORDER BY sort_order ASC;

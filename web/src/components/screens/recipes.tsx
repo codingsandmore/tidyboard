@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Fragment } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { TB } from "@/lib/tokens";
 import { Icon } from "@/components/ui/icon";
@@ -481,7 +482,14 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
           ).map(([v, l]) => (
             <div
               key={v}
-              onClick={() => setTab(v)}
+              onClick={() => {
+                // flushSync forces React to commit the state update before
+                // returning from the click handler. This makes the tab content
+                // synchronously visible to RTL queries that fire immediately
+                // after a `.click()` call (issue #109 page test relies on this
+                // pattern without an explicit act() wrapper).
+                flushSync(() => setTab(v));
+              }}
               style={{
                 padding: "10px 14px",
                 fontSize: 13,
@@ -500,81 +508,124 @@ export function RecipeDetail({ id, dark = false }: { id?: string; dark?: boolean
         {/* Tab content */}
         <div style={{ paddingTop: 16 }}>
           {tab === "ing" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(r.ingredients ?? []).map((ing, i) => (
+            <div
+              data-testid="recipe-ingredients"
+              style={{ display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              {(r.ingredients ?? []).length === 0 ? (
                 <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    padding: "10px 0",
-                    borderBottom: `1px solid ${dark ? TB.dBorderSoft : TB.borderSoft}`,
-                  }}
+                  data-testid="recipe-ingredients-empty"
+                  style={{ fontSize: 13, color: tc2, padding: "8px 0" }}
                 >
-                  <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      border: `1.5px solid ${border}`,
-                      borderRadius: 4,
-                      flexShrink: 0,
-                      marginTop: 1,
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    {ing.amt && (
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          fontFamily: TB.fontMono,
-                          fontSize: 13,
-                          marginRight: 8,
-                        }}
-                      >
-                        {scaleAmount(ing.amt, scaleFactor)}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 14 }}>{ing.name}</span>
-                  </div>
+                  {t("noIngredients")}
                 </div>
-              ))}
+              ) : (
+                (r.ingredients ?? []).map((ing, i) => {
+                  // Live backend rows expose `amount` (number) + `unit`
+                  // separately; legacy fixtures use a single `amt` string.
+                  // Render whichever is present.
+                  const amtText =
+                    ing.amt !== undefined && ing.amt !== ""
+                      ? scaleAmount(ing.amt, scaleFactor)
+                      : ing.amount !== undefined && ing.amount > 0
+                      ? `${scaleAmount(String(ing.amount), scaleFactor)}${ing.unit ? " " + ing.unit : ""}`
+                      : ing.unit ?? "";
+                  return (
+                    <div
+                      key={ing.id ?? i}
+                      style={{
+                        display: "flex",
+                        gap: 12,
+                        padding: "10px 0",
+                        borderBottom: `1px solid ${dark ? TB.dBorderSoft : TB.borderSoft}`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 18,
+                          height: 18,
+                          border: `1.5px solid ${border}`,
+                          borderRadius: 4,
+                          flexShrink: 0,
+                          marginTop: 1,
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        {amtText && (
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              fontFamily: TB.fontMono,
+                              fontSize: 13,
+                              marginRight: 8,
+                            }}
+                          >
+                            {amtText}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 14 }}>{ing.name}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
           {tab === "step" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {(r.steps ?? []).map((s, i) => (
+            <div
+              data-testid="recipe-steps"
+              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            >
+              {(r.steps ?? []).length === 0 ? (
                 <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: 14,
-                    padding: 14,
-                    background: surf,
-                    border: `1px solid ${border}`,
-                    borderRadius: 10,
-                  }}
+                  data-testid="recipe-steps-empty"
+                  style={{ fontSize: 13, color: tc2, padding: "8px 0" }}
                 >
-                  <div
-                    style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: "50%",
-                      background: TB.primary,
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontFamily: TB.fontDisplay,
-                      fontWeight: 600,
-                      fontSize: 14,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                  <div style={{ flex: 1, fontSize: 14, lineHeight: 1.5, color: tc }}>{s}</div>
+                  {t("noSteps")}
                 </div>
-              ))}
+              ) : (
+                (r.steps ?? []).map((s, i) => {
+                  // Backend rows are `{ text, ... }`; fixtures are plain
+                  // strings. Coerce to the body string we render.
+                  const stepText = typeof s === "string" ? s : s.text;
+                  const stepKey = typeof s === "string" ? i : s.id ?? i;
+                  return (
+                    <div
+                      key={stepKey}
+                      style={{
+                        display: "flex",
+                        gap: 14,
+                        padding: 14,
+                        background: surf,
+                        border: `1px solid ${border}`,
+                        borderRadius: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "50%",
+                          background: TB.primary,
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontFamily: TB.fontDisplay,
+                          fontWeight: 600,
+                          fontSize: 14,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {i + 1}
+                      </div>
+                      <div style={{ flex: 1, fontSize: 14, lineHeight: 1.5, color: tc }}>
+                        {stepText}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>
