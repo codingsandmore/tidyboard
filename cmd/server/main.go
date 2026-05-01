@@ -207,6 +207,8 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	walletHandler := handler.NewWalletHandler(walletSvc, q)
 	choreHandler := handler.NewChoreHandler(choreSvc, q)
 	choreTimerHandler := handler.NewChoreTimerHandler(choreTimerSvc, q)
+	chorePetsSvc := service.NewChorePetsService(q)
+	chorePetsHandler := handler.NewChorePetsHandler(chorePetsSvc)
 	pointsHandler := handler.NewPointsHandler(pointsSvc)
 	rewardHandler := handler.NewRewardHandler(rewardSvc)
 
@@ -439,6 +441,9 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Post("/v1/chores/{id}/timer/stop", choreTimerHandler.StopTimer)
 		r.Post("/v1/chores/{id}/time-entries", choreTimerHandler.CreateManualEntry)
 		r.Get("/v1/members/{id}/time-summary", choreTimerHandler.MemberSummary)
+		// Chore-pet linkage.
+		r.Get("/v1/chores/{id}/pets", chorePetsHandler.List)
+		r.Post("/v1/chores/{id}/pets", chorePetsHandler.Set)
 
 		// Wallet.
 		r.Get("/v1/wallet/{member_id}", walletHandler.GetWallet)

@@ -11,6 +11,10 @@ import (
 )
 
 type Querier interface {
+	// sql/queries/chore_pets.sql
+	// chore_pets join table queries: links chores to pet members.
+	// Section D of docs/specs/2026-05-01-fairplay-design.md.
+	AddChorePet(ctx context.Context, arg AddChorePetParams) error
 	AddRecipeToCollection(ctx context.Context, arg AddRecipeToCollectionParams) error
 	AddStep(ctx context.Context, arg AddStepParams) (RoutineStep, error)
 	AdjustWalletBalance(ctx context.Context, arg AdjustWalletBalanceParams) (Wallet, error)
@@ -21,6 +25,7 @@ type Querier interface {
 	ArchiveEquityTask(ctx context.Context, arg ArchiveEquityTaskParams) error
 	ArchivePointCategory(ctx context.Context, arg ArchivePointCategoryParams) error
 	ArchiveReward(ctx context.Context, arg ArchiveRewardParams) error
+	ClearChorePets(ctx context.Context, choreID uuid.UUID) error
 	ClearSavingsGoal(ctx context.Context, memberID uuid.UUID) error
 	CloseChoreCompletionsForWeek(ctx context.Context, arg CloseChoreCompletionsForWeekParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
@@ -183,6 +188,7 @@ type Querier interface {
 	ListCalendars(ctx context.Context, householdID uuid.UUID) ([]Calendar, error)
 	ListChoreCompletionsForRange(ctx context.Context, arg ListChoreCompletionsForRangeParams) ([]ChoreCompletion, error)
 	ListChoreCompletionsForWeek(ctx context.Context, arg ListChoreCompletionsForWeekParams) ([]ChoreCompletion, error)
+	ListChorePets(ctx context.Context, choreID uuid.UUID) ([]uuid.UUID, error)
 	ListChoreTimeEntries(ctx context.Context, arg ListChoreTimeEntriesParams) ([]ChoreTimeEntry, error)
 	ListChores(ctx context.Context, arg ListChoresParams) ([]Chore, error)
 	ListCompletionsForDay(ctx context.Context, arg ListCompletionsForDayParams) ([]RoutineCompletion, error)
@@ -204,6 +210,7 @@ type Querier interface {
 	ListMembers(ctx context.Context, householdID uuid.UUID) ([]Member, error)
 	ListMembersInHousehold(ctx context.Context, householdID uuid.UUID) ([]uuid.UUID, error)
 	ListPantryStaples(ctx context.Context, householdID uuid.UUID) ([]PantryStaple, error)
+	ListPetMembersForHousehold(ctx context.Context, householdID uuid.UUID) ([]uuid.UUID, error)
 	ListPointCategories(ctx context.Context, arg ListPointCategoriesParams) ([]PointCategory, error)
 	ListPointGrants(ctx context.Context, arg ListPointGrantsParams) ([]PointGrant, error)
 	ListRecipeCollections(ctx context.Context, householdID uuid.UUID) ([]RecipeCollection, error)
@@ -230,6 +237,7 @@ type Querier interface {
 	RecomputeWalletBalance(ctx context.Context, memberID uuid.UUID) (Wallet, error)
 	RegenerateInviteCode(ctx context.Context, arg RegenerateInviteCodeParams) (Household, error)
 	RejectJoinRequest(ctx context.Context, arg RejectJoinRequestParams) (JoinRequest, error)
+	RemoveChorePet(ctx context.Context, arg RemoveChorePetParams) error
 	RemoveRecipeFromCollection(ctx context.Context, arg RemoveRecipeFromCollectionParams) error
 	ScoreboardByCategory(ctx context.Context, householdID uuid.UUID) ([]ScoreboardByCategoryRow, error)
 	ScoreboardTotals(ctx context.Context, householdID uuid.UUID) ([]ScoreboardTotalsRow, error)

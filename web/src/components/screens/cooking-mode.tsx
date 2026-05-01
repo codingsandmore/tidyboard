@@ -9,6 +9,23 @@ import { Btn } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import type { Recipe } from "@/lib/data";
 
+// ── Cooking-mode dark-overlay palette ──────────────────────────────────────
+// Cooking mode is intentionally darker than the standard `TB.dBg` so the
+// kitchen UI feels low-glare. These overlays are derived from `TB.dText`
+// (white-ish foreground) so dark-mode token swaps cascade naturally.
+const COOK_BG = TB.dBg;          // page background
+const COOK_BG_EMPTY = TB.dBg2;   // "no steps" empty-state background
+const COOK_FG = TB.dText;        // primary foreground
+const COOK_FG_DIM = TB.dText2;   // dimmed foreground (subtitles, mono)
+const COOK_OVERLAY_4 = "rgba(250,250,249,0.04)";  // disabled chip
+const COOK_OVERLAY_8 = "rgba(250,250,249,0.08)";  // top/bottom-bar borders
+const COOK_OVERLAY_10 = "rgba(250,250,249,0.10)"; // top-bar progress track
+const COOK_OVERLAY_12 = "rgba(250,250,249,0.12)"; // step counter chip
+const COOK_OVERLAY_15 = "rgba(250,250,249,0.15)"; // prev-button border
+const COOK_OVERLAY_30 = "rgba(250,250,249,0.30)"; // disabled text
+const COOK_OVERLAY_50 = "rgba(250,250,249,0.50)"; // recipe title caption
+const COOK_OVERLAY_60 = "rgba(250,250,249,0.60)"; // empty-state body
+
 // ── Wake lock helpers ──────────────────────────────────────────────────────
 
 function useWakeLock() {
@@ -136,7 +153,7 @@ function StepTimer({
               padding: "6px 16px",
               borderRadius: 8,
               background: TB.primary,
-              color: "#fff",
+              color: TB.primaryFg,
               border: "none",
               cursor: "pointer",
               fontSize: 13,
@@ -154,7 +171,7 @@ function StepTimer({
               padding: "6px 16px",
               borderRadius: 8,
               background: TB.muted,
-              color: "#fff",
+              color: TB.primaryFg,
               border: "none",
               cursor: "pointer",
               fontSize: 13,
@@ -227,14 +244,14 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#000",
-          color: "#fff",
+          background: COOK_BG,
+          color: COOK_FG,
           fontFamily: TB.fontBody,
           flexDirection: "column",
           gap: 16,
         }}
       >
-        <H as="h2" style={{ color: "#fff" }}>Loading recipe…</H>
+        <H as="h2" style={{ color: COOK_FG }}>Loading recipe…</H>
       </div>
     );
   }
@@ -248,8 +265,8 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#111",
-          color: "#fff",
+          background: COOK_BG_EMPTY,
+          color: COOK_FG,
           fontFamily: TB.fontBody,
           flexDirection: "column",
           gap: 16,
@@ -258,8 +275,8 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
         }}
       >
         <div style={{ fontSize: 48 }}>🍽️</div>
-        <H as="h2" style={{ color: "#fff", fontSize: 28 }}>{(recipe as Recipe).title}</H>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 16, maxWidth: 400 }}>
+        <H as="h2" style={{ color: COOK_FG, fontSize: 28 }}>{(recipe as Recipe).title}</H>
+        <p style={{ color: COOK_OVERLAY_60, fontSize: 16, maxWidth: 400 }}>
           This recipe has no step-by-step instructions yet.
         </p>
         <Btn kind="secondary" size="lg" onClick={() => router.back()}>
@@ -275,8 +292,8 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
       style={{
         width: "100vw",
         height: "100vh",
-        background: "#0f0f0f",
-        color: "#fff",
+        background: COOK_BG,
+        color: COOK_FG,
         fontFamily: TB.fontBody,
         display: "flex",
         flexDirection: "column",
@@ -290,7 +307,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: `1px solid ${COOK_OVERLAY_8}`,
           flexShrink: 0,
         }}
       >
@@ -298,11 +315,11 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           data-testid="cook-close"
           onClick={() => router.back()}
           style={{
-            background: "rgba(255,255,255,0.1)",
+            background: COOK_OVERLAY_10,
             border: "none",
             borderRadius: 8,
             padding: "6px 14px",
-            color: "#fff",
+            color: COOK_FG,
             cursor: "pointer",
             fontSize: 13,
             display: "flex",
@@ -310,7 +327,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
             gap: 6,
           }}
         >
-          <Icon name="chevronL" size={16} color="#fff" />
+          <Icon name="chevronL" size={16} color={COOK_FG} />
           Exit
         </button>
 
@@ -318,7 +335,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           <div
             style={{
               fontSize: 12,
-              color: "rgba(255,255,255,0.5)",
+              color: COOK_OVERLAY_50,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}
@@ -327,7 +344,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
           </div>
           {supported && (
             <div
-              style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}
+              style={{ fontSize: 10, color: COOK_OVERLAY_30, marginTop: 2 }}
             >
               Screen kept awake
             </div>
@@ -338,7 +355,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
         <div
           data-testid="step-counter"
           style={{
-            background: "rgba(255,255,255,0.12)",
+            background: COOK_OVERLAY_12,
             borderRadius: 8,
             padding: "6px 12px",
             fontSize: 13,
@@ -353,7 +370,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
       <div
         style={{
           height: 3,
-          background: "rgba(255,255,255,0.1)",
+          background: COOK_OVERLAY_10,
           flexShrink: 0,
         }}
       >
@@ -409,7 +426,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
             textAlign: "center",
             maxWidth: 700,
             margin: 0,
-            color: "#fff",
+            color: COOK_FG,
           }}
         >
           {currentStep}
@@ -431,7 +448,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
               padding: "6px 18px",
               borderRadius: 20,
               background: TB.success,
-              color: "#fff",
+              color: TB.primaryFg,
               fontSize: 14,
               fontWeight: 600,
             }}
@@ -445,7 +462,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
       <div
         style={{
           padding: "20px 32px",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
+          borderTop: `1px solid ${COOK_OVERLAY_8}`,
           display: "flex",
           gap: 16,
           flexShrink: 0,
@@ -459,9 +476,9 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
             flex: 1,
             padding: "16px 0",
             borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.15)",
-            background: isFirst ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)",
-            color: isFirst ? "rgba(255,255,255,0.3)" : "#fff",
+            border: `1px solid ${COOK_OVERLAY_15}`,
+            background: isFirst ? COOK_OVERLAY_4 : COOK_OVERLAY_10,
+            color: isFirst ? COOK_OVERLAY_30 : COOK_FG,
             fontSize: 16,
             fontWeight: 600,
             cursor: isFirst ? "not-allowed" : "pointer",
@@ -472,7 +489,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
             gap: 8,
           }}
         >
-          <Icon name="chevronL" size={20} color={isFirst ? "rgba(255,255,255,0.3)" : "#fff"} />
+          <Icon name="chevronL" size={20} color={isFirst ? COOK_OVERLAY_30 : COOK_FG} />
           Previous
         </button>
 
@@ -486,7 +503,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
               borderRadius: 14,
               border: "none",
               background: TB.success,
-              color: "#fff",
+              color: TB.primaryFg,
               fontSize: 18,
               fontWeight: 700,
               cursor: "pointer",
@@ -505,7 +522,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
               borderRadius: 14,
               border: "none",
               background: TB.primary,
-              color: "#fff",
+              color: TB.primaryFg,
               fontSize: 18,
               fontWeight: 700,
               cursor: "pointer",
@@ -517,7 +534,7 @@ export function CookingMode({ recipeId }: { recipeId: string }) {
             }}
           >
             Next step
-            <Icon name="chevronR" size={20} color="#fff" />
+            <Icon name="chevronR" size={20} color={COOK_FG} />
           </button>
         )}
       </div>
