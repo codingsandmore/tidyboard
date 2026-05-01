@@ -114,6 +114,7 @@ covered feature.
 | Ad-hoc tasks | POST /v1/ad-hoc-tasks | PART | OK | NO | NO | |
 | Chore time tracking (start/stop) | POST /v1/chores/:id/timer/*, POST /v1/chores/:id/time-entries, GET /v1/members/:id/time-summary | OK | OK | NO | NO | backend shipped via issue #134; UI tracked in #142 |
 | Chore→wallet payout (audit & fix) | POST /v1/chores/:id/complete | PART | PART | NO | NO | in flight cycle 3 — issue #137 + #145 |
+| Housekeeper-cost estimate (per category) | GET /v1/equity/housekeeper-estimate | NO | OK | NO | NO | issue #139 — go:embed rate asset, sums chore_time_entries × category market rate |
 
 ## 9. Points & Rewards
 
