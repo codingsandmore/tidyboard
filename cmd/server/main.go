@@ -187,7 +187,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	authHandler := handler.NewAuthHandler(authSvc)
 	householdHandler := handler.NewHouseholdHandler(householdSvc)
 	inviteHandler := handler.NewInviteHandler(inviteSvc)
-	memberHandler := handler.NewMemberHandler(memberSvc)
+	memberHandler := handler.NewMemberHandler(memberSvc).WithAudit(auditSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
 	recipeHandler := handler.NewRecipeHandler(recipeSvc)

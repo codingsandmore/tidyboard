@@ -43,7 +43,7 @@ covered feature.
 | Update member | PATCH /v1/members/:id | PART | OK | NO | NO | |
 | Delete member | DELETE /v1/members/:id | PART | OK | NO | NO | |
 | Invite by code | POST /v1/invites | PART | OK | NO | NO | |
-| Hourly salary range (private) | PATCH /v1/members/:id (hourly_rate_cents_*) | PART | PART | NO | NO | in flight cycle 3 — issue #135 (backend) + #143 (UI) |
+| Hourly salary range (private) | PATCH /v1/members/:id (hourly_rate_cents_*) | PART | OK | NO | NO | backend #135 — privacy gated to self/admin; UI #143 still pending |
 
 ## 3. Pets
 

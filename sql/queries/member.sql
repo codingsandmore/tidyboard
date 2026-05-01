@@ -55,6 +55,18 @@ SET
 WHERE id = $1 AND household_id = $2
 RETURNING *;
 
+-- name: UpdateMemberHourlyRate :one
+-- Sets the (private) hourly_rate range. Use sqlc.arg so callers can explicitly
+-- clear the range by passing NULLs. Authorization is enforced in the service
+-- layer — this query has no role check of its own.
+UPDATE members
+SET
+    hourly_rate_cents_min = sqlc.narg(hourly_rate_cents_min)::INTEGER,
+    hourly_rate_cents_max = sqlc.narg(hourly_rate_cents_max)::INTEGER,
+    updated_at            = NOW()
+WHERE id = $1 AND household_id = $2
+RETURNING *;
+
 -- name: DeleteMember :exec
 DELETE FROM members
 WHERE id = $1 AND household_id = $2;

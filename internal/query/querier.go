@@ -274,6 +274,10 @@ type Querier interface {
 	UpdateList(ctx context.Context, arg UpdateListParams) (List, error)
 	UpdateListItem(ctx context.Context, arg UpdateListItemParams) (ListItem, error)
 	UpdateMember(ctx context.Context, arg UpdateMemberParams) (Member, error)
+	// Sets the (private) hourly_rate range. Use sqlc.arg so callers can explicitly
+	// clear the range by passing NULLs. Authorization is enforced in the service
+	// layer — this query has no role check of its own.
+	UpdateMemberHourlyRate(ctx context.Context, arg UpdateMemberHourlyRateParams) (Member, error)
 	UpdateMemberNotify(ctx context.Context, arg UpdateMemberNotifyParams) (Member, error)
 	UpdatePointCategory(ctx context.Context, arg UpdatePointCategoryParams) (PointCategory, error)
 	UpdateRecipe(ctx context.Context, arg UpdateRecipeParams) (Recipe, error)

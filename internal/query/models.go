@@ -285,6 +285,8 @@ type Member struct {
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
 	NtfyTopic               *string            `json:"ntfy_topic"`
+	HourlyRateCentsMin      *int32             `json:"hourly_rate_cents_min"`
+	HourlyRateCentsMax      *int32             `json:"hourly_rate_cents_max"`
 }
 
 type PantryStaple struct {
