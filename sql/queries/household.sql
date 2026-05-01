@@ -51,3 +51,12 @@ RETURNING *;
 SELECT * FROM households
 WHERE invite_code = $1
 LIMIT 1;
+
+-- name: GetHouseholdPayoutCentsPerWeight :one
+-- Returns the household's flat per-weight chore payout rate (cents).
+-- Used as the fallback when a member has no allowance configured but a chore
+-- is auto-approved. Defaults to 500 (5 stones / weight) per migration
+-- 20260501000050_chore_wallet_idempotency.sql.
+SELECT payout_cents_per_weight FROM households
+WHERE id = $1
+LIMIT 1;

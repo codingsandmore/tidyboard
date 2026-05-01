@@ -128,14 +128,37 @@ func (s *ChoreService) Complete(ctx context.Context, householdID, choreID uuid.U
 	}
 
 	// 4. Compute payout.
-	weights := make([]int, len(siblings))
-	freqs := make([]int, len(siblings))
-	for i, c := range siblings {
-		weights[i] = int(c.Weight)
-		freqs[i] = FrequencyPerWeek(c.FrequencyKind, c.DaysOfWeek)
+	//
+	// There are two pricing models, in order of precedence:
+	//
+	//   a) Allowance-share (per spec, when an allowance is configured): each
+	//      completion pays out a slice of the weekly allowance proportional to
+	//      its share of (weight × frequency) among that member's active chores.
+	//
+	//   b) Flat household rate (fallback for households that ship without an
+	//      allowance — e.g. the Flintstones seed): payout = chore.weight ×
+	//      households.payout_cents_per_weight (default 500 cents per migration
+	//      20260501000050). This guarantees auto-approved completions still
+	//      credit the wallet rather than silently no-op'ing.
+	//
+	// Issue #137 / spec section C.
+	var payout int64
+	if allowanceCents > 0 {
+		weights := make([]int, len(siblings))
+		freqs := make([]int, len(siblings))
+		for i, c := range siblings {
+			weights[i] = int(c.Weight)
+			freqs[i] = FrequencyPerWeek(c.FrequencyKind, c.DaysOfWeek)
+		}
+		divisor := WeeklyDivisor(weights, freqs)
+		payout = PerInstancePayout(allowanceCents, int(chore.Weight), divisor)
+	} else {
+		rate, rateErr := s.q.GetHouseholdPayoutCentsPerWeight(ctx, householdID)
+		if rateErr != nil {
+			return query.ChoreCompletion{}, fmt.Errorf("chore.Complete: lookup payout rate: %w", rateErr)
+		}
+		payout = int64(chore.Weight) * int64(rate)
 	}
-	divisor := WeeklyDivisor(weights, freqs)
-	payout := PerInstancePayout(allowanceCents, int(chore.Weight), divisor)
 
 	// 5. Insert completion (ON CONFLICT DO NOTHING).
 	pgDate := pgtype.Date{Time: date.UTC().Truncate(24 * time.Hour), Valid: true}
