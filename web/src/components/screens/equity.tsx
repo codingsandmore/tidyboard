@@ -10,8 +10,10 @@ import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
 import { useEquity, useEquityDashboard, useRebalanceSuggestions, useRace, useMembers } from "@/lib/api/hooks";
 import type { ApiEquityDashboard, ApiRebalanceSuggestion } from "@/lib/api/types";
+import { PageShell } from "@/components/layout/page-shell";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth/auth-store";
+
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -170,17 +172,26 @@ export function Equity({ dark = false }: { dark?: boolean }) {
 
   if (!equityData) {
     return (
-      <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+      <PageShell
+        dark={dark}
+        contentStyle={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
         <H as="h2" style={{ color: tc2, fontSize: 20 }}>{t("householdBalance")}</H>
         <div style={{ fontSize: 14, color: tc2 }}>{t("noEquityData")}</div>
-      </div>
+      </PageShell>
     );
   }
 
   const eq = equityData;
 
   return (
-    <div style={{ width: "100%", height: "100%", background: bg, color: tc, fontFamily: TB.fontBody, padding: 24, boxSizing: "border-box", overflow: "auto" }}>
+    <PageShell dark={dark} contentPadding={24}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 22 }}>
         <div>
@@ -371,7 +382,7 @@ export function Equity({ dark = false }: { dark?: boolean }) {
           </div>
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
