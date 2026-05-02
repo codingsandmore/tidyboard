@@ -87,16 +87,11 @@ jobs:
               -f docker-compose.prod.yml \
               up -d --remove-orphans
 
-            echo "==> Waiting for postgres health..."
-            for i in $(seq 1 30); do
-              if docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-                   exec -T postgres pg_isready -U tidyboard >/dev/null 2>&1; then
-                echo "postgres ready"
-                break
-              fi
-              sleep 2
-            done
-
+            # Production database is RDS (cutly-db), reached via the
+            # TIDYBOARD_DATABASE_* values in .env. The local `postgres`
+            # service is profile-gated to `dev-only` and never starts here,
+            # so we don't wait on it — the migrator's own connect attempt
+            # is the readiness probe, and goose fails loudly on bad DSN.
             echo "==> Building migrator image (Dockerfile.migrator)..."
             # The migrator service is profile-gated; its image must be
             # explicitly built. Same `golang:1.25-alpine` base as tidyboard,
