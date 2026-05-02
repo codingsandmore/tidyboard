@@ -210,10 +210,31 @@ type NotifyConfig struct {
 }
 
 // AIConfig holds AI/OCR settings (all BYOK — Tidyboard never pays for AI).
+//
+// Provider selects the LLM backend used by features such as recipe
+// categorization and smart import. In local deployment mode the recommended
+// (and currently only) provider is `ollama`, which can point at the
+// docker-compose `ollama` service or a remote LAN GPU box. In cloud mode the
+// provider is intentionally `none` — hosted AI is out of scope for #78 and
+// users supply their own keys for any future BYOK integration.
 type AIConfig struct {
-	Enabled       bool   `help:"Enable AI features (requires user API keys)" default:"false" yaml:"enabled"`
+	Enabled       bool   `help:"Enable AI features (requires user API keys or local Ollama)" default:"false" yaml:"enabled"`
 	OCREnabled    bool   `help:"Enable Tesseract OCR" default:"false" yaml:"ocr_enabled"`
 	TesseractPath string `help:"Path to Tesseract binary" default:"tesseract" yaml:"tesseract_path"`
+
+	// Provider names the LLM backend. Supported: "ollama", "" / "none"
+	// (disabled). Local deployment mode auto-selects ollama when host+model
+	// are configured.
+	Provider string `help:"AI provider: 'ollama' (local) or 'none' (disabled)" default:"" enum:"ollama,none," env:"TIDYBOARD_AI_PROVIDER" yaml:"provider"`
+
+	// OllamaHost is the base URL of the Ollama HTTP API. Defaults to the
+	// docker-compose service name. Set this to e.g. http://10.0.0.5:11434
+	// to point at a remote LAN GPU box.
+	OllamaHost string `help:"Ollama base URL (e.g. http://ollama:11434 for compose, http://10.0.0.5:11434 for remote LAN)" default:"http://ollama:11434" env:"TIDYBOARD_AI_OLLAMA_HOST" yaml:"ollama_host"`
+
+	// OllamaModel is the model tag to request from Ollama. CPU-friendly
+	// defaults: gemma3 / phi3 / llama3:8b. GPU users can override.
+	OllamaModel string `help:"Ollama model tag (CPU default: gemma3; GPU users can override)" default:"gemma3" env:"TIDYBOARD_AI_OLLAMA_MODEL" yaml:"ollama_model"`
 }
 
 // BackupConfig holds automated backup settings.
