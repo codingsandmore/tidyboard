@@ -1,6 +1,7 @@
 import { TB } from "@/lib/tokens";
 import { Btn } from "@/components/ui/button";
 import { H } from "@/components/ui/heading";
+import { SystemStatusPanel } from "@/components/ui/system-status";
 
 function errorMessage(error: unknown): string {
   if (typeof error === "object" && error !== null) {
@@ -64,6 +65,9 @@ export function DataErrorState({
         </H>
         <div style={{ marginTop: 8, color: muted, fontSize: 13, lineHeight: 1.45 }}>
           {errorMessage(error)}
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <SystemStatusPanel />
         </div>
         {onRetry && (
           <div style={{ marginTop: 14 }}>
