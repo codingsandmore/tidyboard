@@ -159,6 +159,7 @@ covered feature.
 | Unified task feed (todos+routines+chores+rewards+approvals) | components/tasks/UnifiedTaskFeed (`unifyTasks`) | OK | n/a | NO | NO | issue #85 — projects each source to a common `UnifiedTask` shape, member chip filter narrows the list; pets excluded from wallet/reward sources |
 | Fixed kiosk pages (Cozyla-style) | /kiosk/today, /kiosk/week, /kiosk/meals, /kiosk/tasks | OK | n/a | NO | NO | issue #83 — Today/Week/Meals/Tasks templated full-screen pages with shared widgets; touch-friendly tab bar; 1920x1080 + responsive |
 | Kiosk widget library (templated) | components/kiosk/widgets/* | OK | n/a | NO | NO | issue #83 — ClockWeatherWidget, NextEventWidget, AgendaListWidget, WeekCalendarWidget, MealStripWidget, ShoppingWidget, ChoreBoardWidget, RewardsWidget — consume `WidgetMember` projection |
+| Ambient screensaver + sleep schedule + kiosk lock | components/kiosk/{AmbientScreensaver,SleepSchedule,KioskLock}, lib/use-idle-timeout | OK | n/a | NO | NO | issue #88 — `useIdleTimeout(ms)` hook drives full-screen ambient mode (clock + slow-rotating reminders) after N min idle; `SleepSchedule` shows dimmed overlay during configured quiet hours (e.g. 22:00-06:00); `KioskLock` is a PIN gate to escape kiosk that calls existing `pinLogin` → POST /v1/auth/pin |
 
 ## 12. Errors & Observability
 
