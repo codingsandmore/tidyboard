@@ -78,6 +78,17 @@ func newLocalKioskFixture(t *testing.T) localKioskProfileFixture {
 	})
 
 	pool := testutil.SetupTestDB(t)
+	// Test isolation: SetupTestDB returns a connection to the shared test DB
+	// without truncating. Strip password-bearing accounts so the first-run
+	// owner gate from #76 evaluates against an empty roster on every run.
+	// Households reference accounts via `created_by`; delete those first.
+	cleanCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := pool.Exec(cleanCtx,
+		"DELETE FROM households WHERE created_by IN (SELECT id FROM accounts WHERE password_hash IS NOT NULL)")
+	require.NoError(t, err, "test isolation: clearing households for password-bearing accounts")
+	_, err = pool.Exec(cleanCtx, "DELETE FROM accounts WHERE password_hash IS NOT NULL")
+	require.NoError(t, err, "test isolation: clearing password-bearing accounts")
 	q := query.New(pool)
 
 	// Build the local-mode config. The validator from #75 is exercised below

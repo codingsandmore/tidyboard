@@ -4,6 +4,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,18 @@ type localAuthFixture struct {
 func newLocalAuthFixture(t *testing.T, mode config.DeploymentMode) localAuthFixture {
 	t.Helper()
 	pool := testutil.SetupTestDB(t)
+	// Test isolation: every local-auth test asserts behavior in a known
+	// account state. The shared test DB is not truncated by SetupTestDB, so
+	// previous tests' password-bearing accounts trip the owner_exists gate.
+	// Strip those before each test starts. Households reference accounts via
+	// `created_by`, so delete households first to satisfy the FK chain.
+	cleanCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := pool.Exec(cleanCtx,
+		"DELETE FROM households WHERE created_by IN (SELECT id FROM accounts WHERE password_hash IS NOT NULL)")
+	require.NoError(t, err, "test isolation: clearing households for password-bearing accounts")
+	_, err = pool.Exec(cleanCtx, "DELETE FROM accounts WHERE password_hash IS NOT NULL")
+	require.NoError(t, err, "test isolation: clearing password-bearing accounts")
 	q := query.New(pool)
 	authSvc := service.NewAuthService(config.AuthConfig{
 		JWTSecret: testutil.TestJWTSecret,
