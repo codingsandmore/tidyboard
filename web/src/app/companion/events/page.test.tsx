@@ -2,19 +2,23 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { TBDEvent } from "@/lib/data";
 
-const events: TBDEvent[] = [
+let mockEvents: TBDEvent[] = [
   { id: "e-late", title: "Dinner", start: "18:00", end: "19:00", members: [] },
   { id: "e-early", title: "Breakfast", start: "07:00", end: "08:00", members: [] },
 ];
 
 vi.mock("@/lib/api/hooks", () => ({
-  useEvents: () => ({ data: events }),
+  useEvents: () => ({ data: mockEvents }),
 }));
 
 import CompanionEventsPage from "./page";
 
 describe("/companion/events", () => {
   it("renders the events heading and active tab", () => {
+    mockEvents = [
+      { id: "e-late", title: "Dinner", start: "18:00", end: "19:00", members: [] },
+      { id: "e-early", title: "Breakfast", start: "07:00", end: "08:00", members: [] },
+    ];
     render(<CompanionEventsPage />);
     expect(screen.getByRole("heading", { name: "Events" })).toBeTruthy();
     expect(
@@ -23,6 +27,10 @@ describe("/companion/events", () => {
   });
 
   it("lists each event in start-time order", () => {
+    mockEvents = [
+      { id: "e-late", title: "Dinner", start: "18:00", end: "19:00", members: [] },
+      { id: "e-early", title: "Breakfast", start: "07:00", end: "08:00", members: [] },
+    ];
     render(<CompanionEventsPage />);
     const list = screen.getByTestId("companion-events-list");
     const items = list.querySelectorAll("li");
@@ -39,14 +47,8 @@ describe("/companion/events", () => {
   });
 
   it("shows an empty state when there are no events", () => {
-    vi.doMock("@/lib/api/hooks", () => ({
-      useEvents: () => ({ data: [] }),
-    }));
-    // re-import inside doMock
-    return import("./page").then((mod) => {
-      const Empty = mod.default;
-      render(<Empty />);
-      expect(screen.getAllByTestId("companion-events-empty").length).toBeGreaterThan(0);
-    });
+    mockEvents = [];
+    render(<CompanionEventsPage />);
+    expect(screen.getByTestId("companion-events-empty")).toBeTruthy();
   });
 });
