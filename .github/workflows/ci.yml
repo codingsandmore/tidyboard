@@ -112,7 +112,11 @@ jobs:
         run: go build ./...
 
       - name: Unit tests
-        run: go test -tags=unit -p 1 -count=1 -race ./...
+        # -shuffle=on randomizes test order so order-dependent tests fail in
+        # CI rather than silently passing pre-merge and breaking main. The
+        # seed is printed on failure so it can be reproduced locally:
+        # `go test -tags=unit -shuffle=<seed> ./...`
+        run: go test -tags=unit -p 1 -count=1 -race -shuffle=on ./...
 
       - name: Apply DB migrations to test postgres
         run: |
@@ -125,7 +129,10 @@ jobs:
         env:
           TIDYBOARD_TEST_DSN: >-
             postgres://tidyboard:tidyboard_test@localhost:5432/tidyboard_test?sslmode=disable
-        run: go test -tags=integration -p 1 -count=1 -race ./...
+        # -shuffle=on catches the test-isolation class of bug from cycle 4
+        # (#181 owner_exists, #182 mtime sort) before merge. Failure prints
+        # the seed for local repro: `go test -shuffle=<seed> ...`.
+        run: go test -tags=integration -p 1 -count=1 -race -shuffle=on ./...
 
   python-test:
     name: Python — ${{ matrix.service }}
