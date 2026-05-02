@@ -1,7 +1,8 @@
 .PHONY: up down logs migrate web-dev web-build test lint \
         loadtest-smoke loadtest-load loadtest-stress loadtest-soak \
         loadtest-spike loadtest-auth loadtest-events loadtest-baseline \
-        e2e-real compose-local-validate compose-local-up compose-local-down help
+        e2e-real compose-local-validate compose-local-up compose-local-down \
+        verify-local-kiosk help
 
 # Default goal
 .DEFAULT_GOAL := help
@@ -35,6 +36,16 @@ compose-local-up:
 ## compose-local-down: Stop the local-mode stack (volumes preserved)
 compose-local-down:
 	docker compose -f docker-compose.yml -f docker-compose.local.yml down
+
+## verify-local-kiosk: Run the local 1080p kiosk profile integration smoke (issue #80)
+##                     Validates #75 (config) + #76 (auth) + #77 (compose) + #78 (Ollama)
+##                     against the kiosk routes from #83. Requires TIDYBOARD_TEST_DSN
+##                     pointing at a Postgres reachable from the host (the docker
+##                     compose Postgres on :5432 is fine).
+verify-local-kiosk:
+	TIDYBOARD_DEPLOYMENT_MODE=local \
+	TIDYBOARD_TEST_DSN=$${TIDYBOARD_TEST_DSN:-postgres://tidyboard:$${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}@localhost:5432/tidyboard?sslmode=disable} \
+	go test -count=1 -tags=integration ./internal/test/profile/...
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
