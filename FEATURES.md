@@ -82,6 +82,7 @@ covered feature.
 | Update recipe | PATCH /v1/recipes/:id | PART | OK | NO | NO | |
 | Delete recipe | DELETE /v1/recipes/:id | PART | OK | NO | NO | |
 | Recipe import (URL → recipe) | POST /v1/recipes/import | PART | PART | NO | NO | |
+| Smart import (URL + photo + AI normalize, draft review) | POST /v1/recipes/import (kind=url\|photo), /recipes/import review step | OK | PART | NO | NO | issue #87 — review-based draft flow; photo kind is best-effort stub when OCR/Ollama unavailable; optional Ollama normalization wraps response as {draft, normalized}; user explicitly confirms before save |
 | Recipe collections | POST /v1/recipe-collections | PART | OK | NO | NO | |
 | Favorite recipe | PATCH /v1/recipes/:id (is_favorite) | PART | OK | NO | NO | |
 | Cooking-mode dark UI on TB tokens | /recipes/:id/cook | OK | n/a | NO | NO | issue #146; no hardcoded #fff/#000/rgba in cooking-mode |
