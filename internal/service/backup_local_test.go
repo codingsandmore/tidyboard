@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,9 +109,20 @@ func TestListLocalBackups(t *testing.T) {
 	dir := t.TempDir()
 
 	// Two local-mode bundles + one cloud-style cron file.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "tidyboard-local-2024-01-01-000000.tar.gz"), []byte("a"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "tidyboard-local-2024-02-01-000000.tar.gz"), []byte("b"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "tidyboard-2024-03-01-000000.sql.gz"), []byte("c"), 0o644))
+	jan := filepath.Join(dir, "tidyboard-local-2024-01-01-000000.tar.gz")
+	feb := filepath.Join(dir, "tidyboard-local-2024-02-01-000000.tar.gz")
+	mar := filepath.Join(dir, "tidyboard-2024-03-01-000000.sql.gz")
+	require.NoError(t, os.WriteFile(jan, []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(feb, []byte("b"), 0o644))
+	require.NoError(t, os.WriteFile(mar, []byte("c"), 0o644))
+	// CI writes the three files within microseconds of each other; on fast
+	// runners the mtimes can be reported as equal (filesystem timestamp
+	// precision varies). Set explicit mtimes that match the dates in the
+	// filenames so ListLocalBackups' newest-first sort is deterministic.
+	janT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	febT := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(jan, janT, janT))
+	require.NoError(t, os.Chtimes(feb, febT, febT))
 
 	svc := service.NewBackupService(
 		config.BackupConfig{LocalPath: dir, Retention: 30},
