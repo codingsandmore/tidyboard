@@ -97,6 +97,15 @@ jobs:
               sleep 2
             done
 
+            echo "==> Building migrator image (Dockerfile.migrator)..."
+            # The migrator service is profile-gated; its image must be
+            # explicitly built. Same `golang:1.25-alpine` base as tidyboard,
+            # so layers are cache-warm here.
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              --profile migrate build migrator
+
             echo "==> Applying database migrations (goose up)..."
             # The migrator service is in the `migrate` profile so it does not
             # run on every `up`. We invoke it explicitly here, after postgres
