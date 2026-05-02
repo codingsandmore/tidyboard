@@ -29,6 +29,10 @@ type Querier interface {
 	ClearSavingsGoal(ctx context.Context, memberID uuid.UUID) error
 	CloseChoreCompletionsForWeek(ctx context.Context, arg CloseChoreCompletionsForWeekParams) error
 	CompleteAllItems(ctx context.Context, arg CompleteAllItemsParams) error
+	// Used by the local-mode first-run setup endpoint to detect "owner already
+	// exists". An account counts as a local owner if it has a password_hash set
+	// (i.e. was created via /v1/auth/local/setup, not via Cognito federation).
+	CountAccountsWithPassword(ctx context.Context) (int64, error)
 	CountCompletionsForDay(ctx context.Context, arg CountCompletionsForDayParams) (int64, error)
 	CountStepsForRoutine(ctx context.Context, routineID uuid.UUID) (int64, error)
 	// Returns (domain_id, owner_member_id, task_count) for all active tasks.

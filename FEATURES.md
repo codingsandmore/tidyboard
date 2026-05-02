@@ -31,6 +31,7 @@ covered feature.
 | Logout | POST /v1/auth/logout | PART | NO | NO | NO | |
 | Sign-up | POST /v1/auth/signup | PART | PART | NO | NO | invite-only flow |
 | Onboarding wizard (household setup) | /onboarding | PART | NO | NO | NO | |
+| Local-only auth + first-run owner setup | POST /v1/auth/local/setup, POST /v1/auth/local/login | OK | OK | NO | NO | issue #76; gated on Deployment.Mode=local; bcrypt password hash on accounts row |
 
 ## 2. Households & Members
 

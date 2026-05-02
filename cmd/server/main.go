@@ -195,6 +195,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	authHandler := handler.NewAuthHandler(authSvc)
+	authLocalHandler := handler.NewAuthLocalHandler(authSvc)
 	householdHandler := handler.NewHouseholdHandler(householdSvc)
 	inviteHandler := handler.NewInviteHandler(inviteSvc)
 	memberHandler := handler.NewMemberHandler(memberSvc).WithAudit(auditSvc)
@@ -324,6 +325,16 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	r.Group(func(r chi.Router) {
 		r.Use(authLimiter.Middleware)
 		r.Post("/v1/auth/pin", authHandler.PINLogin)
+
+		// Local-mode (self-hosted) password endpoints. Only registered when
+		// Deployment.Mode=local — keeps cloud deploys from accidentally
+		// exposing a non-Cognito login surface. Issue:
+		// https://github.com/codingsandmore/tidyboard/issues/76
+		if cfg.DeploymentModeOrDefault() == config.DeploymentModeLocal {
+			r.Get("/v1/auth/local/setup", authLocalHandler.Status)
+			r.Post("/v1/auth/local/setup", authLocalHandler.SetupOwner)
+			r.Post("/v1/auth/local/login", authLocalHandler.Login)
+		}
 	})
 
 	// Stripe webhook — no auth middleware (Stripe signs its own requests).
