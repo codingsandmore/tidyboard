@@ -113,3 +113,25 @@ services:
     ports: []
     mem_limit: 200m
     memswap_limit: 400m
+
+  # ── Migrator (one-shot) ───────────────────────────────────────────────
+  # `docker compose --profile migrate run --rm migrator` runs pending goose
+  # migrations against the running postgres. Driven by deploy-ec2.yml after
+  # `up -d` so each deploy applies whatever schema landed in main.
+  # See migrations/ for files; profile keeps it out of `up`'s default set.
+  migrator:
+    image: ghcr.io/pressly/goose:v3.27.0
+    profiles: ["migrate"]
+    networks:
+      - tidyboard
+    volumes:
+      - ./migrations:/migrations:ro
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "host=postgres port=5432 dbname=tidyboard user=tidyboard password=${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password} sslmode=disable"
+    command: ["-dir", "/migrations", "up"]
+    # No depends_on — the deploy script does `up -d` first (which starts
+    # postgres) and then waits on pg_isready before invoking the migrator.
+    # Adding `depends_on: postgres` here forces postgres into the `migrate`
+    # profile, which compose rejects: "service postgres is undefined".
+    mem_limit: 100m
