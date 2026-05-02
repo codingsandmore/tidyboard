@@ -153,6 +153,7 @@ covered feature.
 | Dashboard/Equity TB-token refactor | dashboard-kiosk-ambient, dashboard-phone, equity | OK | n/a | NO | NO | issue #147; inline-style colors/spacing replaced with TB tokens |
 | Widget data contract (`WidgetState<T>`, `useWidgetState`) | lib/widgets | OK | n/a | NO | NO | issue #82 — explicit loading/empty/error/ready states; bans demo-data fallbacks on production routes |
 | Roster hook (`useRoster`) — real household roster | lib/roster | OK | n/a | NO | NO | issue #82 — pulls people + pets, normalized colors/avatars for kiosk widgets |
+| Unified task feed (todos+routines+chores+rewards+approvals) | components/tasks/UnifiedTaskFeed (`unifyTasks`) | OK | n/a | NO | NO | issue #85 — projects each source to a common `UnifiedTask` shape, member chip filter narrows the list; pets excluded from wallet/reward sources |
 
 ## 12. Errors & Observability
 
