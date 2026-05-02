@@ -12,10 +12,16 @@ import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { StripePlaceholder } from "@/components/ui/stripe-placeholder";
-import type { ShoppingCategory } from "@/lib/data";
+import type { ShoppingCategory, ShoppingItem } from "@/lib/data";
 import { useShopping, useToggleShoppingItem, useMealPlan, useUpsertMealPlanEntry, useDeleteMealPlanEntry, useRecipes, useRecipe, useGenerateShoppingList, useStartImportJob, useImportJob } from "@/lib/api/hooks";
 import { ImportStatusPanel, type ImportJob } from "@/components/recipes/ImportStatusPanel";
 import { EditEntryPopover } from "@/components/meal-plan/EditEntryPopover";
+import {
+  GroupModeToggle,
+  groupShopping,
+  type GroupMode,
+} from "@/components/shopping/CategoryGroup";
+import { PantryCues, type PantryCueRecord } from "@/components/shopping/PantryCues";
 import { useTranslations } from "next-intl";
 import { isAIEnabled, useAIKeys } from "@/lib/ai/ai-keys";
 import { callAI } from "@/lib/ai/client";
@@ -1430,10 +1436,24 @@ export function MealPlan() {
 }
 
 // ═══════ Shopping list ═══════
-export function ShoppingList() {
+/**
+ * `pantryCueRecords` (issue #86) — optional list of {amount, expiresOn}
+ * pantry hints. The component is the same on the kid + admin shopping
+ * routes; both just pass through whatever the household's pantry data
+ * provides. When unset (default) and no signals are present, the cue
+ * banner stays hidden.
+ */
+export function ShoppingList({
+  pantryCueRecords = [],
+  initialGroupMode = "aisle",
+}: {
+  pantryCueRecords?: PantryCueRecord[];
+  initialGroupMode?: GroupMode;
+} = {}) {
   const t = useTranslations("recipe");
   const { data: shopping } = useShopping();
   const toggleMutation = useToggleShoppingItem();
+  const [groupMode, setGroupMode] = useState<GroupMode>(initialGroupMode);
 
   // Initialize from API data or empty; re-seed when API data changes.
   const [categories, setCategories] = useState<ShoppingCategory[]>(() =>
@@ -1453,20 +1473,54 @@ export function ShoppingList() {
     );
   }
 
-  const toggle = (catIdx: number, itemIdx: number) => {
-    const currentItem = categories[catIdx]?.items[itemIdx];
-    const currentCategory = categories[catIdx];
-    if (!currentItem || !currentCategory) return;
+  // Display categories are derived deterministically from `categories` +
+  // `groupMode` — no extra state, no AI. Toggling the mode never re-fetches.
+  const grouped = groupShopping(categories, groupMode).categories;
+
+  /**
+   * Toggle by stable identity (item id when available, else name + amt within
+   * the source aisle). Required because grouping can move an item under a
+   * different visual category (recipe / manual mode), so the source-of-truth
+   * lookup for mutations stays on the canonical aisle-grouped `categories`.
+   */
+  const toggle = (item: ShoppingItem, sourceCategoryName: string) => {
+    const findIndices = (
+      cats: ShoppingCategory[]
+    ): { ci: number; ii: number; cat: ShoppingCategory; it: ShoppingItem } | null => {
+      for (let ci = 0; ci < cats.length; ci++) {
+        const cat = cats[ci];
+        // Prefer an exact id match; fall back to name + amt within the
+        // source-aisle hint (or any category) so seeds without ids still work.
+        for (let ii = 0; ii < cat.items.length; ii++) {
+          const it = cat.items[ii];
+          if (item.id && it.id === item.id) return { ci, ii, cat, it };
+        }
+      }
+      // Fallback to name-based lookup, optionally constrained by source category.
+      for (let ci = 0; ci < cats.length; ci++) {
+        const cat = cats[ci];
+        if (sourceCategoryName && cat.name !== sourceCategoryName) continue;
+        for (let ii = 0; ii < cat.items.length; ii++) {
+          const it = cat.items[ii];
+          if (it.name === item.name && it.amt === item.amt) return { ci, ii, cat, it };
+        }
+      }
+      return null;
+    };
+
+    const found = findIndices(categories);
+    if (!found) return;
+    const { ci, ii, cat: currentCategory, it: currentItem } = found;
     const nextDone = !currentItem.done;
 
     setCategories((prev) => {
-      const next = prev.map((cat, ci) =>
-        ci !== catIdx
+      const next = prev.map((cat, c) =>
+        c !== ci
           ? cat
           : {
               ...cat,
-              items: cat.items.map((it, ii) =>
-                ii !== itemIdx ? it : { ...it, done: !it.done }
+              items: cat.items.map((it, i) =>
+                i !== ii ? it : { ...it, done: !it.done }
               ),
             }
       );
@@ -1477,13 +1531,13 @@ export function ShoppingList() {
       {
         onError: () => {
           setCategories((prev) =>
-            prev.map((cat, ci) =>
-              ci !== catIdx
+            prev.map((cat, c) =>
+              c !== ci
                 ? cat
                 : {
                     ...cat,
-                    items: cat.items.map((it, ii) =>
-                      ii !== itemIdx ? it : { ...it, done: currentItem.done }
+                    items: cat.items.map((it, i) =>
+                      i !== ii ? it : { ...it, done: currentItem.done }
                     ),
                   }
             )
@@ -1528,15 +1582,20 @@ export function ShoppingList() {
             {t("generatedFrom", { count: fromRecipes })}
           </Badge>
         </div>
+        <div style={{ marginTop: 10 }}>
+          <GroupModeToggle value={groupMode} onChange={setGroupMode} />
+        </div>
       </div>
+      <PantryCues records={pantryCueRecords} />
       <div style={{ flex: 1, overflow: "auto", padding: "8px 0 100px" }}>
-        {categories.length === 0 && (
+        {grouped.length === 0 && (
           <div style={{ padding: "48px 20px", textAlign: "center", color: TB.text2, fontSize: 14 }}>
             {t("emptyShoppingList")}
           </div>
         )}
-        {categories.map((cat, catIdx) => (
-          <div key={cat.name} style={{ padding: "6px 20px" }}>
+        {grouped.map((cat) => (
+          <div key={cat.name} style={{ padding: "6px 20px" }} data-testid={`shopping-group-${cat.name}`}>
+
             <div
               style={{
                 display: "flex",
@@ -1565,8 +1624,8 @@ export function ShoppingList() {
             >
               {cat.items.map((it, itemIdx) => (
                 <div
-                  key={itemIdx}
-                  onClick={() => toggle(catIdx, itemIdx)}
+                  key={it.id ?? `${cat.name}:${it.name}:${itemIdx}`}
+                  onClick={() => toggle(it, cat.name)}
                   style={{
                     padding: "10px 14px",
                     borderBottom:
