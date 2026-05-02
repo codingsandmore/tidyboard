@@ -154,6 +154,8 @@ covered feature.
 | Dashboard/Equity TB-token refactor | dashboard-kiosk-ambient, dashboard-phone, equity | OK | n/a | NO | NO | issue #147; inline-style colors/spacing replaced with TB tokens |
 | Widget data contract (`WidgetState<T>`, `useWidgetState`) | lib/widgets | OK | n/a | NO | NO | issue #82 — explicit loading/empty/error/ready states; bans demo-data fallbacks on production routes |
 | Roster hook (`useRoster`) — real household roster | lib/roster | OK | n/a | NO | NO | issue #82 — pulls people + pets, normalized colors/avatars for kiosk widgets |
+| Fixed kiosk pages (Cozyla-style) | /kiosk/today, /kiosk/week, /kiosk/meals, /kiosk/tasks | OK | n/a | NO | NO | issue #83 — Today/Week/Meals/Tasks templated full-screen pages with shared widgets; touch-friendly tab bar; 1920x1080 + responsive |
+| Kiosk widget library (templated) | components/kiosk/widgets/* | OK | n/a | NO | NO | issue #83 — ClockWeatherWidget, NextEventWidget, AgendaListWidget, WeekCalendarWidget, MealStripWidget, ShoppingWidget, ChoreBoardWidget, RewardsWidget — consume `WidgetMember` projection |
 
 ## 12. Errors & Observability
 
