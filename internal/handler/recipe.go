@@ -14,12 +14,26 @@ import (
 )
 
 // RecipeHandler handles recipe CRUD and import routes.
+//
+// The `normalizer` field powers issue #87 (review-based smart import). It
+// is optional: when nil, the SmartImport endpoint returns 503 with a
+// clear message ("smart import is not configured on this server"). The
+// existing synchronous Import + async StartImportJob endpoints do not
+// depend on it.
 type RecipeHandler struct {
-	svc *service.RecipeService
+	svc        *service.RecipeService
+	normalizer *service.Normalizer
 }
 
 // NewRecipeHandler constructs a RecipeHandler.
 func NewRecipeHandler(svc *service.RecipeService) *RecipeHandler { return &RecipeHandler{svc: svc} }
+
+// WithNormalizer attaches a smart-import Normalizer (issue #87). Returns
+// the handler so callers can chain. Pass nil to disable smart import.
+func (h *RecipeHandler) WithNormalizer(n *service.Normalizer) *RecipeHandler {
+	h.normalizer = n
+	return h
+}
 
 // List handles GET /v1/recipes.
 func (h *RecipeHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -107,6 +121,74 @@ func (h *RecipeHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, recipe)
+}
+
+// SmartImport handles POST /v1/recipes/smart-import — issue #87.
+//
+// Returns a {draft, normalized?, ai_provider, ai_error?} envelope without
+// persisting the recipe. The frontend confirms the draft (after the user
+// reviews + edits) by POSTing it through the regular POST /v1/recipes
+// endpoint. Errors:
+//
+//	400 — bad JSON or unsupported kind
+//	502 — scraper failed (URL kind)
+//	503 — server is missing a Normalizer (smart import not configured)
+//	504 — scraper timeout
+func (h *RecipeHandler) SmartImport(w http.ResponseWriter, r *http.Request) {
+	if _, ok := middleware.HouseholdIDFromCtx(r.Context()); !ok {
+		respond.Error(w, r, http.StatusUnauthorized, "unauthorized", "missing household context")
+		return
+	}
+	if h.normalizer == nil {
+		respond.Error(w, r, http.StatusServiceUnavailable, "smart_import_disabled",
+			"smart import is not configured on this server")
+		return
+	}
+
+	var req model.ImportRecipeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, r, http.StatusBadRequest, "bad_request", "invalid JSON body")
+		return
+	}
+
+	kind := service.SmartImportKind(req.Kind)
+	if kind == "" {
+		kind = service.SmartImportKindURL
+	}
+
+	switch kind {
+	case service.SmartImportKindURL:
+		if req.URL == "" {
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "url is required for kind=url")
+			return
+		}
+	case service.SmartImportKindPhoto:
+		if req.PhotoDataURL == "" {
+			respond.Error(w, r, http.StatusBadRequest, "validation_error", "photo_data_url is required for kind=photo")
+			return
+		}
+	default:
+		respond.Error(w, r, http.StatusBadRequest, "validation_error", "unsupported kind: must be 'url' or 'photo'")
+		return
+	}
+
+	resp, err := h.normalizer.NormalizeImport(r.Context(), service.SmartImportRequest{
+		Kind:         kind,
+		URL:          req.URL,
+		PhotoDataURL: req.PhotoDataURL,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrScraperTimeout):
+			respond.Error(w, r, http.StatusGatewayTimeout, "scraper_timeout", "recipe scraper timed out")
+		case errors.Is(err, service.ErrScraperFailed):
+			respond.Error(w, r, http.StatusBadGateway, "scraper_failed", "recipe scraper failed")
+		default:
+			respond.Error(w, r, http.StatusInternalServerError, "internal_error", "failed to build smart import draft")
+		}
+		return
+	}
+	respond.JSON(w, http.StatusOK, resp)
 }
 
 // StartImportJob handles POST /v1/recipes/import-jobs — async URL scraping.

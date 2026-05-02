@@ -89,9 +89,15 @@ type CreateRecipeRequest struct {
 }
 
 // ImportRecipeRequest is the payload for POST /v1/recipes/import and
-// POST /v1/recipes/import-jobs.
+// POST /v1/recipes/import-jobs. Issue #87 added the smart-import fields
+// (Kind + PhotoDataURL) for the review-based draft flow on
+// POST /v1/recipes/smart-import. The original synchronous /import route
+// ignores Kind for back-compat — it always treats the request as a URL
+// import.
 type ImportRecipeRequest struct {
-	URL string `json:"url" validate:"required,url"`
+	URL          string `json:"url"            validate:"omitempty,url"`
+	Kind         string `json:"kind,omitempty"`
+	PhotoDataURL string `json:"photo_data_url,omitempty"`
 }
 
 // RecipeImportJobStatus describes the lifecycle of an asynchronous import.
