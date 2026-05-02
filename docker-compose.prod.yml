@@ -116,9 +116,16 @@ services:
 
   # ── Migrator (one-shot) ───────────────────────────────────────────────
   # `docker compose --profile migrate run --rm migrator` runs pending goose
-  # migrations against the running postgres. Driven by deploy-ec2.yml after
-  # `up -d` so each deploy applies whatever schema landed in main.
-  # See migrations/ for files; profile keeps it out of `up`'s default set.
+  # migrations against the SAME database the app reads from — RDS cutly-db
+  # in prod, resolved via the TIDYBOARD_DATABASE_* values in /opt/tidyboard/.env.
+  # Driven by deploy-ec2.yml after `up -d` so each deploy applies whatever
+  # schema landed in main. Idempotent: goose skips already-applied versions.
+  #
+  # IMPORTANT: this DSN must match the app's connection. Hardcoding
+  # `host=postgres` here points at the dev-only docker postgres (which is
+  # `profiles: [dev-only]` above and does not start in prod), so migrations
+  # silently land on a leftover/orphan dev container while RDS drifts.
+  # Symptom: ListMembers and other newer-column SELECTs 500 in prod.
   migrator:
     # Custom Dockerfile.migrator — built from the same `golang:1.25-alpine`
     # base the tidyboard image uses. Native arch (amd64 in CI / arm64 on
@@ -137,10 +144,9 @@ services:
       - ./migrations:/migrations:ro
     environment:
       GOOSE_DRIVER: postgres
-      GOOSE_DBSTRING: "host=postgres port=5432 dbname=tidyboard user=tidyboard password=${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password} sslmode=disable"
+      # ${VAR} substitution reads /opt/tidyboard/.env at compose-parse time.
+      # sslmode defaults to `require` because RDS rejects unencrypted
+      # connections; override to `disable` in .env for local-postgres dev.
+      GOOSE_DBSTRING: "host=${TIDYBOARD_DATABASE_HOST} port=${TIDYBOARD_DATABASE_PORT:-5432} dbname=${TIDYBOARD_DATABASE_NAME} user=${TIDYBOARD_DATABASE_USER} password=${TIDYBOARD_DATABASE_PASSWORD} sslmode=${TIDYBOARD_DATABASE_SSLMODE:-require}"
     command: ["-dir", "/migrations", "up"]
-    # No depends_on — the deploy script does `up -d` first (which starts
-    # postgres) and then waits on pg_isready before invoking the migrator.
-    # Adding `depends_on: postgres` here forces postgres into the `migrate`
-    # profile, which compose rejects: "service postgres is undefined".
     mem_limit: 100m
