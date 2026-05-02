@@ -1,0 +1,167 @@
+# docker-compose.local.yml — local production overlay for Tidyboard.
+#
+# Source spec: docs/superpowers/specs/2026-04-30-local-production-mode-design.md
+# Issue: https://github.com/codingsandmore/tidyboard/issues/77
+#
+# Use alongside the base docker-compose.yml on a household mini PC / Mac mini:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# What this overlay does:
+#   - Sets TIDYBOARD_DEPLOYMENT_MODE=local on every Tidyboard service. The
+#     server's config.Validate() enforces no-Cognito / no-S3 / no-Stripe at
+#     startup (see internal/config/config.go validateLocalMode).
+#   - Adds named volumes for media + backups so file storage survives
+#     container restarts without depending on S3.
+#   - Drops the AWS credential bind-mount from the tidyboard service so the
+#     local deploy never reads ~/.aws on the host. Local mode forbids
+#     storage.aws_profile, so even if creds existed they would be rejected.
+#   - Adds the Next.js web service (built from ./web) using local-mode
+#     defaults — no NEXT_PUBLIC_COGNITO_* required. Auth runs against the
+#     local HMAC verifier baked into the API.
+#   - Adds an optional Caddy reverse proxy (profile: kiosk) on host port 80
+#     so the kiosk display can hit a stable LAN URL like http://<mini-pc-ip>
+#     instead of a port-suffixed dev URL.
+#   - Adds an optional embedded Ollama service (profile: ollama) at
+#     http://ollama:11434 for local AI features. Off by default — local mode
+#     can also point at a LAN Ollama or stay AI-disabled.
+#
+# Profiles:
+#   default                       postgres + redis + tidyboard + web + sync-worker + recipe-scraper
+#   --profile kiosk               + caddy reverse proxy on :80
+#   --profile ollama              + ollama LLM server on :11434
+#   --profile kiosk --profile ollama   full local kiosk stack with on-device AI
+
+networks:
+  tidyboard:
+    driver: bridge
+
+volumes:
+  # Local-mode storage (replaces S3 in cloud profile).
+  tidyboard-media:
+  tidyboard-backups:
+  # Caddy state (only used when --profile kiosk is active).
+  caddy-data:
+  caddy-config:
+  # Ollama model cache (only used when --profile ollama is active).
+  ollama-models:
+
+services:
+  # ── Postgres — keep base service active in local mode ───────────────────────
+  # Local production runs Postgres in-stack (no external RDS). Postgres only
+  # needs to listen on the docker network; remove the host port to avoid
+  # exposing the DB on the LAN.
+  postgres:
+    ports: []
+
+  redis:
+    ports: []
+
+  # ── Tidyboard API ───────────────────────────────────────────────────────────
+  # The local-mode env block below adds TIDYBOARD_DEPLOYMENT_MODE=local on top
+  # of the base service env. Operators override secrets (DB password, JWT
+  # secret) via the auto-loaded .env file at the compose-project root — see
+  # .env.local.example for the canonical local-mode template.
+  #
+  # `volumes: !reset` drops the ~/.aws bind-mount from the base file. Local
+  # mode rejects AWSProfile in config.Validate, so the mount is both
+  # unnecessary and a privacy footgun (bind-mounting host secrets into a
+  # household appliance).
+  tidyboard:
+    environment:
+      TIDYBOARD_DEPLOYMENT_MODE: local
+      TIDYBOARD_STORAGE_TYPE: local
+      TIDYBOARD_STORAGE_LOCAL_PATH: /app/data/media
+      TIDYBOARD_BACKUP_LOCAL_PATH: /app/data/backups
+      TIDYBOARD_BACKUP_S3_ENABLED: "false"
+    volumes: !reset
+      - ./config.yaml:/app/config.yaml:ro
+      - tidyboard-media:/app/data/media
+      - tidyboard-backups:/app/data/backups
+    # Keep host port exposed so the household kiosk URL works without Caddy.
+    # When --profile kiosk is active, Caddy proxies :80 → tidyboard:8080.
+    ports:
+      - "8080:8080"
+    # Modest cap suitable for a mini PC. Adjust upward if running heavy AI.
+    mem_limit: 400m
+    memswap_limit: 800m
+
+  # ── Next.js web app ─────────────────────────────────────────────────────────
+  # Local mode does not need the Cognito build args — the Next.js app talks to
+  # the local API and uses local-account auth. Empty NEXT_PUBLIC_COGNITO_* is
+  # the documented "no Cognito" signal in the existing build.
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_COGNITO_REGION: ""
+        NEXT_PUBLIC_COGNITO_USER_POOL_ID: ""
+        NEXT_PUBLIC_COGNITO_CLIENT_ID: ""
+        NEXT_PUBLIC_COGNITO_DOMAIN: ""
+    restart: unless-stopped
+    networks: [tidyboard]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      tidyboard:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    mem_limit: 600m
+    memswap_limit: 1g
+
+  # ── Python services — keep base env, just add memory caps ──────────────────
+  # Both Python services already point at the in-stack postgres+redis via the
+  # base file. Local mode does not change their env; only the Go API needs
+  # TIDYBOARD_DEPLOYMENT_MODE.
+  sync-worker:
+    mem_limit: 200m
+    memswap_limit: 400m
+
+  recipe-scraper:
+    mem_limit: 200m
+    memswap_limit: 400m
+
+  # ── Optional: Caddy LAN reverse proxy (kiosk profile) ───────────────────────
+  # Brings up a stable LAN URL on port 80 so the kiosk display can be pointed
+  # at http://<mini-pc-ip>/ or http://tidyboard.local/. No public DNS / no
+  # Let's Encrypt — Caddy serves plain HTTP for the LAN.
+  caddy:
+    image: caddy:2-alpine
+    profiles: [kiosk]
+    restart: unless-stopped
+    networks: [tidyboard]
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - tidyboard
+      - web
+    mem_limit: 200m
+    memswap_limit: 400m
+
+  # ── Optional: embedded Ollama (ollama profile) ──────────────────────────────
+  # CPU-only by default — works on Mac mini and small Linux mini PCs without
+  # a GPU. For Linux + NVIDIA GPU, pair with a docker-compose.local-gpu.yml
+  # overlay that adds `deploy.resources.reservations.devices`.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ollama]
+    restart: unless-stopped
+    networks: [tidyboard]
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 4g
+    memswap_limit: 8g

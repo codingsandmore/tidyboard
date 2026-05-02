@@ -44,6 +44,7 @@ covered feature.
 | Delete member | DELETE /v1/members/:id | PART | OK | NO | NO | |
 | Invite by code | POST /v1/invites | PART | OK | NO | NO | |
 | Hourly salary range (private) | PATCH /v1/members/:id (hourly_rate_cents_*) | OK | OK | NO | NO | backend #135 + UI #143 — privacy gated to self/admin in both layers |
+| Roster color/avatar normalization (Cozyla hub foundation) | lib/roster (`normalizeRoster`, `memberColorFor`, `avatarFor`) | OK | n/a | NO | NO | issue #82 — shared contract for kiosk/calendar/tasks/meals/notes; pets are first-class but excluded from wallet/rewards |
 
 ## 3. Pets
 
@@ -150,6 +151,8 @@ covered feature.
 | Countdown widget (UI) | /dashboard | OK | n/a | NO | NO | shipped 2026-04-30 |
 | PageShell layout primitive (header/main/footer slots) | components/layout/page-shell | OK | n/a | NO | NO | issue #147; TB-tokenized, used by dash-phone + dash-kiosk-ambient + equity |
 | Dashboard/Equity TB-token refactor | dashboard-kiosk-ambient, dashboard-phone, equity | OK | n/a | NO | NO | issue #147; inline-style colors/spacing replaced with TB tokens |
+| Widget data contract (`WidgetState<T>`, `useWidgetState`) | lib/widgets | OK | n/a | NO | NO | issue #82 — explicit loading/empty/error/ready states; bans demo-data fallbacks on production routes |
+| Roster hook (`useRoster`) — real household roster | lib/roster | OK | n/a | NO | NO | issue #82 — pulls people + pets, normalized colors/avatars for kiosk widgets |
 
 ## 12. Errors & Observability
 
@@ -188,3 +191,4 @@ covered feature.
 | Deployment mode (cloud / local) | n/a (server startup) | OK | n/a | NO | NO | issue #75 — `TIDYBOARD_DEPLOYMENT_MODE` selects cloud vs local profile and validates settings on startup |
 | Local production profile | n/a (server startup) | OK | n/a | NO | NO | issue #75 — local mode rejects Cognito/S3/Stripe/cloud AI configuration; foundation for #76 #77 #78 |
 | Ollama provider for local mode (local + remote LAN) | n/a (server startup, AI client) | OK | n/a | NO | NO | issue #78 — `internal/ai` Ollama HTTP client; `cfg.AI.Provider`, `cfg.AI.OllamaHost`, `cfg.AI.OllamaModel`; provider switches to Ollama in local mode and stays disabled by default in cloud mode; reachability check exposed via client |
+| Local docker-compose stack | n/a (deployment) | OK | n/a | NO | NO | issue #77 — `docker-compose.local.yml` overlay with local Postgres + Redis volumes, local file storage, no S3, no Cognito; validated via `make compose-local-validate` |

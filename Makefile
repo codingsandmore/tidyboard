@@ -1,7 +1,7 @@
 .PHONY: up down logs migrate web-dev web-build test lint \
         loadtest-smoke loadtest-load loadtest-stress loadtest-soak \
         loadtest-spike loadtest-auth loadtest-events loadtest-baseline \
-        e2e-real help
+        e2e-real compose-local-validate compose-local-up compose-local-down help
 
 # Default goal
 .DEFAULT_GOAL := help
@@ -19,6 +19,22 @@ down:
 ## logs: Tail logs from all services (Ctrl-C to stop)
 logs:
 	docker compose logs -f
+
+# ── Local production (issue #77) ──────────────────────────────────────────────
+
+## compose-local-validate: Lint the local-mode compose stack with `docker compose config`
+compose-local-validate:
+	docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+	docker compose -f docker-compose.yml -f docker-compose.local.yml --profile kiosk --profile ollama config --quiet
+	@echo "compose-local: OK (default + kiosk + ollama profiles validate)"
+
+## compose-local-up: Start the local-mode stack (Postgres + Redis + API + web on the same box)
+compose-local-up:
+	docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+
+## compose-local-down: Stop the local-mode stack (volumes preserved)
+compose-local-down:
+	docker compose -f docker-compose.yml -f docker-compose.local.yml down
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
