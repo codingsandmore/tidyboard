@@ -1,0 +1,51 @@
+# Caddyfile.local — LAN reverse proxy for the local Tidyboard kiosk.
+#
+# Used only when the `kiosk` compose profile is active:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml \
+#     --profile kiosk up -d
+#
+# This config serves plain HTTP on port 80 — no public DNS / no Let's Encrypt.
+# The household kiosk display can be pointed at:
+#   http://<mini-pc-ip>/      e.g. http://192.168.1.50/
+#   http://tidyboard.local/   if mDNS is configured on the host
+#
+# Routing:
+#   /api/*        → Go API on tidyboard:8080
+#   /v1/*         → Go API on tidyboard:8080 (REST)
+#   /healthz      → Go API health
+#   everything else → Next.js web app on web:3000
+#
+# WebSocket upgrade headers pass through automatically; Caddy's reverse_proxy
+# directive handles them without extra configuration.
+
+:80 {
+	encode zstd gzip
+
+	# API routes — exact path prefixes only, so SPA wildcard catches /api/foo
+	# pages but /v1/events still hits the backend.
+	handle_path /v1/* {
+		reverse_proxy tidyboard:8080
+	}
+	handle_path /api/* {
+		reverse_proxy tidyboard:8080
+	}
+	handle_path /metrics {
+		reverse_proxy tidyboard:8080
+	}
+	handle_path /healthz {
+		reverse_proxy tidyboard:8080
+	}
+	handle_path /health {
+		reverse_proxy tidyboard:8080
+	}
+
+	# Everything else → Next.js
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

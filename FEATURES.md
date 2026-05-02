@@ -190,3 +190,4 @@ covered feature.
 |---|---|---|---|---|---|---|
 | Deployment mode (cloud / local) | n/a (server startup) | OK | n/a | NO | NO | issue #75 — `TIDYBOARD_DEPLOYMENT_MODE` selects cloud vs local profile and validates settings on startup |
 | Local production profile | n/a (server startup) | OK | n/a | NO | NO | issue #75 — local mode rejects Cognito/S3/Stripe/cloud AI configuration; foundation for #76 #77 #78 |
+| Local docker-compose stack | n/a (deployment) | OK | n/a | NO | NO | issue #77 — `docker-compose.local.yml` overlay with local Postgres + Redis volumes, local file storage, no S3, no Cognito; validated via `make compose-local-validate` |

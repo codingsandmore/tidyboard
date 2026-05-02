@@ -135,10 +135,57 @@ make help         # Show all targets
 See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment documentation:
 
 - **Self-hosted** — Docker Compose on a VM with Caddy reverse proxy
+- **Local production** — Docker Compose on a household mini PC / Mac mini (see below)
 - **Vercel + managed Postgres** — frontend on Vercel, backend on any host
 - **AWS Lambda** — cloud-native serverless (Phase 2)
 
 Web-specific deployment: [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### Local production (mini PC / Mac mini)
+
+Run the full Tidyboard stack on a household mini PC or Mac mini with no
+external services — no Cognito, no S3, no Stripe. The
+`docker-compose.local.yml` overlay enables `TIDYBOARD_DEPLOYMENT_MODE=local`,
+swaps S3 for a named-volume on-disk media store, and drops the AWS
+credential bind-mount.
+
+Spec: [docs/superpowers/specs/2026-04-30-local-production-mode-design.md](docs/superpowers/specs/2026-04-30-local-production-mode-design.md)
+
+```bash
+# 1. Copy the local-mode env template and fill in the secrets.
+cp .env.local.example .env
+$EDITOR .env   # set TIDYBOARD_DB_PASSWORD + TIDYBOARD_AUTH_JWT_SECRET
+
+# 2. Validate the compose stack (lints both default + kiosk/ollama profiles).
+make compose-local-validate
+
+# 3. Start the stack.
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+# or:
+make compose-local-up
+
+# 4. (optional) Add the Caddy LAN reverse proxy + embedded Ollama.
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
+  --profile kiosk --profile ollama up -d
+
+# 5. Stop the stack (volumes preserved).
+make compose-local-down
+```
+
+Profiles:
+
+| Profile | Adds |
+|---|---|
+| _default_ | postgres + redis + tidyboard API + web + sync-worker + recipe-scraper |
+| `kiosk` | Caddy reverse proxy on port 80 → stable LAN URL like `http://<mini-pc-ip>/` |
+| `ollama` | Embedded Ollama LLM at `http://ollama:11434` for local AI features |
+
+Local-mode files in this repo:
+
+- `docker-compose.local.yml` — the production overlay
+- `Caddyfile.local` — LAN reverse proxy config (kiosk profile)
+- `.env.local.example` — secrets / URL template
+- `Makefile` targets `compose-local-validate`, `compose-local-up`, `compose-local-down`
 
 ---
 
