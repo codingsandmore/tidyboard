@@ -31,6 +31,7 @@ covered feature.
 | Logout | POST /v1/auth/logout | PART | NO | NO | NO | |
 | Sign-up | POST /v1/auth/signup | PART | PART | NO | NO | invite-only flow |
 | Onboarding wizard (household setup) | /onboarding | PART | NO | NO | NO | |
+| Local-only auth + first-run owner setup | POST /v1/auth/local/setup, POST /v1/auth/local/login | OK | OK | NO | NO | issue #76; gated on Deployment.Mode=local; bcrypt password hash on accounts row |
 
 ## 2. Households & Members
 
@@ -154,6 +155,8 @@ covered feature.
 | Widget data contract (`WidgetState<T>`, `useWidgetState`) | lib/widgets | OK | n/a | NO | NO | issue #82 — explicit loading/empty/error/ready states; bans demo-data fallbacks on production routes |
 | Roster hook (`useRoster`) — real household roster | lib/roster | OK | n/a | NO | NO | issue #82 — pulls people + pets, normalized colors/avatars for kiosk widgets |
 | Unified task feed (todos+routines+chores+rewards+approvals) | components/tasks/UnifiedTaskFeed (`unifyTasks`) | OK | n/a | NO | NO | issue #85 — projects each source to a common `UnifiedTask` shape, member chip filter narrows the list; pets excluded from wallet/reward sources |
+| Fixed kiosk pages (Cozyla-style) | /kiosk/today, /kiosk/week, /kiosk/meals, /kiosk/tasks | OK | n/a | NO | NO | issue #83 — Today/Week/Meals/Tasks templated full-screen pages with shared widgets; touch-friendly tab bar; 1920x1080 + responsive |
+| Kiosk widget library (templated) | components/kiosk/widgets/* | OK | n/a | NO | NO | issue #83 — ClockWeatherWidget, NextEventWidget, AgendaListWidget, WeekCalendarWidget, MealStripWidget, ShoppingWidget, ChoreBoardWidget, RewardsWidget — consume `WidgetMember` projection |
 
 ## 12. Errors & Observability
 

@@ -44,3 +44,11 @@ RETURNING *;
 UPDATE accounts
 SET is_active = false, updated_at = NOW()
 WHERE id = $1;
+
+-- name: CountAccountsWithPassword :one
+-- Used by the local-mode first-run setup endpoint to detect "owner already
+-- exists". An account counts as a local owner if it has a password_hash set
+-- (i.e. was created via /v1/auth/local/setup, not via Cognito federation).
+SELECT COUNT(*)::bigint AS count
+FROM accounts
+WHERE password_hash IS NOT NULL;

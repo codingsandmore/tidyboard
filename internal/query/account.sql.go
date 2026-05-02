@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAccountsWithPassword = `-- name: CountAccountsWithPassword :one
+SELECT COUNT(*)::bigint AS count
+FROM accounts
+WHERE password_hash IS NOT NULL
+`
+
+// Used by the local-mode first-run setup endpoint to detect "owner already
+// exists". An account counts as a local owner if it has a password_hash set
+// (i.e. was created via /v1/auth/local/setup, not via Cognito federation).
+func (q *Queries) CountAccountsWithPassword(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountsWithPassword)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccount = `-- name: CreateAccount :one
 
 INSERT INTO accounts (
