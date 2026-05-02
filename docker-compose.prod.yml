@@ -120,7 +120,10 @@ services:
   # `up -d` so each deploy applies whatever schema landed in main.
   # See migrations/ for files; profile keeps it out of `up`'s default set.
   migrator:
-    image: ghcr.io/pressly/goose:v3.27.0
+    # Goose's official Docker Hub mirror — `ghcr.io/pressly/goose` does not
+    # exist (registry returns "denied"). gomicro/goose is the well-known
+    # community mirror, latest pinned tag is 3.26.0.
+    image: gomicro/goose:3.26.0
     profiles: ["migrate"]
     networks:
       - tidyboard
