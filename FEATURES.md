@@ -69,6 +69,8 @@ covered feature.
 | Countdown event UI | /dashboard | PART | NO | NO | NO | DB column doesn't exist yet; UI-only |
 | CalDAV sync | POST /v1/calendars | PART | PART | NO | NO | |
 | EventCard primitive (TB tokens, agenda chrome reused) | components/calendar/EventCard | OK | n/a | NO | NO | issue #146; full + compact variants, used by agenda |
+| Touch-first event detail sheet | components/calendar/EventDetailSheet | OK | n/a | NO | NO | issue #84; large tap targets, kiosk-readable, opens on event tap |
+| Member filter chips (calendar) | components/calendar/MemberFilterChips | OK | n/a | NO | NO | issue #84; chip-toggle row filters Day/Week/Month/Agenda by member |
 
 ## 5. Recipes
 
@@ -154,6 +156,7 @@ covered feature.
 | Dashboard/Equity TB-token refactor | dashboard-kiosk-ambient, dashboard-phone, equity | OK | n/a | NO | NO | issue #147; inline-style colors/spacing replaced with TB tokens |
 | Widget data contract (`WidgetState<T>`, `useWidgetState`) | lib/widgets | OK | n/a | NO | NO | issue #82 — explicit loading/empty/error/ready states; bans demo-data fallbacks on production routes |
 | Roster hook (`useRoster`) — real household roster | lib/roster | OK | n/a | NO | NO | issue #82 — pulls people + pets, normalized colors/avatars for kiosk widgets |
+| Unified task feed (todos+routines+chores+rewards+approvals) | components/tasks/UnifiedTaskFeed (`unifyTasks`) | OK | n/a | NO | NO | issue #85 — projects each source to a common `UnifiedTask` shape, member chip filter narrows the list; pets excluded from wallet/reward sources |
 | Fixed kiosk pages (Cozyla-style) | /kiosk/today, /kiosk/week, /kiosk/meals, /kiosk/tasks | OK | n/a | NO | NO | issue #83 — Today/Week/Meals/Tasks templated full-screen pages with shared widgets; touch-friendly tab bar; 1920x1080 + responsive |
 | Kiosk widget library (templated) | components/kiosk/widgets/* | OK | n/a | NO | NO | issue #83 — ClockWeatherWidget, NextEventWidget, AgendaListWidget, WeekCalendarWidget, MealStripWidget, ShoppingWidget, ChoreBoardWidget, RewardsWidget — consume `WidgetMember` projection |
 
@@ -196,3 +199,4 @@ covered feature.
 | Ollama provider for local mode (local + remote LAN) | n/a (server startup, AI client) | OK | n/a | NO | NO | issue #78 — `internal/ai` Ollama HTTP client; `cfg.AI.Provider`, `cfg.AI.OllamaHost`, `cfg.AI.OllamaModel`; provider switches to Ollama in local mode and stays disabled by default in cloud mode; reachability check exposed via client |
 | Local docker-compose stack | n/a (deployment) | OK | n/a | NO | NO | issue #77 — `docker-compose.local.yml` overlay with local Postgres + Redis volumes, local file storage, no S3, no Cognito; validated via `make compose-local-validate` |
 | Local kiosk profile validation (1080p touchscreen) | n/a (server startup + /healthz + /v1/auth/local/setup + /kiosk/today) | OK | OK | NO | NO | issue #80 — end-to-end smoke that local-mode boots, exposes deployment-mode in `/healthz`, accepts first-run owner setup, and serves kiosk pages; runs via `make verify-local-kiosk` |
+| Local backup/restore/upgrade | n/a (operator) | OK | PART | NO | NO | issue #79 — `make backup-local` pg_dumps DB + tars media volume into the `tidyboard-backups` volume; `make restore-local FROM=<file>` reverses it; README documents upgrade flow (pull → migrate → up). Unit-tested via `internal/service/backup_local_test.go`; integration runs against the docker-compose stack. |

@@ -185,7 +185,62 @@ Local-mode files in this repo:
 - `docker-compose.local.yml` — the production overlay
 - `Caddyfile.local` — LAN reverse proxy config (kiosk profile)
 - `.env.local.example` — secrets / URL template
-- `Makefile` targets `compose-local-validate`, `compose-local-up`, `compose-local-down`
+- `Makefile` targets `compose-local-validate`, `compose-local-up`, `compose-local-down`,
+  `backup-local`, `backup-local-list`, `restore-local`, `upgrade-local`
+- `deploy/local/backup.sh` + `deploy/local/restore.sh` — wrappers the targets call
+
+#### Backup, restore, and upgrade
+
+Local mode does **not** depend on S3. Backups land in the `tidyboard-backups`
+named volume as a single self-contained tarball that holds the gzipped
+`pg_dump` output and the contents of the `tidyboard-media` volume.
+
+```bash
+# Create a backup bundle (DB + media). Prints the absolute path on stdout.
+make backup-local
+
+# List bundles available in the volume, newest first.
+make backup-local-list
+
+# Restore a bundle. Stops the API + web services, runs psql against the
+# restored SQL, repopulates the media volume, and restarts the stack.
+make restore-local FROM=tidyboard-local-2026-04-30-120000.tar.gz
+```
+
+Restore steps performed by `deploy/local/restore.sh`:
+
+1. Stop `tidyboard`, `web`, `sync-worker`, `recipe-scraper`.
+2. Ensure `postgres` + `redis` are up and healthy.
+3. Run `tidyboard backup restore <bundle>` in a one-off container — pipes the
+   gzipped SQL into `psql -v ON_ERROR_STOP=1` and extracts `media/*` into the
+   media volume.
+4. `docker compose up -d` to bring the API + web back online.
+5. `curl -fsS http://localhost:8080/health` to verify.
+
+> **Restore drill:** practice this on a non-production household at least
+> quarterly. Take a backup, delete the media volume, restore, and confirm the
+> kiosk renders.
+
+Upgrade procedure (handled by `make upgrade-local`):
+
+1. Take a fresh backup (`make backup-local`).
+2. Pull new images (`docker compose pull`) and rebuild local-build services
+   (`docker compose build`).
+3. Run migrations (`make migrate`).
+4. Restart the stack (`docker compose up -d`).
+5. Verify the kiosk URL responds.
+
+If a migration fails, restore the bundle from step 1 with
+`make restore-local FROM=<bundle>`.
+
+Retention: only the cron-style cloud backups follow `backup.retention`. The
+manual local bundles are kept indefinitely — operators are expected to prune
+old ones by hand from the `tidyboard-backups` volume:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
+  exec tidyboard rm /app/data/backups/tidyboard-local-<old-date>.tar.gz
+```
 
 ---
 

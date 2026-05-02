@@ -64,7 +64,10 @@ func main() {
 		logger.Info("migrate command: run `goose -dir migrations postgres $DSN up/down/status`")
 		logger.Info("see migrations/README.md for details")
 	case "backup <action>", "backup <action> <file>":
-		logger.Info("backup command: not yet implemented")
+		if err := runBackupCLI(cfg, logger); err != nil {
+			logger.Error("backup command failed", "err", err)
+			os.Exit(1)
+		}
 	case "maint <action>":
 		logger.Info("maint command: not yet implemented")
 	default:
@@ -644,4 +647,58 @@ func metricsAllowlistHandler(allowedIPs []string, inner http.Handler) http.Handl
 		}
 		inner.ServeHTTP(w, r)
 	})
+}
+
+// runBackupCLI dispatches the `tidyboard backup <action> [file]` subcommand.
+// Used by deploy/local/backup.sh + deploy/local/restore.sh — operators
+// invoke these via `make backup-local` / `make restore-local`. See
+// internal/service/backup_local.go.
+func runBackupCLI(cfg config.Config, logger *slog.Logger) error {
+	action := cfg.BackupCLI.Action
+	file := cfg.BackupCLI.File
+
+	svc := service.NewBackupService(cfg.Backup, cfg.Database, nil)
+	ctx := context.Background()
+
+	switch action {
+	case "create":
+		dest, err := svc.BackupLocal(ctx, service.BackupLocalOptions{MediaPath: cfg.Storage.LocalPath})
+		if err != nil {
+			return err
+		}
+		logger.Info("backup created", "file", dest)
+		// Print on stdout so shell scripts can capture it.
+		fmt.Println(dest)
+		return nil
+	case "list":
+		bundles, err := svc.ListLocalBackups()
+		if err != nil {
+			return err
+		}
+		for _, b := range bundles {
+			fmt.Printf("%s\t%d\t%s\n", b.ModTime.Format(time.RFC3339), b.SizeBytes, b.Filename)
+		}
+		return nil
+	case "restore":
+		if file == "" {
+			return fmt.Errorf("backup restore: a bundle path is required (e.g. backup restore /app/data/backups/<file>.tar.gz)")
+		}
+		// If the caller passed a bare filename, resolve it against LocalPath.
+		if !filepath.IsAbs(file) {
+			candidate := filepath.Join(cfg.Backup.LocalPath, file)
+			if _, err := os.Stat(candidate); err == nil {
+				file = candidate
+			}
+		}
+		if err := svc.RestoreLocal(ctx, service.RestoreLocalOptions{
+			BundlePath: file,
+			MediaPath:  cfg.Storage.LocalPath,
+		}); err != nil {
+			return err
+		}
+		logger.Info("restore completed", "bundle", file)
+		return nil
+	default:
+		return fmt.Errorf("backup: unknown action %q", action)
+	}
 }

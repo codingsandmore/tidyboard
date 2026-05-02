@@ -2,7 +2,8 @@
         loadtest-smoke loadtest-load loadtest-stress loadtest-soak \
         loadtest-spike loadtest-auth loadtest-events loadtest-baseline \
         e2e-real compose-local-validate compose-local-up compose-local-down \
-        verify-local-kiosk help
+        verify-local-kiosk \
+        backup-local backup-local-list restore-local upgrade-local help
 
 # Default goal
 .DEFAULT_GOAL := help
@@ -46,6 +47,43 @@ verify-local-kiosk:
 	TIDYBOARD_DEPLOYMENT_MODE=local \
 	TIDYBOARD_TEST_DSN=$${TIDYBOARD_TEST_DSN:-postgres://tidyboard:$${TIDYBOARD_DB_PASSWORD:-tidyboard_dev_password}@localhost:5432/tidyboard?sslmode=disable} \
 	go test -count=1 -tags=integration ./internal/test/profile/...
+
+# ── Local backup / restore / upgrade (issue #79) ──────────────────────────────
+# These targets only apply to the docker-compose.local.yml stack — they pg_dump
+# the in-stack postgres + tar the `tidyboard-media` volume into a single
+# bundle stored in `tidyboard-backups`. No S3 required.
+
+## backup-local: Create a local-mode backup bundle (DB + media → tidyboard-backups volume)
+backup-local:
+	@deploy/local/backup.sh
+
+## backup-local-list: List local-mode bundles in the tidyboard-backups volume
+backup-local-list:
+	@docker compose -f docker-compose.yml -f docker-compose.local.yml \
+		exec -T tidyboard ./tidyboard backup list
+
+## restore-local: Restore a local bundle. Usage: make restore-local FROM=<filename-or-path>
+restore-local:
+	@if [ -z "$(FROM)" ]; then \
+		echo "Usage: make restore-local FROM=<bundle-filename-or-path>"; \
+		echo "List available bundles: make backup-local-list"; \
+		exit 2; \
+	fi
+	@deploy/local/restore.sh "$(FROM)"
+
+## upgrade-local: Pull/build new images, run migrations, restart stack
+upgrade-local:
+	@echo "==> 1/5 backing up before upgrade…"
+	@deploy/local/backup.sh
+	@echo "==> 2/5 pulling latest images (skipped if all are local builds)…"
+	@docker compose -f docker-compose.yml -f docker-compose.local.yml pull --ignore-pull-failures || true
+	@echo "==> 3/5 rebuilding local-build services…"
+	@docker compose -f docker-compose.yml -f docker-compose.local.yml build
+	@echo "==> 4/5 running migrations…"
+	@$(MAKE) migrate
+	@echo "==> 5/5 restarting stack…"
+	@docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+	@echo "Upgrade complete. Verify: curl -fsS http://localhost:8080/health"
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
