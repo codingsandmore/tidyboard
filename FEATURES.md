@@ -163,6 +163,7 @@ covered feature.
 | Fixed kiosk pages (Cozyla-style) | /kiosk/today, /kiosk/week, /kiosk/meals, /kiosk/tasks | OK | n/a | NO | NO | issue #83 — Today/Week/Meals/Tasks templated full-screen pages with shared widgets; touch-friendly tab bar; 1920x1080 + responsive |
 | Kiosk widget library (templated) | components/kiosk/widgets/* | OK | n/a | NO | NO | issue #83 — ClockWeatherWidget, NextEventWidget, AgendaListWidget, WeekCalendarWidget, MealStripWidget, ShoppingWidget, ChoreBoardWidget, RewardsWidget — consume `WidgetMember` projection |
 | Ambient screensaver + sleep schedule + kiosk lock | components/kiosk/{AmbientScreensaver,SleepSchedule,KioskLock}, lib/use-idle-timeout | OK | n/a | NO | NO | issue #88 — `useIdleTimeout(ms)` hook drives full-screen ambient mode (clock + slow-rotating reminders) after N min idle; `SleepSchedule` shows dimmed overlay during configured quiet hours (e.g. 22:00-06:00); `KioskLock` is a PIN gate to escape kiosk that calls existing `pinLogin` → POST /v1/auth/pin |
+| Companion PWA (mobile management) | /companion, /companion/events, /companion/chores, /companion/shopping, /companion/manifest | OK | n/a | NO | NO | issue #89 — phone-side experience for adults to manage household state remotely; mobile-first `MobileShell` chrome with bottom tab bar; PWA manifest endpoint with companion-flagged shortcuts; read-only list views over events/chores/shopping built on `WidgetMember` roster contract |
 
 ## 12. Errors & Observability
 
