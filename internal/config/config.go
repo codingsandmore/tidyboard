@@ -1,9 +1,38 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // VersionFlag is a Kong flag type that prints the version and exits.
 type VersionFlag string
+
+// DeploymentMode selects between cloud and self-hosted local production
+// deploys. The mode drives which subsystems are required vs forbidden:
+// cloud expects Cognito + S3 + Stripe; local expects on-disk storage and
+// no third-party billing/identity providers.
+//
+// Issue: https://github.com/codingsandmore/tidyboard/issues/75
+type DeploymentMode string
+
+const (
+	// DeploymentModeCloud is the default profile — preserves existing EC2 /
+	// hosted production behaviour (Cognito, S3, Stripe permitted).
+	DeploymentModeCloud DeploymentMode = "cloud"
+
+	// DeploymentModeLocal is the self-hosted profile — rejects cloud-only
+	// settings so operators can't accidentally ship cloud credentials in a
+	// local deploy.
+	DeploymentModeLocal DeploymentMode = "local"
+)
+
+// DeploymentConfig holds top-level deployment-profile settings. The empty
+// string mode is treated as cloud for backwards compatibility.
+type DeploymentConfig struct {
+	Mode string `help:"Deployment profile: 'cloud' (default) or 'local' for self-hosted production" enum:"cloud,local," default:"cloud" env:"TIDYBOARD_DEPLOYMENT_MODE" yaml:"mode"`
+}
 
 // Config is the top-level Kong configuration struct.
 // Fields map to CLI flags, YAML keys, and TIDYBOARD_* env vars.
@@ -17,6 +46,8 @@ type Config struct {
 	// environments handling untrusted traffic — stacks may leak source paths,
 	// dependency versions, and other debugging surface area.
 	DebugErrors bool `help:"Include stack traces in 500 error envelopes when caller sends X-Debug:1 (dev only)" default:"false" env:"TIDYBOARD_DEBUG_ERRORS" yaml:"debug_errors"`
+
+	Deployment DeploymentConfig `embed:"" prefix:"deployment." group:"Deployment:" yaml:"deployment"`
 
 	Server   ServerConfig   `embed:"" prefix:"server." group:"Server:" yaml:"server"`
 	Database DatabaseConfig `embed:"" prefix:"database." group:"Database:" yaml:"database"`
@@ -225,4 +256,83 @@ type BugReportConfig struct {
 	Token string `help:"GitHub PAT used to file bug-report issues" env:"GITHUB_BUG_REPORT_TOKEN" yaml:"token"`
 	Owner string `help:"GitHub repo owner" default:"codingsandmore" yaml:"owner"`
 	Repo  string `help:"GitHub repo name" default:"tidyboard" yaml:"repo"`
+}
+
+// DeploymentModeOrDefault returns the configured deployment mode, defaulting
+// to cloud when the field is empty so legacy configs keep working.
+func (c Config) DeploymentModeOrDefault() DeploymentMode {
+	switch strings.ToLower(strings.TrimSpace(c.Deployment.Mode)) {
+	case "":
+		return DeploymentModeCloud
+	case string(DeploymentModeCloud):
+		return DeploymentModeCloud
+	case string(DeploymentModeLocal):
+		return DeploymentModeLocal
+	default:
+		return DeploymentMode(c.Deployment.Mode)
+	}
+}
+
+// Validate checks the configuration against the selected deployment mode.
+// In local mode it rejects every cloud-only setting (Cognito user pools, S3
+// storage, S3 backup targets, Stripe billing, AWS credential profiles). All
+// problems are reported in a single combined error so operators see every
+// misconfiguration in one pass instead of bisecting fix-and-retry.
+func (c Config) Validate() error {
+	mode := c.DeploymentModeOrDefault()
+	switch mode {
+	case DeploymentModeCloud:
+		return nil
+	case DeploymentModeLocal:
+		return c.validateLocalMode()
+	default:
+		return fmt.Errorf("config: unknown deployment mode %q (expected %q or %q)",
+			c.Deployment.Mode, DeploymentModeCloud, DeploymentModeLocal)
+	}
+}
+
+// validateLocalMode collects every cloud-only setting that's been left in the
+// config and returns them as a single combined error. Returning nil means the
+// config is safe for a self-hosted local deploy.
+func (c Config) validateLocalMode() error {
+	var problems []string
+
+	// Cognito — user pool implies AWS-hosted identity. Local mode must use
+	// the in-process HMAC verifier instead.
+	if c.Auth.Cognito.UserPoolID != "" || c.Auth.Cognito.Region != "" || c.Auth.Cognito.ClientID != "" {
+		problems = append(problems,
+			"auth.cognito is configured but deployment mode is local: clear cognito.* (region, user_pool_id, client_id) and rely on the local HMAC verifier")
+	}
+
+	// Storage — s3 type or any S3 field set is cloud-only.
+	if strings.EqualFold(c.Storage.Type, "s3") {
+		problems = append(problems,
+			"storage.type=s3 is not allowed in local deployment mode: set storage.type=local and storage.local_path")
+	}
+	if c.Storage.S3Bucket != "" || c.Storage.S3Endpoint != "" {
+		problems = append(problems,
+			"storage.s3_* is set but deployment mode is local: remove s3 storage settings")
+	}
+	if c.Storage.AWSProfile != "" {
+		problems = append(problems,
+			"storage.aws_profile is set but deployment mode is local: AWS credentials are not used by local storage")
+	}
+
+	// Backup — S3 backup target is cloud-only.
+	if c.Backup.S3Enabled || c.Backup.S3Bucket != "" || c.Backup.AWSProfile != "" {
+		problems = append(problems,
+			"backup.s3_* is configured but deployment mode is local: disable backup.s3_enabled and rely on backup.local_path")
+	}
+
+	// Stripe — hosted billing is cloud-only.
+	if c.Stripe.Enabled || c.Stripe.SecretKey != "" || c.Stripe.WebhookSecret != "" {
+		problems = append(problems,
+			"stripe billing is enabled but deployment mode is local: set stripe.enabled=false")
+	}
+
+	if len(problems) == 0 {
+		return nil
+	}
+	return fmt.Errorf("config: local deployment mode rejected %d cloud-only setting(s):\n  - %s",
+		len(problems), strings.Join(problems, "\n  - "))
 }
