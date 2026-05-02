@@ -13,6 +13,7 @@ import { H } from "@/components/ui/heading";
 import { DataErrorState, DataLoadingState } from "@/components/ui/data-state";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { EventCard } from "@/components/calendar/EventCard";
+import { MemberFilterChips, filterEventsByMember } from "@/components/calendar/MemberFilterChips";
 import { useEvents, useMembers, useCreateEvent, useUpdateEvent, useDeleteEvent } from "@/lib/api/hooks";
 import { useTranslations } from "next-intl";
 
@@ -914,6 +915,7 @@ export function CalAgenda({
   const end = endDate.toISOString().slice(0, 10);
 
   const [query, setQuery] = useState("");
+  const [memberFilter, setMemberFilter] = useState<string | null>(null);
   const {
     data: apiEvents,
     error: eventsError,
@@ -928,7 +930,7 @@ export function CalAgenda({
   } = useMembers();
   const membersById = memberLookup(apiMembers ?? []);
 
-  const todayEvents: TBDEvent[] = apiEvents ?? [];
+  const todayEvents: TBDEvent[] = filterEventsByMember(apiEvents ?? [], memberFilter);
   const eventsByDate = new Map<string, TBDEvent[]>();
   for (const event of todayEvents) {
     const startValue = event.start_time ?? (event.start?.includes("T") ? event.start : null);
@@ -1021,6 +1023,20 @@ export function CalAgenda({
           icon="search"
         />
       </div>
+      {(apiMembers ?? []).length > 0 && (
+        <div
+          style={{
+            background: TB.surface,
+            borderBottom: `1px solid ${TB.borderSoft}`,
+          }}
+        >
+          <MemberFilterChips
+            members={apiMembers ?? []}
+            selected={memberFilter}
+            onChange={setMemberFilter}
+          />
+        </div>
+      )}
       <div style={{ flex: 1, overflow: "auto", padding: "16px 20px" }}>
         {groups.length === 0 && (
           <div style={{ fontSize: 13, color: TB.text2, padding: "8px 0" }}>
