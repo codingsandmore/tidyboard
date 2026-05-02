@@ -62,15 +62,25 @@ Lists track household work such as errands, packing, chores, reminders, and shar
 
 Recipes and meal planning help the family decide what to cook and what ingredients are needed. Recipe collections, cooking mode, and meal schedules should use the household's saved data.
 
+The meal plan supports four meal categories per day: breakfast, lunch, dinner, and snack. Each cell on the weekly grid is labelled with its meal category so the family can scan a row at a time.
+
 ## Shopping And Pantry
 
 Shopping lists are generated deterministically from the selected week's meal plan. The base generation path does not require AI or provider keys.
 
 Generation follows these steps: read the selected week's meal plan, collect ingredients from planned recipes, compare against pantry staples and already-completed matching shopping items, then create or update the active shopping list with grouped quantities, units, aisles, and source recipe labels.
 
+The shopping list view supports three grouping modes that change how the same items are arranged on screen, but never change generation:
+
+- By aisle (default) — items grouped by produce, dairy, meat, pantry, etc., to follow a normal store layout.
+- By recipe — items grouped under each recipe that contributed them. Items shared by two recipes appear under each one. Pantry staples land in their own bucket.
+- No grouping — a single flat list in walking order for kitchens or stores where aisle names do not match.
+
+Switching the grouping mode is an instant local view change and does not regenerate the list.
+
 If required data is missing, Tidyboard explains what needs to be added instead of pretending a list was generated. Add recipes to the meal plan first, and make sure planned recipes include ingredient data. The generate button must not silently fail.
 
-Pantry data belongs to the household. It should reflect real stored items, quantities, and needs.
+Pantry data belongs to the household. It should reflect real stored items, quantities, and needs. When pantry staples include quantity or expiration data, the shopping view shows pantry cues at the top of the list — for example, "Low on milk", "Yogurt expires in 2 days", or "Berries expired 1 day ago". Cues only render when the underlying data signals them, so the banner stays out of the way otherwise.
 
 ## Helper Inbox
 

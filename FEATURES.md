@@ -94,6 +94,7 @@ covered feature.
 | List meal-plan range | GET /v1/meal-plan | OK | OK | NO | NO | |
 | Delete meal-plan entry | DELETE /v1/meal-plan/:id | PART | OK | NO | NO | |
 | Serving multiplier | POST /v1/meal-plan (serving_multiplier) | OK | OK | NO | NO | regression class #113 |
+| Meal categories (breakfast/lunch/dinner/snack) | POST /v1/meal-plan (slot) | OK | OK | NO | NO | issue #86 — backend already enforces slot enum; web row labels render category for kid+admin views |
 
 ## 7. Shopping & Pantry
 
@@ -104,6 +105,8 @@ covered feature.
 | Insert item | POST /v1/shopping/lists/:id/items | OK | OK | NO | NO | |
 | Toggle item completed | PATCH /v1/shopping/items/:id | OK | OK | NO | NO | |
 | Pantry staples (auto-append) | GET /v1/pantry, POST /v1/pantry | OK | OK | NO | NO | |
+| Grocery list grouping (aisle / recipe / manual) | components/shopping/CategoryGroup | OK | n/a | NO | NO | issue #86 — Cozyla-informed regrouping; deterministic, no AI; default = aisle (server-shaped categories) |
+| Pantry low-stock + expiration cues | components/shopping/PantryCues | OK | n/a | NO | NO | issue #86 — visible on kid + admin shopping views; renders only when staple data signals low stock or upcoming expiration |
 
 ## 8. Chores & Wallet
 
