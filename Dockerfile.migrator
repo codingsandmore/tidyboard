@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+# Goose migrator — builds the goose binary natively for the host architecture
+# and ships it in a tiny alpine runtime. Used by docker-compose.prod.yml's
+# `migrator` profile (invoked from .github/workflows/deploy-ec2.yml after
+# `up -d`).
+#
+# Why our own Dockerfile instead of a public image:
+#   - ghcr.io/pressly/goose: does not exist (denied)
+#   - gomicro/goose:        amd64-only; EC2 (t4g.small) is arm64. Also has
+#                           an entrypoint shim that does not accept `-dir`
+#                           as the first arg, so `command: ["-dir", ...]`
+#                           in the compose file fails with "executable file
+#                           not found in $PATH".
+#
+# Multi-arch via the `go build` step in `golang:1.25-alpine`. Same builder
+# the tidyboard image uses, so layer cache is hot during deploy.
+
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git ca-certificates
+RUN CGO_ENABLED=0 GOOS=linux \
+    go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /go/bin/goose /usr/local/bin/goose
+ENTRYPOINT ["goose"]

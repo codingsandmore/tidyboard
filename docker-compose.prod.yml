@@ -120,10 +120,16 @@ services:
   # `up -d` so each deploy applies whatever schema landed in main.
   # See migrations/ for files; profile keeps it out of `up`'s default set.
   migrator:
-    # Goose's official Docker Hub mirror — `ghcr.io/pressly/goose` does not
-    # exist (registry returns "denied"). gomicro/goose is the well-known
-    # community mirror, latest pinned tag is 3.26.0.
-    image: gomicro/goose:3.26.0
+    # Custom Dockerfile.migrator — built from the same `golang:1.25-alpine`
+    # base the tidyboard image uses. Native arch (amd64 in CI / arm64 on
+    # the EC2 t4g.small). Public goose images failed for two distinct
+    # reasons: ghcr.io/pressly/goose does not exist; gomicro/goose is
+    # amd64-only and has a shim entrypoint that rejects `-dir` as the
+    # first arg. See Dockerfile.migrator for details.
+    build:
+      context: .
+      dockerfile: Dockerfile.migrator
+    image: tidyboard-migrator:local
     profiles: ["migrate"]
     networks:
       - tidyboard
