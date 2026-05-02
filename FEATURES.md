@@ -69,6 +69,8 @@ covered feature.
 | Countdown event UI | /dashboard | PART | NO | NO | NO | DB column doesn't exist yet; UI-only |
 | CalDAV sync | POST /v1/calendars | PART | PART | NO | NO | |
 | EventCard primitive (TB tokens, agenda chrome reused) | components/calendar/EventCard | OK | n/a | NO | NO | issue #146; full + compact variants, used by agenda |
+| Touch-first event detail sheet | components/calendar/EventDetailSheet | OK | n/a | NO | NO | issue #84; large tap targets, kiosk-readable, opens on event tap |
+| Member filter chips (calendar) | components/calendar/MemberFilterChips | OK | n/a | NO | NO | issue #84; chip-toggle row filters Day/Week/Month/Agenda by member |
 
 ## 5. Recipes
 
