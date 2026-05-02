@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	robfigcron "github.com/robfig/cron/v3"
+	"github.com/tidyboard/tidyboard/internal/ai"
 	"github.com/tidyboard/tidyboard/internal/auth"
 	"github.com/tidyboard/tidyboard/internal/broadcast"
 	"github.com/tidyboard/tidyboard/internal/client"
@@ -204,7 +205,12 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 	memberHandler := handler.NewMemberHandler(memberSvc).WithAudit(auditSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 	listHandler := handler.NewListHandler(listSvc)
-	recipeHandler := handler.NewRecipeHandler(recipeSvc)
+	// Issue #87: review-based smart import. Wires the existing scraper +
+	// AI provider into a Normalizer so /v1/recipes/smart-import can return
+	// {draft, normalized?} for the review screen. AI is optional —
+	// disabled provider passes the draft through unchanged.
+	smartImportNormalizer := service.NewNormalizer(recipeClient, ai.ProviderFor(cfg))
+	recipeHandler := handler.NewRecipeHandler(recipeSvc).WithNormalizer(smartImportNormalizer)
 	recipeCollectionHandler := handler.NewRecipeCollectionHandler(recipeCollectionSvc)
 	mealPlanHandler := handler.NewMealPlanHandler(mealPlanSvc)
 	shoppingHandler := handler.NewShoppingHandler(shoppingSvc)
@@ -406,6 +412,7 @@ func runServer(cfg config.Config, logger *slog.Logger) error {
 		r.Get("/v1/recipes", recipeHandler.List)
 		r.Post("/v1/recipes", recipeHandler.Create)
 		r.Post("/v1/recipes/import", recipeHandler.Import)
+		r.Post("/v1/recipes/smart-import", recipeHandler.SmartImport) // issue #87
 		r.Post("/v1/recipes/import-jobs", recipeHandler.StartImportJob)
 		r.Get("/v1/recipes/import-jobs/{id}", recipeHandler.GetImportJob)
 		r.Get("/v1/recipes/{id}", recipeHandler.Get)
